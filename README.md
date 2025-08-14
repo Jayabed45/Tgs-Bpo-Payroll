@@ -29,7 +29,13 @@ tgs-bpo-payroll/
 │   ├── app/
 │   │   ├── page.tsx             # Login page with admin creation
 │   │   ├── admin/
-│   │   │   └── page.tsx         # Admin dashboard
+│   │   │   ├── page.tsx         # Admin dashboard
+│   │   │   ├── employees/
+│   │   │   │   └── page.tsx     # Employee management page
+│   │   │   └── payroll/
+│   │   │       └── page.tsx     # Payroll processing page
+│   │   ├── components/
+│   │   │   └── Sidebar.tsx      # Reusable sidebar component
 │   │   ├── layout.tsx           # Root layout
 │   │   ├── globals.css          # Global styles
 │   │   └── favicon.ico          # Site icon
@@ -170,6 +176,32 @@ Frontend will run on: http://localhost:3000
   - Logout functionality
   - Basic dashboard stats (Employees, Payroll, Reports)
   - Clean, simple design
+  - **Uses the Sidebar component** for navigation
+
+#### `src/app/components/Sidebar.tsx`
+- **Purpose**: Reusable sidebar navigation component
+- **Features**:
+  - Logo and header branding
+  - Navigation menu with active state management
+  - Tab switching (Dashboard, Employee Management, Payroll Processing, Reports & Payslips, Settings)
+  - User info display and logout functionality
+  - Responsive design with hover effects
+  - **Reusable across admin pages**
+
+#### `src/app/admin/employees/page.tsx`
+- **Purpose**: Employee management interface
+- **Features**:
+  - Employee list and management
+  - Add new employee functionality
+  - Employee data forms and validation
+  - Simple header with back navigation
+
+#### `src/app/admin/payroll/page.tsx`
+- **Purpose**: Payroll processing interface
+- **Features**:
+  - Payroll calculation forms
+  - Salary and deduction management
+  - Simple header with back navigation
 
 #### `src/app/layout.tsx`
 - **Purpose**: Root layout wrapper
@@ -219,6 +251,22 @@ Frontend will run on: http://localhost:3000
 - **Form Validation**: Real-time feedback
 - **Success/Error Messages**: Clear user feedback
 - **Password Toggle**: Show/hide password functionality
+- **Component-Based Architecture**: Modular, reusable components
+- **Consistent Navigation**: Unified sidebar across admin interface
+
+## 🧩 Component Architecture
+
+### Modular Design
+- **Sidebar Component**: Centralized navigation management
+- **Reusable Interface**: Consistent UI across admin pages
+- **Props-Based Communication**: Clean data flow between components
+- **Separation of Concerns**: Navigation logic separated from page content
+
+### Component Benefits
+- **Maintainability**: Changes to sidebar only need to be made in one place
+- **Consistency**: Uniform navigation experience across all admin pages
+- **Scalability**: Easy to add new admin pages with the same navigation
+- **Code Reusability**: Sidebar can be imported and used in other admin sections
 
 ## 📱 Responsive Design
 
@@ -298,6 +346,12 @@ For issues or questions:
 4. Check console logs for errors
 
 ## 🔄 Version History
+
+- **v1.1.0**: Component Architecture Improvements
+  - Separated sidebar into reusable component
+  - Improved code organization and maintainability
+  - Enhanced component reusability across admin pages
+  - Better separation of concerns
 
 - **v1.0.0**: Initial release with authentication and admin dashboard
 - Separate frontend/backend architecture
