@@ -361,4 +361,3 @@ For issues or questions:
 
 ---Developed by BSIT-4D 
 
-**Built with ❤️ for TGS BPO Payroll System**
