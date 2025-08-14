@@ -359,6 +359,6 @@ For issues or questions:
 - JWT authentication
 - Responsive design
 
----
+---Developed by BSIT-4D 
 
 **Built with ❤️ for TGS BPO Payroll System**
