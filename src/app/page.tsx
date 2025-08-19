@@ -53,8 +53,9 @@ export default function Home() {
           setPassword("");
           setName("");
         } else {
-          // Store user data in localStorage or session
+          // Store user data and token in localStorage
           localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('token', data.token);
           // Redirect to admin page
           router.push('/admin');
         }
