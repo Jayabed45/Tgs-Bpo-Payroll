@@ -86,7 +86,7 @@ export default function Home() {
       <div className="max-w-sm w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            TGS BPO PAYROLL SYSTEM
+            TGS
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             {isCreatingAdmin ? 'Create admin account' : 'Enter your credentials to access your account'}
@@ -112,7 +112,7 @@ export default function Home() {
                 />
               </div>
             )}
-            <div>
+            <div className="my-3">
               <label htmlFor="email-address" className="sr-only">
                 Email address
               </label>
@@ -124,11 +124,11 @@ export default function Home() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm ${isCreatingAdmin ? '' : 'rounded-t-md'}`}
+                className={`appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm ${isCreatingAdmin ? '' : 'rounded-t-md'}`}
                 placeholder="Email address"
               />
             </div>
-            <div className="relative">
+            <div className="relative my-3">
               <label htmlFor="password" className="sr-only">
                 Password
               </label>
@@ -140,7 +140,7 @@ export default function Home() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-3 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
               />
               <button

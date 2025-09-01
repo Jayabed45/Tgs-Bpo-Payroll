@@ -60,6 +60,6 @@ app.use('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 TGS Payroll Backend running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`TGS Payroll Backend running on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/api/health`);
 }); 
