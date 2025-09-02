@@ -93,6 +93,12 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
   };
 
   const calculatePayroll = async () => {
+    // Prevent recalculation when editing to preserve original values
+    if (editingPayroll) {
+      alert('Recalculation is disabled during edit mode to preserve the original payroll values. If you need to recalculate, please save your changes first and create a new payroll entry.');
+      return;
+    }
+    
     // Validate required fields
     if (!formData.employeeId || !formData.basicSalary || !formData.cutoffStart || !formData.cutoffEnd) {
       alert('Please fill in all required fields: Employee, Basic Salary, Cutoff Start, and Cutoff End dates');
@@ -116,6 +122,9 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
   };
 
   const calculatePayrollLocally = () => {
+    // Helper function to round to 2 decimal places (cents)
+    const roundToCents = (value: number) => Math.round(value * 100) / 100;
+    
     const basicSalary = parseFloat(formData.basicSalary) || 0;
     const holidayPay = parseFloat(formData.holidayPay) || 0;
     const nightDifferential = parseFloat(formData.nightDifferential) || 0;
@@ -128,9 +137,33 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
     const pagibigContribution = parseFloat(formData.pagibigContribution) || 0;
     const withholdingTax = parseFloat(formData.withholdingTax) || 0;
 
-    const grossPay = basicSalary + holidayPay + nightDifferential + salaryAdjustment - absences - lateDeductions;
-    const totalDeductions = sssContribution + philhealthContribution + pagibigContribution + withholdingTax;
-    const netPay = Math.max(0, grossPay - totalDeductions);
+    // Calculate with proper rounding at each step
+    const grossPay = roundToCents(
+      roundToCents(basicSalary) + 
+      roundToCents(holidayPay) + 
+      roundToCents(nightDifferential) + 
+      roundToCents(salaryAdjustment) - 
+      roundToCents(absences) - 
+      roundToCents(lateDeductions)
+    );
+    
+    const totalDeductions = roundToCents(
+      roundToCents(sssContribution) + 
+      roundToCents(philhealthContribution) + 
+      roundToCents(pagibigContribution) + 
+      roundToCents(withholdingTax)
+    );
+    
+    const netPay = roundToCents(Math.max(0, grossPay - totalDeductions));
+
+    // Debug logging to help identify the issue
+    console.log('Local Calculation Debug:', {
+      basicSalary, holidayPay, nightDifferential, salaryAdjustment, absences, lateDeductions,
+      sssContribution, philhealthContribution, pagibigContribution, withholdingTax,
+      calculatedGrossPay: grossPay,
+      calculatedTotalDeductions: totalDeductions,
+      calculatedNetPay: netPay
+    });
 
     return {
       grossPay: Math.max(0, grossPay),
@@ -338,38 +371,68 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
         <div>
           <h3 className="text-lg font-medium text-gray-900">Payroll Processing</h3>
           <p className="text-sm text-gray-500">Calculate and process employee payroll</p>
+      </div>
+
+      {/* Add/Edit Form Sliding Panel */}
+      <div className={`fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 ${
+        showPayrollForm ? 'translate-x-0' : 'translate-x-full'
+      }`}>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900">
+                  {editingPayroll ? 'Edit Payroll' : 'Process New Payroll'}
+                </h4>
+                <p className="text-sm text-gray-600">Calculate and process employee payroll</p>
+              </div>
         </div>
         <button 
           onClick={() => {
+                setShowPayrollForm(false);
             resetForm();
-            setShowPayrollForm(true);
           }}
-          className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+              className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
         >
-          Process New Payroll
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
         </button>
       </div>
 
-      {/* Payroll Form */}
-      {showPayrollForm && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">
-            {editingPayroll ? 'Edit Payroll' : 'Process New Payroll'}
-          </h4>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Form Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Employee and Cutoff Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Employee & Cutoff Period</h5>
+                </div>
+                
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Employee</label>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Employee
+                    </label>
                                  <select
                    name="employeeId"
                    value={formData.employeeId}
                    onChange={handleInputChange}
                    required
-                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
                  >
                   <option value="">Select Employee</option>
                   {employees.map(emp => (
@@ -377,30 +440,57 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Cutoff Start Date</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Cutoff Start Date
+                    </label>
                                  <input
                    type="date"
                    name="cutoffStart"
                    value={formData.cutoffStart}
                    onChange={handleInputChange}
                    required
-                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
                  />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Cutoff End Date</label>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Cutoff End Date
+                    </label>
                 <input
                   type="date"
                   name="cutoffEnd"
                   value={formData.cutoffEnd}
                   onChange={handleInputChange}
                   required
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Basic Salary</label>
+                </div>
+              </div>
+
+              {/* Salary and Hours Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-1 h-6 bg-green-500 rounded-full"></div>
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Salary & Hours</h5>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                      </svg>
+                      Basic Salary
+                    </label>
                 <input
                   type="number"
                   name="basicSalary"
@@ -409,11 +499,18 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   required
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Worked Hours</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Worked Hours
+                    </label>
                 <input
                   type="number"
                   name="workedHours"
@@ -421,11 +518,18 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.5"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Hours"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Overtime Hours</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Overtime Hours
+                    </label>
                 <input
                   type="number"
                   name="overtimeHours"
@@ -433,11 +537,18 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.5"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Hours"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Holiday Pay</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Holiday Pay
+                    </label>
                 <input
                   type="number"
                   name="holidayPay"
@@ -445,11 +556,18 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Night Differential</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      </svg>
+                      Night Differential
+                    </label>
                 <input
                   type="number"
                   name="nightDifferential"
@@ -457,22 +575,46 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Salary Adjustment</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                      Salary Adjustment
+                    </label>
                 <input
                   type="number"
                   name="salaryAdjustment"
                   value={formData.salaryAdjustment}
                   onChange={handleInputChange}
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Absences (Deduction)</label>
+                </div>
+              </div>
+
+              {/* Deductions Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-1 h-6 bg-red-500 rounded-full"></div>
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Deductions</h5>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Absences (Deduction)
+                    </label>
                 <input
                   type="number"
                   name="absences"
@@ -480,11 +622,18 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Late Deductions</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Late Deductions
+                    </label>
                 <input
                   type="number"
                   name="lateDeductions"
@@ -492,11 +641,28 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">SSS Contribution</label>
+                </div>
+              </div>
+
+              {/* Government Contributions Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-1 h-6 bg-purple-500 rounded-full"></div>
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Government Contributions</h5>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      SSS Contribution
+                    </label>
                 <input
                   type="number"
                   name="sssContribution"
@@ -504,11 +670,18 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">PhilHealth Contribution</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      PhilHealth Contribution
+                    </label>
                 <input
                   type="number"
                   name="philhealthContribution"
@@ -516,11 +689,18 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Pag-IBIG Contribution</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Pag-IBIG Contribution
+                    </label>
                 <input
                   type="number"
                   name="pagibigContribution"
@@ -528,11 +708,18 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Withholding Tax</label>
+                  
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Withholding Tax
+                    </label>
                 <input
                   type="number"
                   name="withholdingTax"
@@ -540,44 +727,46 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                   onChange={handleInputChange}
                   min="0"
                   step="0.01"
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-black bg-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
                 />
+                  </div>
               </div>
             </div>
 
             {/* Calculate Button */}
-            <div className="flex justify-center">
+              <div className="flex justify-center pt-4">
               <button
                 type="button"
                 onClick={calculatePayroll}
                 disabled={calculating}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
               >
                 {calculating ? 'Calculating...' : 'Calculate Payroll'}
               </button>
             </div>
 
             {/* Calculated Results */}
-            {calculatedValues.grossPay > 0 && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h5 className="font-medium text-gray-900 mb-3">Calculated Results</h5>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {(calculatedValues.grossPay > 0 || calculatedValues.totalDeductions > 0 || calculatedValues.netPay > 0) && (
+                <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                  <h5 className="font-medium text-gray-900 mb-4 text-center">Calculated Results</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">₱{(calculatedValues.grossPay || 0).toLocaleString()}</div>
+                      <div className="text-3xl font-bold text-green-600">₱{Number(calculatedValues.grossPay || 0).toLocaleString()}</div>
                     <div className="text-sm text-gray-500">Gross Pay</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">₱{(calculatedValues.totalDeductions || 0).toLocaleString()}</div>
+                      <div className="text-3xl font-bold text-red-600">₱{Number(calculatedValues.totalDeductions || 0).toLocaleString()}</div>
                     <div className="text-sm text-gray-500">Total Deductions</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">₱{(calculatedValues.netPay || 0).toLocaleString()}</div>
+                      <div className="text-3xl font-bold text-blue-600">₱{Number(calculatedValues.netPay || 0).toLocaleString()}</div>
                     <div className="text-sm text-gray-500">Net Pay</div>
                   </div>
                 </div>
                 
                 {/* Status Information */}
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="text-sm text-blue-800">
                     <strong>Next Steps:</strong>
                     <ul className="mt-2 space-y-1">
@@ -588,37 +777,145 @@ export default function PayrollProcessing({ onPayrollStatusChange }: PayrollProc
                 </div>
               </div>
             )}
+            </form>
+          </div>
 
+          {/* Footer with buttons */}
+          <div className="p-6 border-t border-gray-200 bg-white">
             <div className="flex justify-end space-x-3">
+              {/* Cancel button */}
               <button
                 type="button"
                 onClick={() => {
                   setShowPayrollForm(false);
                   resetForm();
                 }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium"
               >
                 Cancel
               </button>
+
+              {/* Save as Draft button */}
               <button
                 type="submit"
+                onClick={handleSubmit}
                 disabled={formLoading}
-                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all font-medium shadow-sm"
               >
-                {formLoading ? 'Saving...' : (editingPayroll ? 'Save Changes' : 'Save as Draft')}
+                {formLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <svg
+                      className="animate-spin h-4 w-4 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 
+                          5.291A7.962 7.962 0 014 12H0c0 3.042 
+                          1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <span>Saving...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l3 3m0 0l-3 3m3-3H9"
+                      />
+                    </svg>
+                    <span>{editingPayroll ? "Save Changes" : "Save as Draft"}</span>
+                  </div>
+                )}
               </button>
+
+              {/* Process Payroll button */}
               <button
                 type="button"
                 onClick={processPayroll}
                 disabled={processing || !calculatedValues.grossPay}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-all font-medium shadow-sm"
               >
-                {processing ? 'Processing...' : (editingPayroll ? 'Update & Process' : 'Process Payroll')}
-              </button>
+                {processing ? (
+                  <div className="flex items-center space-x-2">
+                    <svg
+                      className="animate-spin h-4 w-4 text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 
+                          5.291A7.962 7.962 0 014 12H0c0 3.042 
+                          1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <span>Processing...</span>
             </div>
-          </form>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>{editingPayroll ? "Update & Process" : "Process Payroll"}</span>
         </div>
       )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Floating Add Payroll Button */}
+      <button
+        onClick={() => {
+          resetForm();
+          setShowPayrollForm(true);
+        }}
+        className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 z-40"
+        title="Process New Payroll"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
 
       {/* Payroll List */}
       {payrolls.length === 0 ? (
