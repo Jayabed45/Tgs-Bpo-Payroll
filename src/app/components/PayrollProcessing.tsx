@@ -143,12 +143,12 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       roundToCents(basicSalary) + 
       roundToCents(holidayPay) + 
       roundToCents(nightDifferential) + 
-      roundToCents(salaryAdjustment) - 
-      roundToCents(absences) - 
-      roundToCents(lateDeductions)
+      roundToCents(salaryAdjustment)
     );
     
     const totalDeductions = roundToCents(
+      roundToCents(absences) + 
+      roundToCents(lateDeductions) + 
       roundToCents(sssContribution) + 
       roundToCents(philhealthContribution) + 
       roundToCents(pagibigContribution) + 
@@ -163,7 +163,11 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       sssContribution, philhealthContribution, pagibigContribution, withholdingTax,
       calculatedGrossPay: grossPay,
       calculatedTotalDeductions: totalDeductions,
-      calculatedNetPay: netPay
+      calculatedNetPay: netPay,
+      breakdown: {
+        grossPayComponents: { basicSalary, holidayPay, nightDifferential, salaryAdjustment },
+        deductionComponents: { absences, lateDeductions, sssContribution, philhealthContribution, pagibigContribution, withholdingTax }
+      }
     });
 
     return {
@@ -766,10 +770,38 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                 <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
                   <h5 className="font-medium text-gray-900 mb-4 text-center flex items-center justify-center">
                     <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     Preview Results
                   </h5>
+                  
+                  {/* Calculation Breakdown */}
+                  <div className="mb-6 p-4 bg-white rounded-lg border border-gray-200">
+                    <h6 className="font-medium text-gray-700 mb-3 text-center">Calculation Breakdown</h6>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <div className="font-medium text-green-700 mb-2">Gross Pay Components:</div>
+                        <div className="space-y-1 text-gray-600">
+                          <div>Basic Salary: ₱{Number(parseFloat(formData.basicSalary) || 0).toLocaleString()}</div>
+                          <div>Holiday Pay: ₱{Number(parseFloat(formData.holidayPay) || 0).toLocaleString()}</div>
+                          <div>Night Differential: ₱{Number(parseFloat(formData.nightDifferential) || 0).toLocaleString()}</div>
+                          <div>Salary Adjustment: ₱{Number(parseFloat(formData.salaryAdjustment) || 0).toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-medium text-red-700 mb-2">Total Deductions Include:</div>
+                        <div className="space-y-1 text-gray-600">
+                          <div>Absences: ₱{Number(parseFloat(formData.absences) || 0).toLocaleString()}</div>
+                          <div>Late Deductions: ₱{Number(parseFloat(formData.lateDeductions) || 0).toLocaleString()}</div>
+                          <div>SSS: ₱{Number(parseFloat(formData.sssContribution) || 0).toLocaleString()}</div>
+                          <div>PhilHealth: ₱{Number(parseFloat(formData.philhealthContribution) || 0).toLocaleString()}</div>
+                          <div>Pag-IBIG: ₱{Number(parseFloat(formData.pagibigContribution) || 0).toLocaleString()}</div>
+                          <div>Withholding Tax: ₱{Number(parseFloat(formData.withholdingTax) || 0).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
                       <div className="text-3xl font-bold text-green-600">₱{Number(calculatedValues.grossPay || 0).toLocaleString()}</div>
