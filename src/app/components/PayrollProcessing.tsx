@@ -174,8 +174,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   };
 
   const processPayroll = async () => {
-    if (!calculatedValues.grossPay || calculatedValues.grossPay === 0) {
-      alert('Please calculate payroll first before processing');
+    // Validate required fields
+    if (!formData.employeeId || !formData.basicSalary || !formData.cutoffStart || !formData.cutoffEnd) {
+      alert('Please fill in all required fields: Employee, Basic Salary, Cutoff Start, and Cutoff End dates');
       return;
     }
 
@@ -186,6 +187,20 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
     setProcessing(true);
     try {
+      // Automatically calculate payroll if not already calculated
+      let finalCalculations = calculatedValues;
+      if (!calculatedValues.grossPay || calculatedValues.grossPay === 0) {
+        try {
+          // Try backend calculation first
+          const response = await apiService.calculatePayroll(formData);
+          finalCalculations = response.calculations;
+        } catch (error) {
+          console.error('Backend calculation failed, using local calculation:', error);
+          // Fallback to local calculation
+          finalCalculations = calculatePayrollLocally();
+        }
+      }
+
       // Update the payroll status to "processed"
       const payrollData = {
         ...formData,
@@ -201,9 +216,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         philhealthContribution: parseFloat(formData.philhealthContribution) || 0,
         pagibigContribution: parseFloat(formData.pagibigContribution) || 0,
         withholdingTax: parseFloat(formData.withholdingTax) || 0,
-        grossPay: calculatedValues.grossPay,
-        totalDeductions: calculatedValues.totalDeductions,
-        netPay: calculatedValues.netPay,
+        grossPay: finalCalculations.grossPay,
+        totalDeductions: finalCalculations.totalDeductions,
+        netPay: finalCalculations.netPay,
         status: 'processed' // Set status to processed
       };
 
@@ -372,10 +387,6 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
   return (
     <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Payroll Processing</h3>
-          <p className="text-sm text-gray-500">Calculate and process employee payroll</p>
-      </div>
 
       {/* Add/Edit Form Sliding Panel */}
       <div className={`fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 ${
@@ -392,9 +403,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
               </div>
               <div>
                 <h4 className="text-lg font-semibold text-gray-900">
-                  {editingPayroll ? 'Edit Payroll' : 'Process New Payroll'}
+                  {editingPayroll ? 'Edit Payroll' : 'Create New Payroll'}
                 </h4>
-                <p className="text-sm text-gray-600">Calculate and process employee payroll</p>
+                <p className="text-sm text-gray-600">Auto-calculate and process employee payroll</p>
               </div>
         </div>
         <button 
@@ -412,6 +423,19 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
           {/* Form Content */}
           <div className="flex-1 overflow-y-auto p-6">
+            {/* Workflow Information */}
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center space-x-2 mb-2">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h5 className="text-sm font-semibold text-green-800">Automatic Workflow</h5>
+              </div>
+              <p className="text-sm text-green-700">
+                <strong>Process Payroll</strong> will automatically calculate all values and create the payroll record.
+              </p>
+            </div>
+            
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Employee and Cutoff Section */}
               <div className="space-y-4">
@@ -735,22 +759,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
               </div>
             </div>
 
-            {/* Calculate Button */}
-              <div className="flex justify-center pt-4">
-              <button
-                type="button"
-                onClick={calculatePayroll}
-                disabled={calculating}
-                  className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
-              >
-                {calculating ? 'Calculating...' : 'Calculate Payroll'}
-              </button>
-            </div>
+
 
             {/* Calculated Results */}
             {(calculatedValues.grossPay > 0 || calculatedValues.totalDeductions > 0 || calculatedValues.netPay > 0) && (
                 <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                  <h5 className="font-medium text-gray-900 mb-4 text-center">Calculated Results</h5>
+                  <h5 className="font-medium text-gray-900 mb-4 text-center flex items-center justify-center">
+                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Preview Results
+                  </h5>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
                       <div className="text-3xl font-bold text-green-600">₱{Number(calculatedValues.grossPay || 0).toLocaleString()}</div>
@@ -769,10 +788,10 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                 {/* Status Information */}
                   <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="text-sm text-blue-800">
-                    <strong>Next Steps:</strong>
+                    <strong>Workflow:</strong>
                     <ul className="mt-2 space-y-1">
                       <li>• <strong>Save as Draft:</strong> Creates payroll with "Pending" status</li>
-                      <li>• <strong>Process Payroll:</strong> Creates payroll with "Processed" status</li>
+                      <li>• <strong>Process Payroll:</strong> Automatically calculates and creates payroll with "Processed" status</li>
                     </ul>
                   </div>
                 </div>
@@ -852,7 +871,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
               <button
                 type="button"
                 onClick={processPayroll}
-                disabled={processing || !calculatedValues.grossPay}
+                disabled={processing}
                 className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-all font-medium shadow-sm"
               >
                 {processing ? (
@@ -895,7 +914,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                       />
                     </svg>
-                    <span>{editingPayroll ? "Update & Process" : "Process Payroll"}</span>
+                    <span>{editingPayroll ? "Update & Process" : "Process & Calculate"}</span>
         </div>
       )}
               </button>
@@ -911,7 +930,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           setShowPayrollForm(true);
         }}
         className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 z-40"
-        title="Process New Payroll"
+        title="Create New Payroll (Auto-Calculate)"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -949,9 +968,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Net Pay
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
+
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
@@ -978,43 +995,23 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                      </td>
                                          <td className="px-6 py-4 whitespace-nowrap text-sm text-black">₱{(payroll.grossPay || 0).toLocaleString()}</td>
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-black">₱{(payroll.netPay || 0).toLocaleString()}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        payroll.status === 'completed' 
-                          ? 'bg-green-100 text-green-800'
-                          : payroll.status === 'processed'
-                          ? 'bg-blue-100 text-blue-800'
-                          : payroll.status === 'deleted'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {payroll.status === 'deleted' ? 'Deleted' : 
-                         (payroll.status || 'pending').charAt(0).toUpperCase() + (payroll.status || 'pending').slice(1)}
-                      </span>
-                    </td>
+
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {payroll.status !== 'deleted' && (
-                        <>
-                          <button
-                            onClick={() => handleEdit(payroll)}
-                            className="text-indigo-600 hover:text-indigo-900 mr-3"
-                            title={payroll.status === 'completed' ? 'Completed payrolls cannot be edited' : 'Edit payroll'}
-                            disabled={payroll.status === 'completed'}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(payroll.id)}
-                            className="text-red-600 hover:text-red-900"
-                            title="Delete payroll"
-                          >
-                            Delete
-                          </button>
-                        </>
-                      )}
-                      {payroll.status === 'deleted' && (
-                        <span className="text-gray-400 text-sm">No actions available</span>
-                      )}
+                      <button
+                        onClick={() => handleEdit(payroll)}
+                        className="text-indigo-600 hover:text-indigo-900 mr-3"
+                        title={payroll.status === 'completed' ? 'Completed payrolls cannot be edited' : 'Edit payroll'}
+                        disabled={payroll.status === 'completed'}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(payroll.id)}
+                        className="text-red-600 hover:text-red-900"
+                        title="Delete payroll permanently"
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}

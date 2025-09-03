@@ -242,7 +242,7 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
         
         // Permanently delete the employee
         const employeeDeleteResult = await employeesCollection.deleteOne(
-          { _id: new ObjectId(id) },
+      { _id: new ObjectId(id) },
           { session }
         );
 
