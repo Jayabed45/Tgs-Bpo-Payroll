@@ -357,6 +357,43 @@ class ApiService {
       return fallbackData
     }
   }
+
+  // Payslip API calls
+  async getPayslips() {
+    const response = await fetch(`${API_BASE_URL}/payslips`, {
+      headers: this.getAuthHeaders()
+    });
+    return this.handleResponse<{ success: boolean; payslips: any[]; total: number }>(response);
+  }
+
+  async generatePayslip(payrollId: string) {
+    const response = await fetch(`${API_BASE_URL}/payslips/generate`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ payrollId })
+    });
+    return this.handleResponse<{ success: boolean; payslip: any; message: string }>(response);
+  }
+
+  async downloadPayslip(payslipId: string) {
+    const response = await fetch(`${API_BASE_URL}/payslips/${payslipId}/download`, {
+      headers: this.getAuthHeaders()
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+    
+    return response.arrayBuffer();
+  }
+
+  async getPayslip(payslipId: string) {
+    const response = await fetch(`${API_BASE_URL}/payslips/${payslipId}`, {
+      headers: this.getAuthHeaders()
+    });
+    return this.handleResponse<{ success: boolean; payslip: any }>(response);
+  }
 }
 
 export const apiService = new ApiService()

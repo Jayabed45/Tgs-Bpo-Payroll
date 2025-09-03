@@ -4,9 +4,10 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-const authRoutes = require('./routes/auth');
+const { router: authRoutes } = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
 const payrollRoutes = require('./routes/payroll');
+const payslipRoutes = require('./routes/payslips');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +36,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/payslips', payslipRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

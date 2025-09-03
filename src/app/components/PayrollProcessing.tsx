@@ -392,10 +392,24 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   return (
     <div className="space-y-6">
 
+      {/* Backdrop */}
+      {showPayrollForm && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => {
+            setShowPayrollForm(false);
+            resetForm();
+          }}
+        />
+      )}
+
       {/* Add/Edit Form Sliding Panel */}
-      <div className={`fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 ${
+      <div 
+        className={`fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 ${
         showPayrollForm ? 'translate-x-0' : 'translate-x-full'
-      }`}>
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
@@ -413,7 +427,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
               </div>
         </div>
         <button 
-          onClick={() => {
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
                 setShowPayrollForm(false);
             resetForm();
           }}
@@ -957,11 +973,13 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
       {/* Floating Add Payroll Button */}
       <button
-        onClick={() => {
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
           resetForm();
           setShowPayrollForm(true);
         }}
-        className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 z-40"
+        className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 z-30"
         title="Create New Payroll (Auto-Calculate)"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1019,7 +1037,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                             </span>
                           )}
                         </div>
-                        <div className="text-sm text-black">ID: {payroll.employeeId || 'N/A'}</div>
+                       <div className="text-sm text-black">ID: {payroll.employeeId || 'N/A'}</div>
                       </div>
                     </td>
                                          <td className="px-6 py-4 whitespace-nowrap text-sm text-black">
@@ -1029,21 +1047,21 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                      <td className="px-6 py-4 whitespace-nowrap text-sm text-black">₱{(payroll.netPay || 0).toLocaleString()}</td>
 
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(payroll)}
-                        className="text-indigo-600 hover:text-indigo-900 mr-3"
-                        title={payroll.status === 'completed' ? 'Completed payrolls cannot be edited' : 'Edit payroll'}
-                        disabled={payroll.status === 'completed'}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(payroll.id)}
-                        className="text-red-600 hover:text-red-900"
+                          <button
+                            onClick={() => handleEdit(payroll)}
+                            className="text-indigo-600 hover:text-indigo-900 mr-3"
+                            title={payroll.status === 'completed' ? 'Completed payrolls cannot be edited' : 'Edit payroll'}
+                            disabled={payroll.status === 'completed'}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(payroll.id)}
+                            className="text-red-600 hover:text-red-900"
                         title="Delete payroll permanently"
-                      >
-                        Delete
-                      </button>
+                          >
+                            Delete
+                          </button>
                     </td>
                   </tr>
                 ))}
