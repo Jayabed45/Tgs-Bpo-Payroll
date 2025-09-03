@@ -392,17 +392,6 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   return (
     <div className="space-y-6">
 
-      {/* Backdrop */}
-      {showPayrollForm && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40"
-          onClick={() => {
-            setShowPayrollForm(false);
-            resetForm();
-          }}
-        />
-      )}
-
       {/* Add/Edit Form Sliding Panel */}
       <div 
         className={`fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 ${
@@ -979,7 +968,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           resetForm();
           setShowPayrollForm(true);
         }}
-        className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 z-30"
+        className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 z-40"
         title="Create New Payroll (Auto-Calculate)"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
