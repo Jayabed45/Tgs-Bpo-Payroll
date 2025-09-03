@@ -351,12 +351,15 @@ export default function AdminPage() {
 
           {/* Employee Management Tab */}
           {activeTab === 'employees' && (
-            <EmployeeManagement />
+            <EmployeeManagement onEmployeeChange={fetchDashboardData} />
           )}
 
           {/* Payroll Processing Tab */}
           {activeTab === 'payroll' && (
-            <PayrollProcessing onPayrollStatusChange={handlePayrollStatusChange} />
+            <PayrollProcessing 
+              onPayrollStatusChange={handlePayrollStatusChange} 
+              onPayrollChange={fetchDashboardData}
+            />
           )}
 
           {/* Reports & Payslips Tab */}

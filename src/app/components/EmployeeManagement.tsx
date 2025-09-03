@@ -17,7 +17,11 @@ interface Employee {
   isActive: boolean;
 }
 
-export default function EmployeeManagement() {
+interface EmployeeManagementProps {
+  onEmployeeChange?: () => void;
+}
+
+export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagementProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -89,6 +93,7 @@ export default function EmployeeManagement() {
       setShowAddForm(false);
       resetForm();
       fetchEmployees(); // Refresh the list
+      onEmployeeChange?.(); // Notify parent if provided
     } catch (error: any) {
       alert(error.message || 'Operation failed');
     } finally {
@@ -114,14 +119,24 @@ export default function EmployeeManagement() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this employee?')) {
-      try {
-        await apiService.deleteEmployee(id);
-        alert('Employee deleted successfully!');
-        fetchEmployees(); // Refresh the list
-      } catch (error: any) {
-        alert(error.message || 'Delete failed');
-      }
+    const employee = employees.find(emp => emp.id === id);
+    if (!employee) return;
+
+    const confirmMessage = `⚠️ CRITICAL: Are you sure you want to permanently delete employee "${employee.name}"?\n\nThis will:\n• Permanently remove the employee record\n• Delete ALL associated payroll records\n• This action CANNOT be undone\n\nType "DELETE" to confirm:`;
+
+    const userInput = prompt(confirmMessage);
+    if (userInput !== 'DELETE') {
+      alert('Deletion cancelled. Employee was not deleted.');
+      return;
+    }
+
+    try {
+      await apiService.deleteEmployee(id);
+      alert(`Employee "${employee.name}" and all associated payrolls have been permanently deleted!`);
+      fetchEmployees(); // Refresh the list
+      onEmployeeChange?.(); // Notify parent if provided
+    } catch (error: any) {
+      alert(error.message || 'Delete failed');
     }
   };
 

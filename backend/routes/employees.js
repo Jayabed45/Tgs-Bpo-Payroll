@@ -209,7 +209,7 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
   }
 });
 
-// Delete employee (soft delete)
+// Delete employee (permanent delete with cascade)
 router.delete('/:id', verifyAdminToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -221,25 +221,44 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
     const client = await clientPromise;
     const db = client.db();
     const employeesCollection = db.collection('employees');
+    const payrollCollection = db.collection('payroll');
 
-    // Soft delete by setting isActive to false
-    const result = await employeesCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { 
-        $set: { 
-          isActive: false,
-          updatedAt: new Date()
-        }
-      }
-    );
-
-    if (result.matchedCount === 0) {
+    // Check if employee exists
+    const employee = await employeesCollection.findOne({ _id: new ObjectId(id) });
+    if (!employee) {
       return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    // Start a session for transaction-like behavior
+    const session = client.startSession();
+    
+    try {
+      await session.withTransaction(async () => {
+        // Delete all payrolls associated with this employee
+        const payrollDeleteResult = await payrollCollection.deleteMany(
+          { employeeId: id },
+          { session }
+        );
+        
+        // Permanently delete the employee
+        const employeeDeleteResult = await employeesCollection.deleteOne(
+          { _id: new ObjectId(id) },
+          { session }
+        );
+
+        if (employeeDeleteResult.deletedCount === 0) {
+          throw new Error('Failed to delete employee');
+        }
+
+        console.log(`Deleted employee ${id} and ${payrollDeleteResult.deletedCount} associated payrolls`);
+      });
+    } finally {
+      await session.endSession();
     }
 
     res.json({
       success: true,
-      message: 'Employee deleted successfully'
+      message: 'Employee and all associated payrolls deleted permanently'
     });
 
   } catch (error) {

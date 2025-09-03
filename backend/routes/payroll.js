@@ -34,7 +34,7 @@ router.get('/', verifyAdminToken, async (req, res) => {
     const employeesCollection = db.collection('employees');
 
     const payrolls = await payrollCollection
-      .find({ status: { $ne: 'deleted' } })
+      .find({})
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -291,7 +291,7 @@ router.patch('/:id/process', verifyAdminToken, async (req, res) => {
   }
 });
 
-// Delete payroll record (soft delete)
+// Delete payroll record (permanent delete)
 router.delete('/:id', verifyAdminToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -310,24 +310,16 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
       return res.status(404).json({ error: 'Payroll not found' });
     }
 
-    // Soft delete by setting status to 'deleted' instead of removing the record
-    const result = await payrollCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { 
-        $set: { 
-          status: 'deleted',
-          updatedAt: new Date()
-        }
-      }
-    );
+    // Permanently delete the payroll
+    const result = await payrollCollection.deleteOne({ _id: new ObjectId(id) });
 
-    if (result.matchedCount === 0) {
+    if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Payroll not found' });
     }
 
     res.json({
       success: true,
-      message: 'Payroll deleted successfully'
+      message: 'Payroll deleted permanently'
     });
 
   } catch (error) {
@@ -343,16 +335,13 @@ router.get('/stats/overview', verifyAdminToken, async (req, res) => {
     const db = client.db();
     const payrollCollection = db.collection('payroll');
 
-    const totalPayrolls = await payrollCollection.countDocuments({ status: { $ne: 'deleted' } });
+    const totalPayrolls = await payrollCollection.countDocuments({});
     const pendingPayrolls = await payrollCollection.countDocuments({ status: 'pending' });
     const processedPayrolls = await payrollCollection.countDocuments({ status: 'processed' });
     const completedPayrolls = await payrollCollection.countDocuments({ status: 'completed' });
 
     // Get monthly payroll totals
     const monthlyStats = await payrollCollection.aggregate([
-      {
-        $match: { status: { $ne: 'deleted' } }
-      },
       {
         $group: {
           _id: {
