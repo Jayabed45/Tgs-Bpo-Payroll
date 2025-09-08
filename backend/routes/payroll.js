@@ -41,14 +41,23 @@ router.get('/', verifyAdminToken, async (req, res) => {
     // Get employee details for each payroll
     const payrollsWithEmployeeDetails = await Promise.all(
       payrolls.map(async (payroll) => {
-        const employee = await employeesCollection.findOne({ 
-          _id: new ObjectId(payroll.employeeId) 
-        });
+        let employee = null;
+        
+        // Only try to find employee if employeeId is a valid ObjectId
+        if (payroll.employeeId && ObjectId.isValid(payroll.employeeId)) {
+          try {
+            employee = await employeesCollection.findOne({ 
+              _id: new ObjectId(payroll.employeeId) 
+            });
+          } catch (error) {
+            console.error(`Error finding employee for payroll ${payroll._id}:`, error);
+          }
+        }
         
         return {
           id: payroll._id.toString(),
           employeeId: payroll.employeeId,
-          employeeName: employee ? employee.name : 'Unknown Employee',
+          employeeName: employee ? employee.name : (payroll.employeeName || 'Unknown Employee'),
           cutoffStart: payroll.cutoffStart,
           cutoffEnd: payroll.cutoffEnd,
           basicSalary: payroll.basicSalary,
