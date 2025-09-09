@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { apiService } from "../services/api";
+import Papa from "papaparse";
 
 interface Employee {
   id: string;
@@ -27,6 +28,13 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -45,6 +53,24 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   useEffect(() => {
     fetchEmployees();
   }, []);
+
+  // Handle clicking outside dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.floating-action-container')) {
+        closeDropdown();
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const fetchEmployees = async () => {
     try {
@@ -73,6 +99,10 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
       email: "", contactNumber: "", hireDate: ""
     });
     setEditingEmployee(null);
+  };
+
+  const closeDropdown = () => {
+    setShowDropdown(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -140,6 +170,200 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
     }
   };
 
+  // File import functions
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    const fileType = file.name.toLowerCase();
+    if (!fileType.endsWith('.csv') && !fileType.endsWith('.xlsx') && !fileType.endsWith('.xls')) {
+      alert('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
+      return;
+    }
+
+    // For now, we'll handle CSV files. Excel files would need additional libraries
+    if (fileType.endsWith('.csv')) {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            setImportErrors(results.errors.map(err => `Row ${err.row}: ${err.message}`));
+          } else {
+            setImportPreview(results.data);
+            setImportErrors([]);
+          }
+        },
+        error: (error) => {
+          setImportErrors([`File parsing error: ${error.message}`]);
+        }
+      });
+    } else {
+      alert('Excel file support coming soon. Please convert to CSV format.');
+    }
+  };
+
+  const validateImportData = (data: any[]): { valid: any[], errors: string[] } => {
+    const valid: any[] = [];
+    const errors: string[] = [];
+
+    data.forEach((row, index) => {
+      const rowNum = index + 2; // +2 because of 0-based index and header row
+      
+      // Required fields validation
+      if (!row.name || !row.position || !row.salary || !row.email) {
+        errors.push(`Row ${rowNum}: Missing required fields (name, position, salary, email)`);
+        return;
+      }
+
+      // Email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(row.email)) {
+        errors.push(`Row ${rowNum}: Invalid email format`);
+        return;
+      }
+
+      // Salary validation
+      const salary = parseFloat(row.salary);
+      if (isNaN(salary) || salary < 0) {
+        errors.push(`Row ${rowNum}: Invalid salary amount`);
+        return;
+      }
+
+      // Working days validation
+      if (row.workingDays) {
+        const workingDays = parseInt(row.workingDays);
+        if (isNaN(workingDays) || workingDays < 0 || workingDays > 31) {
+          errors.push(`Row ${rowNum}: Invalid working days (must be 0-31)`);
+          return;
+        }
+      }
+
+      // Transform data to match our format
+      const employeeData = {
+        name: row.name.trim(),
+        position: row.position.trim(),
+        salary: salary,
+        workingDays: parseInt(row.workingDays) || 0,
+        sssNumber: row.sssNumber?.trim() || '',
+        philhealthNumber: row.philhealthNumber?.trim() || '',
+        pagibigNumber: row.pagibigNumber?.trim() || '',
+        email: row.email.trim(),
+        contactNumber: row.contactNumber?.trim() || '',
+        hireDate: row.hireDate || new Date().toISOString().split('T')[0]
+      };
+
+      valid.push(employeeData);
+    });
+
+    return { valid, errors };
+  };
+
+  const handleImportSubmit = async () => {
+    if (importPreview.length === 0) {
+      alert('No data to import');
+      return;
+    }
+
+    const { valid, errors } = validateImportData(importPreview);
+    
+    if (errors.length > 0) {
+      setImportErrors(errors);
+      return;
+    }
+
+    setImportLoading(true);
+    try {
+      const result = await apiService.bulkImportEmployees(valid);
+      alert(`Successfully imported ${result.imported} employees!`);
+      setShowImportModal(false);
+      setImportPreview([]);
+      setImportErrors([]);
+      fetchEmployees(); // Refresh the list
+      onEmployeeChange?.(); // Notify parent if provided
+    } catch (error: any) {
+      alert(error.message || 'Import failed');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      {
+        name: 'John Doe',
+        position: 'Software Developer',
+        salary: '50000',
+        workingDays: '22',
+        sssNumber: '1234567890',
+        philhealthNumber: 'PH1234567890',
+        pagibigNumber: 'PAG1234567890',
+        email: 'john.doe@example.com',
+        contactNumber: '+639123456789',
+        hireDate: '2024-01-15'
+      }
+    ];
+
+    const csv = Papa.unparse(template);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'employee_import_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Drag and drop handlers
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      const fileType = file.name.toLowerCase();
+      
+      if (!fileType.endsWith('.csv') && !fileType.endsWith('.xlsx') && !fileType.endsWith('.xls')) {
+        alert('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
+        return;
+      }
+
+      if (fileType.endsWith('.csv')) {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            if (results.errors.length > 0) {
+              setImportErrors(results.errors.map(err => `Row ${err.row}: ${err.message}`));
+            } else {
+              setImportPreview(results.data);
+              setImportErrors([]);
+            }
+          },
+          error: (error) => {
+            setImportErrors([`File parsing error: ${error.message}`]);
+          }
+        });
+      } else {
+        alert('Excel file support coming soon. Please convert to CSV format.');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -150,15 +374,17 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
 
   return (
     <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">Employee List</h3>
-          <p className="text-sm text-gray-500">Manage your employees and their information</p>
+      <div>
+        <h3 className="text-lg font-medium text-gray-900">Employee List</h3>
+        <p className="text-sm text-gray-500">Manage your employees and their information</p>
       </div>
+
+      {/* No backdrop - modals will slide in without covering content */}
 
       {/* Add/Edit Form Sliding Panel */}
       <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 ${
         showAddForm ? 'translate-x-0' : 'translate-x-full'
-      }`}>
+      }`} style={{ zIndex: 1000 }}>
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
@@ -174,19 +400,20 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                 </h4>
                 <p className="text-sm text-gray-600">Fill in the employee details below</p>
               </div>
-        </div>
-        <button 
-          onClick={() => {
+            </div>
+            <button 
+              onClick={() => {
                 setShowAddForm(false);
-            resetForm();
-          }}
+                resetForm();
+              }}
               className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
-        >
+              title="Close form"
+            >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-        </button>
-      </div>
+            </button>
+          </div>
 
           {/* Form Content */}
           <div className="flex-1 overflow-y-auto p-6">
@@ -206,16 +433,16 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       Full Name
                     </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      required
                       placeholder="Enter full name"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                />
-              </div>
+                    />
+                  </div>
                   
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700 flex items-center">
@@ -224,15 +451,15 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       Position
                     </label>
-                <input
-                  type="text"
-                  name="position"
-                  value={formData.position}
-                  onChange={handleInputChange}
-                  required
+                    <input
+                      type="text"
+                      name="position"
+                      value={formData.position}
+                      onChange={handleInputChange}
+                      required
                       placeholder="Enter job position"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
-                />
+                    />
                   </div>
                 </div>
               </div>
@@ -252,18 +479,18 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       Salary
                     </label>
-                <input
-                  type="number"
-                  name="salary"
-                  value={formData.salary}
-                  onChange={handleInputChange}
-                  required
-                  min="0"
-                  step="0.01"
+                    <input
+                      type="number"
+                      name="salary"
+                      value={formData.salary}
+                      onChange={handleInputChange}
+                      required
+                      min="0"
+                      step="0.01"
                       placeholder="₱0.00"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
-                />
-              </div>
+                    />
+                  </div>
                   
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700 flex items-center">
@@ -272,17 +499,17 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       Working Days
                     </label>
-                <input
-                  type="number"
-                  name="workingDays"
-                  value={formData.workingDays}
-                  onChange={handleInputChange}
-                  required
-                  min="0"
-                  max="31"
+                    <input
+                      type="number"
+                      name="workingDays"
+                      value={formData.workingDays}
+                      onChange={handleInputChange}
+                      required
+                      min="0"
+                      max="31"
                       placeholder="Days"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
-                />
+                    />
                   </div>
                 </div>
               </div>
@@ -302,16 +529,16 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       SSS Number
                     </label>
-                <input
-                  type="text"
-                  name="sssNumber"
-                  value={formData.sssNumber}
-                  onChange={handleInputChange}
-                  required
+                    <input
+                      type="text"
+                      name="sssNumber"
+                      value={formData.sssNumber}
+                      onChange={handleInputChange}
+                      required
                       placeholder="Enter SSS number"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
-                />
-              </div>
+                    />
+                  </div>
                   
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700 flex items-center">
@@ -320,16 +547,16 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       PhilHealth Number
                     </label>
-                <input
-                  type="text"
-                  name="philhealthNumber"
-                  value={formData.philhealthNumber}
-                  onChange={handleInputChange}
-                  required
+                    <input
+                      type="text"
+                      name="philhealthNumber"
+                      value={formData.philhealthNumber}
+                      onChange={handleInputChange}
+                      required
                       placeholder="Enter PhilHealth number"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
-                />
-              </div>
+                    />
+                  </div>
                   
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700 flex items-center">
@@ -338,15 +565,15 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       Pag-IBIG Number
                     </label>
-                <input
-                  type="text"
-                  name="pagibigNumber"
-                  value={formData.pagibigNumber}
-                  onChange={handleInputChange}
-                  required
+                    <input
+                      type="text"
+                      name="pagibigNumber"
+                      value={formData.pagibigNumber}
+                      onChange={handleInputChange}
+                      required
                       placeholder="Enter Pag-IBIG number"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
-                />
+                    />
                   </div>
                 </div>
               </div>
@@ -366,16 +593,16 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       Email Address
                     </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  required
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      required
                       placeholder="Enter email address"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                />
-              </div>
+                    />
+                  </div>
                   
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700 flex items-center">
@@ -384,16 +611,16 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       Contact Number
                     </label>
-                <input
-                  type="tel"
-                  name="contactNumber"
-                  value={formData.contactNumber}
-                  onChange={handleInputChange}
-                  required
+                    <input
+                      type="tel"
+                      name="contactNumber"
+                      value={formData.contactNumber}
+                      onChange={handleInputChange}
+                      required
                       placeholder="Enter contact number"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                />
-              </div>
+                    />
+                  </div>
                   
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700 flex items-center">
@@ -402,24 +629,23 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </svg>
                       Hire Date
                     </label>
-                <input
-                  type="date"
-                  name="hireDate"
-                  value={formData.hireDate}
-                  onChange={handleInputChange}
-                  required
+                    <input
+                      type="date"
+                      name="hireDate"
+                      value={formData.hireDate}
+                      onChange={handleInputChange}
+                      required
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white"
-                />
+                    />
                   </div>
                 </div>
               </div>
             </form>
-            </div>
+          </div>
           
           {/* Footer with buttons */}
-          <div className="p-3 border-t border-gray-200 bg-white">
+          <div className="p-6 border-t border-gray-200 bg-white">
             <div className="flex justify-end space-x-3">
-              {/* Cancel button */}
               <button
                 type="button"
                 onClick={() => {
@@ -430,8 +656,6 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
               >
                 Cancel
               </button>
-
-              {/* Add/Update Employee button */}
               <button
                 type="submit"
                 onClick={handleSubmit}
@@ -456,9 +680,7 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       <path
                         className="opacity-75"
                         fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 
-                          5.291A7.962 7.962 0 014 12H0c0 3.042 
-                          1.135 5.824 3 7.938l3-2.647z"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
                     <span>Saving...</span>
@@ -555,19 +777,245 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
         </div>
       )}
 
-      {/* Floating Add Employee Button */}
-      <button
-        onClick={() => {
-          resetForm();
-          setShowAddForm(true);
-        }}
-        className="fixed bottom-6 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-200 hover:scale-110 z-40"
-        title="Add New Employee"
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-      </button>
+            {/* Import Modal - Sliding Panel */}
+      {showImportModal && (
+        <div 
+          className={`fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-xl transform transition-all duration-700 ease-out z-50 ${
+            showImportModal ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 scale-95'
+          }`}
+          style={{ zIndex: 1000 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900">Import Employees</h4>
+                  <p className="text-sm text-gray-600">Upload CSV file to bulk import employees</p>
+                </div>
+              </div>
+            <button 
+              onClick={() => {
+                setShowImportModal(false);
+                setImportPreview([]);
+                setImportErrors([]);
+              }}
+              className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {/* File Upload Section */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h5 className="text-sm font-semibold text-gray-700">Upload File</h5>
+                <button
+                  onClick={downloadTemplate}
+                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Download Template</span>
+                </button>
+              </div>
+              
+              <div 
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  dragActive 
+                    ? 'border-green-400 bg-green-50' 
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center space-y-2 text-gray-600 hover:text-gray-800"
+                >
+                  <svg className={`w-12 h-12 ${dragActive ? 'text-green-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                  <span className="text-sm font-medium">
+                    {dragActive ? 'Drop your CSV file here' : 'Click to upload CSV file'}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {dragActive ? 'Release to upload' : 'or drag and drop'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Errors Display */}
+            {importErrors.length > 0 && (
+              <div className="mb-6">
+                <h5 className="text-sm font-semibold text-red-700 mb-2">Validation Errors</h5>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-h-32 overflow-y-auto">
+                  {importErrors.map((error, index) => (
+                    <div key={index} className="text-sm text-red-700 mb-1">
+                      • {error}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Preview Table */}
+            {importPreview.length > 0 && (
+              <div className="mb-6">
+                <h5 className="text-sm font-semibold text-gray-700 mb-4">
+                  Preview ({importPreview.length} employees)
+                </h5>
+                <div className="bg-gray-50 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto max-h-64">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Salary</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {importPreview.slice(0, 5).map((row, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-sm text-gray-900">{row.name}</td>
+                            <td className="px-4 py-2 text-sm text-gray-900">{row.position}</td>
+                            <td className="px-4 py-2 text-sm text-gray-900">₱{parseFloat(row.salary || 0).toLocaleString()}</td>
+                            <td className="px-4 py-2 text-sm text-gray-900">{row.email}</td>
+                          </tr>
+                        ))}
+                        {importPreview.length > 5 && (
+                          <tr>
+                            <td colSpan={4} className="px-4 py-2 text-sm text-gray-500 text-center">
+                              ... and {importPreview.length - 5} more employees
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-6 border-t border-gray-200 bg-white">
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                {importPreview.length > 0 && (
+                  <span>{importPreview.length} employees ready to import</span>
+                )}
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportPreview([]);
+                    setImportErrors([]);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleImportSubmit}
+                  disabled={importLoading || importPreview.length === 0 || importErrors.length > 0}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center space-x-1"
+                >
+                  {importLoading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Importing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>Import Employees</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+                 </div>
+       </div>
+       )}
+
+      {/* Floating Action Button with Click Dropdown */}
+      <div className="fixed bottom-6 right-6 z-40 floating-action-container">
+        {/* Main Button */}
+        <button
+          onClick={() => setShowDropdown(!showDropdown)}
+          className="bg-gradient-to-br from-green-500 to-indigo-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
+          title="Quick Actions - Click to see options"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+        </button>
+
+        {/* Click Dropdown */}
+        {showDropdown && (
+          <div className="absolute bottom-full right-0 mb-3 opacity-100 transition-all duration-300 transform translate-y-0">
+            {/* Import Button */}
+            <button
+              onClick={() => {
+                setShowImportModal(true);
+                closeDropdown();
+              }}
+              className="bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 mb-3 flex items-center justify-center"
+              title="Import Employees from CSV"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+              </svg>
+            </button>
+
+            {/* Add Employee Button */}
+            <button
+              onClick={() => {
+                resetForm();
+                setShowAddForm(true);
+                closeDropdown();
+              }}
+              className="bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-200 hover:scale-110 flex items-center justify-center"
+              title="Add New Employee"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

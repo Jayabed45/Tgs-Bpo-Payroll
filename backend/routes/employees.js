@@ -1,4 +1,4 @@
-const express = require('express');
+  const express = require('express');
 const { ObjectId } = require('mongodb');
 const { clientPromise } = require('../config/database');
 const Employee = require('../models/Employee');
@@ -263,6 +263,81 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
 
   } catch (error) {
     console.error('Delete employee error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Bulk import employees
+router.post('/bulk-import', verifyAdminToken, async (req, res) => {
+  try {
+    const { employees } = req.body;
+    
+    if (!Array.isArray(employees) || employees.length === 0) {
+      return res.status(400).json({ error: 'No employees data provided' });
+    }
+
+    const client = await clientPromise;
+    const db = client.db();
+    const employeesCollection = db.collection('employees');
+
+    const errors = [];
+    const importedEmployees = [];
+    let importedCount = 0;
+
+    // Process each employee
+    for (let i = 0; i < employees.length; i++) {
+      const employeeData = employees[i];
+      
+      try {
+        // Create employee instance for validation
+        const employee = new Employee(employeeData);
+        
+        // Validate employee data
+        const validationErrors = employee.validate();
+        if (validationErrors.length > 0) {
+          errors.push(`Row ${i + 1}: ${validationErrors.join(', ')}`);
+          continue;
+        }
+
+        // Check if email already exists
+        const existingEmployee = await employeesCollection.findOne({ 
+          email: employee.email,
+          isActive: true
+        });
+
+        if (existingEmployee) {
+          errors.push(`Row ${i + 1}: Employee with email ${employee.email} already exists`);
+          continue;
+        }
+
+        // Insert employee
+        const result = await employeesCollection.insertOne(employee.toMongoDoc());
+        
+        const createdEmployee = {
+          id: result.insertedId.toString(),
+          ...employeeData,
+          createdAt: employee.createdAt,
+          updatedAt: employee.updatedAt
+        };
+
+        importedEmployees.push(createdEmployee);
+        importedCount++;
+
+      } catch (error) {
+        errors.push(`Row ${i + 1}: ${error.message}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully imported ${importedCount} employees`,
+      imported: importedCount,
+      errors: errors,
+      totalProcessed: employees.length
+    });
+
+  } catch (error) {
+    console.error('Bulk import error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -281,6 +281,14 @@ export default function AdminPage() {
     router.push('/');
   };
 
+  // Handle search results from header
+  const handleSearchResult = (type: string, id: string) => {
+    setActiveTab(type);
+    // You can add additional logic here to highlight specific items
+    // For example, scroll to a specific employee, payroll, or payslip
+    console.log(`Search result: ${type} with ID: ${id}`);
+  };
+
   // Function to calculate relative time
   const getRelativeTime = (timestamp: Date) => {
     const now = new Date();
@@ -327,7 +335,7 @@ export default function AdminPage() {
       {/* Main Content */}
       <div className="flex-1 ml-64">
         {/* Top Header */}
-        <Header activeTab={activeTab} currentTime={currentTime} />
+        <Header activeTab={activeTab} currentTime={currentTime} onSearchResult={handleSearchResult} />
 
         {/* Page Content */}
         <main className="p-6">

@@ -44,6 +44,11 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     withholdingTax: ""
   });
 
+  // Select all state
+  const [selectAll, setSelectAll] = useState(false);
+  const [showBulkForm, setShowBulkForm] = useState(false);
+  const [bulkFormData, setBulkFormData] = useState<{[key: string]: any}>({});
+
   // Calculated values
   const [calculatedValues, setCalculatedValues] = useState({
     grossPay: 0,
@@ -53,6 +58,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
   useEffect(() => {
     fetchData();
+    // Ensure forms are hidden when component mounts
+    setShowPayrollForm(false);
+    setShowBulkForm(false);
+  }, []);
+
+  // Cleanup effect to hide forms when component unmounts
+  useEffect(() => {
+    return () => {
+      setShowPayrollForm(false);
+      setShowBulkForm(false);
+    };
   }, []);
 
   const fetchData = async () => {
@@ -81,6 +97,18 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
     // Auto-fill employee details when employee is selected
     if (name === 'employeeId') {
+      if (value === 'all') {
+        // Handle select all
+        setSelectAll(true);
+        setFormData(prev => ({
+          ...prev,
+          employeeId: 'all',
+          employeeName: 'All Employees',
+          basicSalary: ''
+        }));
+      } else {
+        // Handle individual employee selection
+        setSelectAll(false);
       const selectedEmployee = employees.find(emp => emp.id === value);
       if (selectedEmployee) {
         setFormData(prev => ({
@@ -89,8 +117,41 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           employeeName: selectedEmployee.name || '',
           basicSalary: selectedEmployee.salary?.toString() || ''
         }));
+        }
       }
     }
+  };
+
+  // Bulk form handling
+  const handleBulkFormChange = (employeeId: string, field: string, value: string) => {
+    setBulkFormData(prev => ({
+      ...prev,
+      [employeeId]: {
+        ...prev[employeeId],
+        [field]: value
+      }
+    }));
+  };
+
+  const initializeBulkForm = () => {
+    const initialData: {[key: string]: any} = {};
+    employees.forEach(employee => {
+      initialData[employee.id] = {
+        workedHours: formData.workedHours || '',
+        overtimeHours: formData.overtimeHours || '',
+        holidayPay: formData.holidayPay || '',
+        nightDifferential: formData.nightDifferential || '',
+        salaryAdjustment: formData.salaryAdjustment || '',
+        absences: formData.absences || '',
+        lateDeductions: formData.lateDeductions || '',
+        sssContribution: formData.sssContribution || '',
+        philhealthContribution: formData.philhealthContribution || '',
+        pagibigContribution: formData.pagibigContribution || '',
+        withholdingTax: formData.withholdingTax || ''
+      };
+    });
+    setBulkFormData(initialData);
+    setShowBulkForm(true);
   };
 
   const calculatePayroll = async () => {
@@ -101,8 +162,14 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     }
     
     // Validate required fields
-    if (!formData.employeeId || !formData.basicSalary || !formData.cutoffStart || !formData.cutoffEnd) {
-      alert('Please fill in all required fields: Employee, Basic Salary, Cutoff Start, and Cutoff End dates');
+    if (!formData.employeeId || !formData.cutoffStart || !formData.cutoffEnd) {
+      alert('Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
+      return;
+    }
+
+    // For individual employee selection, basic salary is required
+    if (formData.employeeId !== 'all' && !formData.basicSalary) {
+      alert('Please fill in the Basic Salary field for individual employee payroll');
       return;
     }
 
@@ -179,8 +246,14 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
   const processPayroll = async () => {
     // Validate required fields
-    if (!formData.employeeId || !formData.basicSalary || !formData.cutoffStart || !formData.cutoffEnd) {
-      alert('Please fill in all required fields: Employee, Basic Salary, Cutoff Start, and Cutoff End dates');
+    if (!formData.employeeId || !formData.cutoffStart || !formData.cutoffEnd) {
+      alert('Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
+      return;
+    }
+
+    // For individual employee selection, basic salary is required
+    if (formData.employeeId !== 'all' && !formData.basicSalary) {
+      alert('Please fill in the Basic Salary field for individual employee payroll');
       return;
     }
 
@@ -191,6 +264,61 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
     setProcessing(true);
     try {
+      // Handle bulk payroll creation for "Select All"
+      if (formData.employeeId === 'all') {
+        const createdPayrolls = [];
+        const errors = [];
+
+        for (const employee of employees) {
+          try {
+            // Get employee-specific data from bulk form
+            const employeeData = bulkFormData[employee.id] || {};
+            
+            // Create payroll data for each employee
+            const employeePayrollData = {
+              ...formData,
+              employeeId: employee.id,
+              employeeName: employee.name,
+              basicSalary: employee.salary,
+              workedHours: parseFloat(employeeData.workedHours || formData.workedHours) || 0,
+              overtimeHours: parseFloat(employeeData.overtimeHours || formData.overtimeHours) || 0,
+              holidayPay: parseFloat(employeeData.holidayPay || formData.holidayPay) || 0,
+              nightDifferential: parseFloat(employeeData.nightDifferential || formData.nightDifferential) || 0,
+              salaryAdjustment: parseFloat(employeeData.salaryAdjustment || formData.salaryAdjustment) || 0,
+              absences: parseFloat(employeeData.absences || formData.absences) || 0,
+              lateDeductions: parseFloat(employeeData.lateDeductions || formData.lateDeductions) || 0,
+              sssContribution: parseFloat(employeeData.sssContribution || formData.sssContribution) || 0,
+              philhealthContribution: parseFloat(employeeData.philhealthContribution || formData.philhealthContribution) || 0,
+              pagibigContribution: parseFloat(employeeData.pagibigContribution || formData.pagibigContribution) || 0,
+              withholdingTax: parseFloat(employeeData.withholdingTax || formData.withholdingTax) || 0,
+              status: 'processed'
+            };
+
+            // Calculate payroll for this employee
+            const response = await apiService.calculatePayroll(employeePayrollData);
+            const finalCalculations = response.calculations;
+
+            // Create the payroll record
+            const result = await apiService.createPayroll({
+              ...employeePayrollData,
+              grossPay: finalCalculations.grossPay,
+              totalDeductions: finalCalculations.totalDeductions,
+              netPay: finalCalculations.netPay
+            });
+
+            createdPayrolls.push(result.payroll);
+          } catch (error: any) {
+            errors.push(`Failed to create payroll for ${employee.name}: ${error.message}`);
+          }
+        }
+
+        if (createdPayrolls.length > 0) {
+          alert(`Successfully created ${createdPayrolls.length} payroll records!${errors.length > 0 ? `\n\nErrors:\n${errors.join('\n')}` : ''}`);
+        } else {
+          alert('Failed to create any payroll records. Please check the console for details.');
+        }
+      } else {
+        // Handle individual employee payroll
       // Automatically calculate payroll if not already calculated
       let finalCalculations = calculatedValues;
       if (!calculatedValues.grossPay || calculatedValues.grossPay === 0) {
@@ -232,6 +360,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       } else {
         await apiService.createPayroll(payrollData);
         alert('Payroll processed successfully! Status changed to "Processed"');
+        }
       }
       
       setShowPayrollForm(false);
@@ -279,7 +408,8 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       totalDeductions: payroll.totalDeductions || 0,
       netPay: payroll.netPay || 0
     });
-    setShowPayrollForm(true);
+    setSelectAll(false); // Reset select all state when editing
+    // Don't automatically show the form - let user decide
   };
 
   const handleDelete = async (id: string) => {
@@ -330,6 +460,11 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     });
     setCalculatedValues({ grossPay: 0, totalDeductions: 0, netPay: 0 });
     setEditingPayroll(null);
+    setSelectAll(false);
+    setShowBulkForm(false);
+    setBulkFormData({});
+    // Ensure main form is also hidden
+    setShowPayrollForm(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -342,7 +477,69 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       return;
     }
 
+    // Validate required fields
+    if (!formData.employeeId || !formData.cutoffStart || !formData.cutoffEnd) {
+      alert('Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
+      setFormLoading(false);
+      return;
+    }
+
+    // For individual employee selection, basic salary is required
+    if (formData.employeeId !== 'all' && !formData.basicSalary) {
+      alert('Please fill in the Basic Salary field for individual employee payroll');
+      setFormLoading(false);
+      return;
+    }
+
     try {
+      // Handle bulk payroll creation for "Select All"
+      if (formData.employeeId === 'all') {
+        const createdPayrolls = [];
+        const errors = [];
+
+        for (const employee of employees) {
+          try {
+            // Get employee-specific data from bulk form
+            const employeeData = bulkFormData[employee.id] || {};
+            
+            // Create payroll data for each employee
+            const employeePayrollData = {
+              ...formData,
+              employeeId: employee.id,
+              employeeName: employee.name,
+              basicSalary: employee.salary,
+              workedHours: parseFloat(employeeData.workedHours || formData.workedHours) || 0,
+              overtimeHours: parseFloat(employeeData.overtimeHours || formData.overtimeHours) || 0,
+              holidayPay: parseFloat(employeeData.holidayPay || formData.holidayPay) || 0,
+              nightDifferential: parseFloat(employeeData.nightDifferential || formData.nightDifferential) || 0,
+              salaryAdjustment: parseFloat(employeeData.salaryAdjustment || formData.salaryAdjustment) || 0,
+              absences: parseFloat(employeeData.absences || formData.absences) || 0,
+              lateDeductions: parseFloat(employeeData.lateDeductions || formData.lateDeductions) || 0,
+              sssContribution: parseFloat(employeeData.sssContribution || formData.sssContribution) || 0,
+              philhealthContribution: parseFloat(employeeData.philhealthContribution || formData.philhealthContribution) || 0,
+              pagibigContribution: parseFloat(employeeData.pagibigContribution || formData.pagibigContribution) || 0,
+              withholdingTax: parseFloat(employeeData.withholdingTax || formData.withholdingTax) || 0,
+              grossPay: calculatedValues.grossPay,
+              totalDeductions: calculatedValues.totalDeductions,
+              netPay: calculatedValues.netPay,
+              status: 'pending' // Save as draft
+            };
+
+            // Create the payroll record
+            const result = await apiService.createPayroll(employeePayrollData);
+            createdPayrolls.push(result.payroll);
+          } catch (error: any) {
+            errors.push(`Failed to create payroll for ${employee.name}: ${error.message}`);
+          }
+        }
+
+        if (createdPayrolls.length > 0) {
+          alert(`Successfully saved ${createdPayrolls.length} payroll drafts!${errors.length > 0 ? `\n\nErrors:\n${errors.join('\n')}` : ''}`);
+        } else {
+          alert('Failed to create any payroll drafts. Please check the console for details.');
+        }
+      } else {
+        // Handle individual employee payroll
       const payrollData = {
         ...formData,
         basicSalary: parseFloat(formData.basicSalary) || 0,
@@ -369,6 +566,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       } else {
         await apiService.createPayroll(payrollData);
         alert('Payroll saved as draft successfully! Status: Pending');
+        }
       }
       
       setShowPayrollForm(false);
@@ -389,14 +587,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     );
   }
 
+  // Don't render forms if they shouldn't be shown
+  const shouldShowPayrollForm = showPayrollForm && !loading;
+  const shouldShowBulkForm = showBulkForm && !loading;
+
   return (
     <div className="space-y-6">
 
       {/* Add/Edit Form Sliding Panel */}
+      {shouldShowPayrollForm && (
       <div 
-        className={`fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 ${
-        showPayrollForm ? 'translate-x-0' : 'translate-x-full'
-        }`}
+          className="fixed inset-y-0 right-0 w-full max-w-4xl bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 translate-x-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col h-full">
@@ -469,10 +670,31 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
                  >
                   <option value="">Select Employee</option>
+                      <option value="all" className="font-semibold text-blue-600">📋 Select All Employees</option>
+                      <option value="" disabled className="text-gray-400">───────────</option>
                   {employees.map(emp => (
                     <option key={emp.id} value={emp.id}>{emp.name} - {emp.position}</option>
                   ))}
                 </select>
+                    {selectAll && (
+                      <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-sm text-blue-800 font-medium">Bulk Payroll Mode</span>
+                        </div>
+                        <p className="text-xs text-blue-700 mt-1">
+                          This will create payroll entries for all {employees.length} employees with the same cutoff period and settings.
+                        </p>
+                        <button
+                          onClick={initializeBulkForm}
+                          className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                        >
+                          Set Individual Values
+                        </button>
+                      </div>
+                    )}
               </div>
                   
                   <div className="space-y-2">
@@ -524,18 +746,23 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                       </svg>
                       Basic Salary
+                      <span className="ml-1 text-xs text-gray-500">(Optional - auto-filled from employee data)</span>
                     </label>
                 <input
                   type="number"
                   name="basicSalary"
                   value={formData.basicSalary}
                   onChange={handleInputChange}
-                  required
                   min="0"
                   step="0.01"
-                      placeholder="₱0.00"
+                      placeholder="₱0.00 (auto-filled when employee is selected)"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                 />
+                    {!formData.basicSalary && formData.employeeId && formData.employeeId !== 'all' && (
+                      <div className="mt-1 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                        💡 Basic salary will be automatically filled from the selected employee's data
+                      </div>
+                    )}
               </div>
                   
                   <div className="space-y-2">
@@ -959,6 +1186,225 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           </div>
         </div>
       </div>
+      )}
+
+      {/* Bulk Form Modal */}
+      {shouldShowBulkForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900">Bulk Payroll Setup</h4>
+                  <p className="text-sm text-gray-600">Set individual values for each employee</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowBulkForm(false);
+                  setBulkFormData({});
+                }}
+                className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h5 className="text-sm font-semibold text-blue-800">Individual Employee Settings</h5>
+                </div>
+                <p className="text-sm text-blue-700">
+                  Set different values for each employee. Leave fields empty to use the default values from the main form.
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                {employees.map((employee) => (
+                  <div key={employee.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-purple-600">
+                          {employee.name.charAt(0)}
+                        </span>
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900">{employee.name}</h5>
+                        <p className="text-sm text-gray-500">{employee.position} • ₱{employee.salary.toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Worked Hours</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.workedHours || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'workedHours', e.target.value)}
+                          placeholder={formData.workedHours || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Overtime Hours</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.overtimeHours || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'overtimeHours', e.target.value)}
+                          placeholder={formData.overtimeHours || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Holiday Pay</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.holidayPay || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'holidayPay', e.target.value)}
+                          placeholder={formData.holidayPay || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Night Differential</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.nightDifferential || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'nightDifferential', e.target.value)}
+                          placeholder={formData.nightDifferential || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Salary Adjustment</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.salaryAdjustment || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'salaryAdjustment', e.target.value)}
+                          placeholder={formData.salaryAdjustment || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Absences</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.absences || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'absences', e.target.value)}
+                          placeholder={formData.absences || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Late Deductions</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.lateDeductions || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'lateDeductions', e.target.value)}
+                          placeholder={formData.lateDeductions || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">SSS Contribution</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.sssContribution || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'sssContribution', e.target.value)}
+                          placeholder={formData.sssContribution || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">PhilHealth Contribution</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.philhealthContribution || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'philhealthContribution', e.target.value)}
+                          placeholder={formData.philhealthContribution || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Pag-IBIG Contribution</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.pagibigContribution || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'pagibigContribution', e.target.value)}
+                          placeholder={formData.pagibigContribution || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Withholding Tax</label>
+                        <input
+                          type="number"
+                          value={bulkFormData[employee.id]?.withholdingTax || ''}
+                          onChange={(e) => handleBulkFormChange(employee.id, 'withholdingTax', e.target.value)}
+                          placeholder={formData.withholdingTax || 'Default'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-200 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  {employees.length} employees configured
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowBulkForm(false);
+                      setBulkFormData({});
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowBulkForm(false);
+                      processPayroll();
+                    }}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Continue with Payroll
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Add Payroll Button */}
       <button
@@ -966,7 +1412,8 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           e.preventDefault();
           e.stopPropagation();
           resetForm();
-          setShowPayrollForm(true);
+          // Small delay to ensure clean state
+          setTimeout(() => setShowPayrollForm(true), 100);
         }}
         className="fixed bottom-6 right-6 bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 z-40"
         title="Create New Payroll (Auto-Calculate)"
@@ -1044,6 +1491,15 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           >
                             Edit
                           </button>
+                          {editingPayroll?.id === payroll.id && (
+                            <button
+                              onClick={() => setTimeout(() => setShowPayrollForm(true), 100)}
+                              className="text-green-600 hover:text-green-900 mr-3"
+                              title="Open edit form"
+                            >
+                              Open Form
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDelete(payroll.id)}
                             className="text-red-600 hover:text-red-900"

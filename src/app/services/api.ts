@@ -219,6 +219,15 @@ class ApiService {
     return this.handleResponse<{ success: boolean; stats: any }>(response)
   }
 
+  async bulkImportEmployees(employeesData: any[]) {
+    const response = await fetch(`${API_BASE_URL}/employees/bulk-import`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ employees: employeesData }),
+    })
+    return this.handleResponse<{ success: boolean; message: string; imported: number; errors: any[] }>(response)
+  }
+
   // Payroll API calls
   async getPayrolls() {
     const response = await fetch(`${API_BASE_URL}/payroll`, {
