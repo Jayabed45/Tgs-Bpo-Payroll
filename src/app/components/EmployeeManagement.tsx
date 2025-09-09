@@ -149,26 +149,34 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   };
 
   const handleDelete = async (id: string) => {
-    const employee = employees.find(emp => emp.id === id);
-    if (!employee) return;
+  const employee = employees.find(emp => emp.id === id);
+  if (!employee) return;
 
-    const confirmMessage = `⚠️ CRITICAL: Are you sure you want to permanently delete employee "${employee.name}"?\n\nThis will:\n• Permanently remove the employee record\n• Delete ALL associated payroll records\n• This action CANNOT be undone\n\nType "DELETE" to confirm:`;
+  const confirmMessage = `⚠️ CRITICAL: Are you sure you want to permanently delete employee "${employee.name}"?\n\nThis will:\n• Permanently remove the employee record\n• Delete ALL associated payroll records\n• This action CANNOT be undone\n\nType "DELETE" to confirm:`;
 
-    const userInput = prompt(confirmMessage);
-    if (userInput !== 'DELETE') {
-      alert('Deletion cancelled. Employee was not deleted.');
-      return;
-    }
+  const userInput = window.prompt(confirmMessage);
 
-    try {
-      await apiService.deleteEmployee(id);
-      alert(`Employee "${employee.name}" and all associated payrolls have been permanently deleted!`);
-      fetchEmployees(); // Refresh the list
-      onEmployeeChange?.(); // Notify parent if provided
-    } catch (error: any) {
-      alert(error.message || 'Delete failed');
-    }
-  };
+  if (userInput !== "DELETE") {
+    window.alert("Deletion cancelled. Employee was not deleted.");
+    return;
+  }
+
+  try {
+    await apiService.deleteEmployee(id);
+
+    // Optimistically remove from state (no need full refetch)
+    setEmployees(prev => prev.filter(emp => emp.id !== id));
+
+    window.alert(
+      `Employee "${employee.name}" and all associated payrolls have been permanently deleted!`
+    );
+
+    onEmployeeChange?.();
+  } catch (error) {
+    const err = error as Error;
+    window.alert(err.message || "Delete failed");
+  }
+};
 
   // File import functions
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

@@ -213,7 +213,7 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
 router.delete('/:id', verifyAdminToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ error: 'Invalid employee ID' });
     }
@@ -229,38 +229,24 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    // Start a session for transaction-like behavior
-    const session = client.startSession();
-    
-    try {
-      await session.withTransaction(async () => {
-        // Delete all payrolls associated with this employee
-        const payrollDeleteResult = await payrollCollection.deleteMany(
-          { employeeId: id },
-          { session }
-        );
-        
-        // Permanently delete the employee
-        const employeeDeleteResult = await employeesCollection.deleteOne(
-      { _id: new ObjectId(id) },
-          { session }
-        );
+    // Delete payrolls first
+    const payrollDeleteResult = await payrollCollection.deleteMany({ employeeId: id });
 
-        if (employeeDeleteResult.deletedCount === 0) {
-          throw new Error('Failed to delete employee');
-        }
+    // Delete employee
+    const employeeDeleteResult = await employeesCollection.deleteOne({ _id: new ObjectId(id) });
 
-        console.log(`Deleted employee ${id} and ${payrollDeleteResult.deletedCount} associated payrolls`);
-      });
-    } finally {
-      await session.endSession();
+    if (employeeDeleteResult.deletedCount === 0) {
+      return res.status(500).json({ error: 'Failed to delete employee' });
     }
+
+    console.log(
+      `Deleted employee ${id} and ${payrollDeleteResult.deletedCount} associated payrolls`
+    );
 
     res.json({
       success: true,
       message: 'Employee and all associated payrolls deleted permanently'
     });
-
   } catch (error) {
     console.error('Delete employee error:', error);
     res.status(500).json({ error: 'Internal server error' });
