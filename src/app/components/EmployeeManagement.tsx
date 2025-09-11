@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { apiService } from "../services/api";
 import Papa from "papaparse";
 
+
 interface Employee {
   id: string;
   name: string;
@@ -22,6 +23,14 @@ interface EmployeeManagementProps {
   onEmployeeChange?: () => void;
 }
 
+//Confirm Delete Modal
+interface ConfirmDeleteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  employeeName: string;
+}
+
 export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagementProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -35,6 +44,30 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   const [dragActive, setDragActive] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  //Delete Modal
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; employee?: Employee }>({
+    open: false,
+  });
+   // open modal when delete button clicked
+  const handleDeleteClick = (employee: Employee) => {
+    setDeleteModal({ open: true, employee });
+  };
+  // confirm deletion when user types DELETE
+   const confirmDelete = async () => {
+    if (!deleteModal.employee) return;
+    const id = deleteModal.employee.id;
+
+    try {
+      await apiService.deleteEmployee(id);
+      setEmployees(prev => prev.filter(emp => emp.id !== id));
+      onEmployeeChange?.();
+    } catch (error: any) {
+      alert(error.message || "Delete failed");
+    } finally {
+      setDeleteModal({ open: false });
+    }
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -148,35 +181,35 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
     setShowAddForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-  const employee = employees.find(emp => emp.id === id);
-  if (!employee) return;
+//   const handleDelete = async (id: string) => {
+//   const employee = employees.find(emp => emp.id === id);
+//   if (!employee) return;
 
-  const confirmMessage = `⚠️ CRITICAL: Are you sure you want to permanently delete employee "${employee.name}"?\n\nThis will:\n• Permanently remove the employee record\n• Delete ALL associated payroll records\n• This action CANNOT be undone\n\nType "DELETE" to confirm:`;
+//   const confirmMessage = `⚠️ CRITICAL: Are you sure you want to permanently delete employee "${employee.name}"?\n\nThis will:\n• Permanently remove the employee record\n• Delete ALL associated payroll records\n• This action CANNOT be undone\n\nType "DELETE" to confirm:`;
 
-  const userInput = window.prompt(confirmMessage);
+//   const userInput = window.prompt(confirmMessage);
 
-  if (userInput !== "DELETE") {
-    window.alert("Deletion cancelled. Employee was not deleted.");
-    return;
-  }
+//   if (userInput !== "DELETE") {
+//     window.alert("Deletion cancelled. Employee was not deleted.");
+//     return;
+//   }
 
-  try {
-    await apiService.deleteEmployee(id);
+//   try {
+//     await apiService.deleteEmployee(id);
 
-    // Optimistically remove from state (no need full refetch)
-    setEmployees(prev => prev.filter(emp => emp.id !== id));
+//     // Optimistically remove from state (no need full refetch)
+//     setEmployees(prev => prev.filter(emp => emp.id !== id));
 
-    window.alert(
-      `Employee "${employee.name}" and all associated payrolls have been permanently deleted!`
-    );
+//     window.alert(
+//       `Employee "${employee.name}" and all associated payrolls have been permanently deleted!`
+//     );
 
-    onEmployeeChange?.();
-  } catch (error) {
-    const err = error as Error;
-    window.alert(err.message || "Delete failed");
-  }
-};
+//     onEmployeeChange?.();
+//   } catch (error) {
+//     const err = error as Error;
+//     window.alert(err.message || "Delete failed");
+//   }
+// };
 
   // File import functions
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -371,6 +404,8 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
       }
     }
   };
+
+
 
   if (loading) {
     return (
@@ -770,8 +805,9 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       >
                         Edit
                       </button>
+
                       <button
-                        onClick={() => handleDelete(employee.id)}
+                        onClick={() => handleDeleteClick(employee)}
                         className="text-red-600 hover:text-red-900"
                       >
                         Delete
@@ -784,6 +820,22 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
           </div>
         </div>
       )}
+       
+    <div>
+      {employees.map(employee => (
+        <div key={employee.id} className="flex justify-between items-center py-2">
+        </div>
+      ))}
+
+      {/*render the modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false })}
+        onConfirm={confirmDelete}
+        employeeName={deleteModal.employee?.name || ""}
+      />
+    </div>
+  
 
             {/* Import Modal - Sliding Panel */}
       {showImportModal && (
@@ -1023,6 +1075,62 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+  
+}
+
+export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }: ConfirmDeleteModalProps) {
+  const [inputValue, setInputValue] = useState("");
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+        <h2 className="text-lg font-semibold text-red-600">
+           CRITICAL: Delete Employee?
+        </h2>
+
+        <p className="mt-2 text-sm text-gray-700">
+          This will:
+          <br />• Permanently remove employee record
+          <br />• Delete <b>ALL</b> associated payroll records
+          <br />• <b>This action cannot be undone</b>
+        </p>
+
+        <p className="mt-3 text-sm text-gray-800">
+          Type <b>DELETE</b> to confirm deletion of <b>{employeeName}</b>.
+        </p>
+
+        <input
+          type="text"
+          className="w-full border rounded-md px-3 py-2 mt-3 text-black"
+          placeholder="Type DELETE"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+        />
+
+        <div className="flex justify-end space-x-2 mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={inputValue !== "DELETE"}
+            className={`px-4 py-2 rounded-md text-white ${
+              inputValue === "DELETE"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-red-300 cursor-not-allowed"
+            }`}
+          >
+            Confirm Delete
+          </button>
+        </div>
       </div>
     </div>
   );
