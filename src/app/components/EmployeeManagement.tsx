@@ -45,29 +45,44 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   const [showDropdown, setShowDropdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  //Delete Modal
+  //Delete Modal State
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; employee?: Employee }>({
+    open: false,
+  });
+  // Success modal state
+  const [successModal, setSuccessModal] = useState<{ open: boolean; employeeName?: string }>({
     open: false,
   });
    // open modal when delete button clicked
   const handleDeleteClick = (employee: Employee) => {
     setDeleteModal({ open: true, employee });
   };
+
+
   // confirm deletion when user types DELETE
    const confirmDelete = async () => {
     if (!deleteModal.employee) return;
     const id = deleteModal.employee.id;
+    const employeeName = deleteModal.employee.name;
 
     try {
       await apiService.deleteEmployee(id);
+
       setEmployees(prev => prev.filter(emp => emp.id !== id));
       onEmployeeChange?.();
+      
+       setDeleteModal({ open: false });
+
+      //showing modal success ok!
+      setSuccessModal({ open: true, employeeName });
+
     } catch (error: any) {
       alert(error.message || "Delete failed");
-    } finally {
-      setDeleteModal({ open: false });
-    }
+    } 
   };
+
+ 
+
 
   // Form state
   const [formData, setFormData] = useState({
@@ -109,9 +124,12 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
     try {
       setLoading(true);
       const response = await apiService.getEmployees();
-      setEmployees(response.employees);
+    // Always fall back to empty array if response is invalid
+      setEmployees(Array.isArray(response.employees) ? response.employees : []);
+
     } catch (error) {
       console.error('Error fetching employees:', error);
+      setEmployees([]); // fallback to empty on error
     } finally {
       setLoading(false);
     }
@@ -181,35 +199,7 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
     setShowAddForm(true);
   };
 
-//   const handleDelete = async (id: string) => {
-//   const employee = employees.find(emp => emp.id === id);
-//   if (!employee) return;
-
-//   const confirmMessage = `⚠️ CRITICAL: Are you sure you want to permanently delete employee "${employee.name}"?\n\nThis will:\n• Permanently remove the employee record\n• Delete ALL associated payroll records\n• This action CANNOT be undone\n\nType "DELETE" to confirm:`;
-
-//   const userInput = window.prompt(confirmMessage);
-
-//   if (userInput !== "DELETE") {
-//     window.alert("Deletion cancelled. Employee was not deleted.");
-//     return;
-//   }
-
-//   try {
-//     await apiService.deleteEmployee(id);
-
-//     // Optimistically remove from state (no need full refetch)
-//     setEmployees(prev => prev.filter(emp => emp.id !== id));
-
-//     window.alert(
-//       `Employee "${employee.name}" and all associated payrolls have been permanently deleted!`
-//     );
-
-//     onEmployeeChange?.();
-//   } catch (error) {
-//     const err = error as Error;
-//     window.alert(err.message || "Delete failed");
-//   }
-// };
+//old deletetion method was here before add lang ug e balik 
 
   // File import functions
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -834,6 +824,11 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
         onConfirm={confirmDelete}
         employeeName={deleteModal.employee?.name || ""}
       />
+      <SuccessModal
+        isOpen={successModal.open}
+        onClose={() => setSuccessModal({ open: false })}
+        employeeName={successModal.employeeName}
+      />
     </div>
   
 
@@ -1081,6 +1076,7 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   
 }
 
+//Delete Modal
 export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }: ConfirmDeleteModalProps) {
   const [inputValue, setInputValue] = useState("");
 
@@ -1129,6 +1125,41 @@ export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }:
             }`}
           >
             Confirm Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+//Succesfully Deleted Modal
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  employeeName?: string;
+}
+export function SuccessModal({ isOpen, onClose, employeeName }: SuccessModalProps) {
+  console.log("SuccessModal rendered → isOpen:", isOpen, "employeeName:", employeeName);
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-green-600">
+          Employee Deleted
+        </h2>
+
+        <p className="mt-3 text-sm text-gray-700">
+          Employee <b>{employeeName}</b> was successfully deleted.
+        </p>
+
+        <div className="mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
+          >
+            OK
           </button>
         </div>
       </div>
