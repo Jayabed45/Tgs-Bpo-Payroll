@@ -49,39 +49,47 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; employee?: Employee }>({
     open: false,
   });
-  // Success modal state
-  const [successModal, setSuccessModal] = useState<{ open: boolean; employeeName?: string }>({
-    open: false,
-  });
+    // Success modal state
+    const [successModal, setSuccessModal] = useState<{ open: boolean; employeeId?: string; employeeName?: string }>({
+      open: false,
+    });
+
+
    // open modal when delete button clicked
   const handleDeleteClick = (employee: Employee) => {
     setDeleteModal({ open: true, employee });
   };
+    const handleSuccessOk = async () => {
+      if (!successModal.employeeId) return;
 
+      try {
+        await apiService.deleteEmployee(successModal.employeeId);
 
-  // confirm deletion when user types DELETE
-   const confirmDelete = async () => {
+        setEmployees(prev => prev.filter(emp => emp.id !== successModal.employeeId));
+        onEmployeeChange?.();
+
+        // close success modal after deletion
+        setSuccessModal({ open: false });
+
+      } catch (error: any) {
+        alert(error.message || "Delete failed");
+      }
+    };
+
+  const confirmDelete = () => {
     if (!deleteModal.employee) return;
-    const id = deleteModal.employee.id;
-    const employeeName = deleteModal.employee.name;
 
-    try {
-      await apiService.deleteEmployee(id);
+    // close delete modal
+    setDeleteModal({ open: false });
 
-      setEmployees(prev => prev.filter(emp => emp.id !== id));
-      onEmployeeChange?.();
-      
-       setDeleteModal({ open: false });
-
-      //showing modal success ok!
-      setSuccessModal({ open: true, employeeName });
-
-    } catch (error: any) {
-      alert(error.message || "Delete failed");
-    } 
+    // open success modal with both id + name
+    setSuccessModal({ 
+      open: true, 
+      employeeId: deleteModal.employee.id, 
+      employeeName: deleteModal.employee.name 
+    });
   };
 
- 
 
 
   // Form state
@@ -797,6 +805,7 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
                       </button>
 
                       <button
+                       type="button"
                         onClick={() => handleDeleteClick(employee)}
                         className="text-red-600 hover:text-red-900"
                       >
@@ -824,11 +833,12 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
         onConfirm={confirmDelete}
         employeeName={deleteModal.employee?.name || ""}
       />
-      <SuccessModal
-        isOpen={successModal.open}
-        onClose={() => setSuccessModal({ open: false })}
-        employeeName={successModal.employeeName}
-      />
+        <SuccessModal
+          isOpen={successModal.open}
+          onClose={() => setSuccessModal({ open: false })}
+          onOk={handleSuccessOk}   
+        />
+
     </div>
   
 
@@ -1116,6 +1126,7 @@ export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }:
             Cancel
           </button>
           <button
+            type = "button"
             onClick={onConfirm}
             disabled={inputValue !== "DELETE"}
             className={`px-4 py-2 rounded-md text-white ${
@@ -1137,26 +1148,26 @@ export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }:
 interface SuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
-  employeeName?: string;
+  onOk: () => void; 
 }
-export function SuccessModal({ isOpen, onClose, employeeName }: SuccessModalProps) {
-  console.log("SuccessModal rendered → isOpen:", isOpen, "employeeName:", employeeName);
+
+export function SuccessModal({ isOpen, onClose, onOk }: SuccessModalProps) {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
         <h2 className="text-lg font-semibold text-green-600">
-          Employee Deleted
+          Deleted Successfully
         </h2>
 
         <p className="mt-3 text-sm text-gray-700">
-          Employee <b>{employeeName}</b> was successfully deleted.
+          The employee Deleted Successfully
         </p>
 
         <div className="mt-5">
           <button
-            onClick={onClose}
+            onClick={onOk}  
             className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
           >
             OK
