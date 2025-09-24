@@ -23,13 +23,7 @@ interface EmployeeManagementProps {
   onEmployeeChange?: () => void;
 }
 
-//Confirm Delete Modal
-interface ConfirmDeleteModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  employeeName: string;
-}
+
 
 export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagementProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -45,51 +39,120 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   const [showDropdown, setShowDropdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+
   //Delete Modal State
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; employee?: Employee }>({
     open: false,
   });
-    // Success modal state
-    const [successModal, setSuccessModal] = useState<{ open: boolean; employeeId?: string; employeeName?: string }>({
-      open: false,
-    });
-
-
+  // Success modal state
+  const [successModal, setSuccessModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
+  //For success adding and updating employee
+  const [formSuccessModal, setFormSuccessModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
+ 
    // open modal when delete button clicked
   const handleDeleteClick = (employee: Employee) => {
     setDeleteModal({ open: true, employee });
   };
-    const handleSuccessOk = async () => {
-      if (!successModal.employeeId) return;
 
-      try {
-        await apiService.deleteEmployee(successModal.employeeId);
-
-        setEmployees(prev => prev.filter(emp => emp.id !== successModal.employeeId));
-        onEmployeeChange?.();
-
-        // close success modal after deletion
-        setSuccessModal({ open: false });
-
-      } catch (error: any) {
-        alert(error.message || "Delete failed");
-      }
-    };
-
-  const confirmDelete = () => {
-    if (!deleteModal.employee) return;
-
-    // close delete modal
-    setDeleteModal({ open: false });
-
-    // open success modal with both id + name
-    setSuccessModal({ 
-      open: true, 
-      employeeId: deleteModal.employee.id, 
-      employeeName: deleteModal.employee.name 
-    });
+  // Add this useEffect to check for success state on component mount
+useEffect(() => {
+  const showSuccess = sessionStorage.getItem('showDeleteSuccess');
+  const message = sessionStorage.getItem('deleteSuccessMessage');
+  const timestamp = sessionStorage.getItem('deleteSuccessTimestamp');
+  
+  if (showSuccess === 'true' && timestamp) {
+    // Only show if the success was stored less than 5 seconds ago
+    const timeDiff = Date.now() - parseInt(timestamp);
+    if (timeDiff < 5000) {
+      console.log("🎯 Showing success modal from sessionStorage");
+      setSuccessModal({
+        open: true,
+        message: message || "Employee deleted successfully."
+      });
+      
+      // Clean up
+      sessionStorage.removeItem('showDeleteSuccess');
+      sessionStorage.removeItem('deleteSuccessMessage');
+      sessionStorage.removeItem('deleteSuccessTimestamp');
+    } else {
+      // Clean up old entries
+      sessionStorage.removeItem('showDeleteSuccess');
+      sessionStorage.removeItem('deleteSuccessMessage');
+      sessionStorage.removeItem('deleteSuccessTimestamp');
+    }
+  }
+}, []);
+// Clean up on unmount to prevent memory leaks
+useEffect(() => {
+  return () => {
+    // Only clean up if we're not in the middle of a delete operation
+    const showSuccess = sessionStorage.getItem('showDeleteSuccess');
+    if (showSuccess !== 'true') {
+      sessionStorage.removeItem('showDeleteSuccess');
+      sessionStorage.removeItem('deleteSuccessMessage');
+      sessionStorage.removeItem('deleteSuccessTimestamp');
+    }
   };
+}, []);
 
+  // const confirmDelete = () => {
+  //   if (!deleteModal.employee) return;
+
+  //   // close delete modal
+  //   setDeleteModal({ open: false });
+
+  //   // open success modal with both id + name
+  //   setSuccessModal({ 
+  //     open: true, 
+  //     employeeId: deleteModal.employee.id, 
+  //     employeeName: deleteModal.employee.name 
+  //   });
+  // };
+  
+const confirmDelete = async (e?: React.MouseEvent) => {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  if (!deleteModal.employee) return;
+
+  const id = deleteModal.employee.id;
+  const name = deleteModal.employee.name;
+
+  try {
+    console.log("🟢 Deleting employee:", id);
+    await apiService.deleteEmployee(id);
+    console.log("✅ Delete succeeded");
+
+    // Store success state in sessionStorage
+    sessionStorage.setItem('showDeleteSuccess', 'true');
+    sessionStorage.setItem('deleteSuccessMessage', `Employee ${name} has been successfully deleted.`);
+    sessionStorage.setItem('deleteSuccessTimestamp', Date.now().toString());
+
+    // Update local state
+    setEmployees(prev => prev.filter(emp => emp.id !== id));
+    
+    // 👇 CRITICAL: Notify parent components to refresh their data
+    if (onEmployeeChange) {
+      console.log("📢 Notifying parent of employee change");
+      onEmployeeChange(); // This should trigger refreshes in other components
+    } else {
+      console.log("ℹ️ No onEmployeeChange callback provided");
+    }
+
+    // Close confirm delete modal
+    setDeleteModal({ open: false, employee: undefined });
+
+  } catch (error: any) {
+    console.error("❌ Delete error:", error);
+    alert(error.message || "Delete failed");
+  }
+};
 
 
   // Form state
@@ -172,17 +235,14 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
       if (editingEmployee) {
         // Update existing employee
         await apiService.updateEmployee(editingEmployee.id, formData);
-        alert('Employee updated successfully!');
+        setFormSuccessModal({ open: true, message: "Employee updated successfully!" });
       } else {
         // Create new employee
         await apiService.createEmployee(formData);
-        alert('Employee created successfully!');
+        setFormSuccessModal({ open: true, message: "Employee added successfully!" });
       }
       
-      setShowAddForm(false);
-      resetForm();
-      fetchEmployees(); // Refresh the list
-      onEmployeeChange?.(); // Notify parent if provided
+
     } catch (error: any) {
       alert(error.message || 'Operation failed');
     } finally {
@@ -402,8 +462,6 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
       }
     }
   };
-
-
 
   if (loading) {
     return (
@@ -819,28 +877,6 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
           </div>
         </div>
       )}
-       
-    <div>
-      {employees.map(employee => (
-        <div key={employee.id} className="flex justify-between items-center py-2">
-        </div>
-      ))}
-
-      {/*render the modal */}
-      <ConfirmDeleteModal
-        isOpen={deleteModal.open}
-        onClose={() => setDeleteModal({ open: false })}
-        onConfirm={confirmDelete}
-        employeeName={deleteModal.employee?.name || ""}
-      />
-        <SuccessModal
-          isOpen={successModal.open}
-          onClose={() => setSuccessModal({ open: false })}
-          onOk={handleSuccessOk}   
-        />
-
-    </div>
-  
 
             {/* Import Modal - Sliding Panel */}
       {showImportModal && (
@@ -1081,11 +1117,50 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
           </div>
         )}
       </div>
+      <div>
+      {employees.map(employee => (
+        <div key={employee.id} className="flex justify-between items-center py-2">
+        </div>
+      ))}
+
+      {/*render the modal */}
+        <ConfirmDeleteModal
+          isOpen={deleteModal.open}
+          onClose={() => setDeleteModal({ open: false })}
+          onConfirm={confirmDelete}
+          employeeName={deleteModal.employee?.name || ""}
+        />
+
+        <SuccessModal
+          isOpen={successModal.open}
+          onClose={() => setSuccessModal({ open: false })}
+          message={successModal.message}
+        />
+
+        <SuccessModalForm
+          isOpen={formSuccessModal.open}
+          onClose={() => {
+            setFormSuccessModal({ open: false });
+            setShowAddForm(false);
+            resetForm();
+            fetchEmployees(); 
+            onEmployeeChange?.();
+          }}
+          message={formSuccessModal.message}
+        />
     </div>
+    </div>
+    
   );
   
 }
-
+//Confirm Delete Modal
+interface ConfirmDeleteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  employeeName: string;
+}
 //Delete Modal
 export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }: ConfirmDeleteModalProps) {
   const [inputValue, setInputValue] = useState("");
@@ -1107,7 +1182,7 @@ export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }:
         </p>
 
         <p className="mt-3 text-sm text-gray-800">
-          Type <b>DELETE</b> to confirm deletion of <b>{employeeName}</b>.
+          Type <b>DELETE</b> to confirm deletion of Employee <b>{employeeName}</b>.
         </p>
 
         <input
@@ -1126,8 +1201,10 @@ export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }:
             Cancel
           </button>
           <button
-            type = "button"
-            onClick={onConfirm}
+            type="button"
+            onClick={ 
+              onConfirm
+            }
             disabled={inputValue !== "DELETE"}
             className={`px-4 py-2 rounded-md text-white ${
               inputValue === "DELETE"
@@ -1137,22 +1214,30 @@ export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, employeeName }:
           >
             Confirm Delete
           </button>
+
         </div>
       </div>
     </div>
   );
 }
 
-
-//Succesfully Deleted Modal
-interface SuccessModalProps {
+// Successfully Deleted Modal
+export function SuccessModal({ isOpen, onClose, message }: {
   isOpen: boolean;
   onClose: () => void;
-  onOk: () => void; 
-}
-
-export function SuccessModal({ isOpen, onClose, onOk }: SuccessModalProps) {
+  message?: string;
+}) {
   if (!isOpen) return null;
+
+const handleOk = () => {
+  console.log("✅ OK clicked - cleaning up and closing modal");
+  // Clean up sessionStorage
+  sessionStorage.removeItem('showDeleteSuccess');
+  sessionStorage.removeItem('deleteSuccessMessage');
+  sessionStorage.removeItem('deleteSuccessTimestamp');
+  
+  onClose();
+};
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
@@ -1160,14 +1245,46 @@ export function SuccessModal({ isOpen, onClose, onOk }: SuccessModalProps) {
         <h2 className="text-lg font-semibold text-green-600">
           Deleted Successfully
         </h2>
+        <p className="mt-3 text-sm text-gray-700">
+          {message || "The employee was deleted successfully."}
+        </p>
+        <div className="mt-5">
+          <button
+            onClick={handleOk}
+            className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+//Success Modal upadating and adding 
+interface FormSuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message?: string;
+}
+
+export function SuccessModalForm({ isOpen, onClose, message }: FormSuccessModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-green-600">
+          Success
+        </h2>
 
         <p className="mt-3 text-sm text-gray-700">
-          The employee Deleted Successfully
+          {message || "Operation completed successfully!"}
         </p>
 
         <div className="mt-5">
           <button
-            onClick={onOk}  
+            onClick={onClose}
             className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
           >
             OK
