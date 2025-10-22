@@ -23,6 +23,40 @@ interface EmployeeManagementProps {
   onEmployeeChange?: () => void;
 }
 
+// Error Modal Component Interface and Definition
+interface ErrorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message?: string;
+}
+
+function ErrorModal({ isOpen, onClose, message }: ErrorModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-red-600">
+          Error
+        </h2>
+
+        <p className="mt-3 text-sm text-gray-700">
+          {message || "An error occurred. Please try again."}
+        </p>
+
+        <div className="mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 
 export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagementProps) {
@@ -50,6 +84,10 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   });
   //For success adding and updating employee
   const [formSuccessModal, setFormSuccessModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
+  // Error modal state
+  const [errorModal, setErrorModal] = useState<{ open: boolean; message?: string }>({
     open: false,
   });
  
@@ -150,7 +188,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 
   } catch (error: any) {
     console.error("❌ Delete error:", error);
-    alert(error.message || "Delete failed");
+    setErrorModal({ open: true, message: error.message || "Delete failed" });
   }
 };
 
@@ -244,7 +282,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       
 
     } catch (error: any) {
-      alert(error.message || 'Operation failed');
+      setErrorModal({ open: true, message: error.message || 'Operation failed' });
     } finally {
       setFormLoading(false);
     }
@@ -277,7 +315,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     // Check file type
     const fileType = file.name.toLowerCase();
     if (!fileType.endsWith('.csv') && !fileType.endsWith('.xlsx') && !fileType.endsWith('.xls')) {
-      alert('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
+      setErrorModal({ open: true, message: 'Please upload a CSV or Excel file (.csv, .xlsx, .xls)' });
       return;
     }
 
@@ -299,7 +337,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         }
       });
     } else {
-      alert('Excel file support coming soon. Please convert to CSV format.');
+      setErrorModal({ open: true, message: 'Excel file support coming soon. Please convert to CSV format.' });
     }
   };
 
@@ -361,7 +399,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 
   const handleImportSubmit = async () => {
     if (importPreview.length === 0) {
-      alert('No data to import');
+      setErrorModal({ open: true, message: 'No data to import' });
       return;
     }
 
@@ -375,14 +413,14 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     setImportLoading(true);
     try {
       const result = await apiService.bulkImportEmployees(valid);
-      alert(`Successfully imported ${result.imported} employees!`);
+      setSuccessModal({ open: true, message: `Successfully imported ${result.imported} employees!` });
       setShowImportModal(false);
       setImportPreview([]);
       setImportErrors([]);
       fetchEmployees(); // Refresh the list
       onEmployeeChange?.(); // Notify parent if provided
     } catch (error: any) {
-      alert(error.message || 'Import failed');
+      setErrorModal({ open: true, message: error.message || 'Import failed' });
     } finally {
       setImportLoading(false);
     }
@@ -437,7 +475,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       const fileType = file.name.toLowerCase();
       
       if (!fileType.endsWith('.csv') && !fileType.endsWith('.xlsx') && !fileType.endsWith('.xls')) {
-        alert('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
+        setErrorModal({ open: true, message: 'Please upload a CSV or Excel file (.csv, .xlsx, .xls)' });
         return;
       }
 
@@ -458,7 +496,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
           }
         });
       } else {
-        alert('Excel file support coming soon. Please convert to CSV format.');
+        setErrorModal({ open: true, message: 'Excel file support coming soon. Please convert to CSV format.' });
       }
     }
   };
@@ -1148,6 +1186,12 @@ const confirmDelete = async (e?: React.MouseEvent) => {
           }}
           message={formSuccessModal.message}
         />
+
+        <ErrorModal
+          isOpen={errorModal.open}
+          onClose={() => setErrorModal({ open: false })}
+          message={errorModal.message}
+        />
     </div>
     </div>
     
@@ -1294,3 +1338,4 @@ export function SuccessModalForm({ isOpen, onClose, message }: FormSuccessModalP
     </div>
   );
 }
+

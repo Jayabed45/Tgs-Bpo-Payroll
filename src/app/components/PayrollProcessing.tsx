@@ -14,6 +14,148 @@ interface PayrollProcessingProps {
   onPayrollChange?: () => void;
 }
 
+// Modal Component Interfaces
+interface PayrollSuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message?: string;
+}
+
+interface PayrollErrorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message?: string;
+}
+
+interface PayrollWarningModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message?: string;
+}
+
+interface PayrollDeleteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  payrollName: string;
+  message?: string;
+}
+
+// Modal Components
+function PayrollSuccessModal({ isOpen, onClose, message }: PayrollSuccessModalProps) {
+  console.log('✅ PayrollSuccessModal render:', { isOpen, message }); // Debug log
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-green-600">
+          Success!
+        </h2>
+        <p className="mt-3 text-sm text-gray-700">
+          {message || "Operation completed successfully!"}
+        </p>
+        <div className="mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PayrollErrorModal({ isOpen, onClose, message }: PayrollErrorModalProps) {
+  console.log('❌ PayrollErrorModal render:', { isOpen, message }); // Debug log
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-red-600">
+          Error
+        </h2>
+        <p className="mt-3 text-sm text-gray-700">
+          {message || "An error occurred. Please try again."}
+        </p>
+        <div className="mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PayrollWarningModal({ isOpen, onClose, message }: PayrollWarningModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-yellow-600">
+          Warning
+        </h2>
+        <p className="mt-3 text-sm text-gray-700">
+          {message || "Please review the information and try again."}
+        </p>
+        <div className="mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-yellow-600 text-white hover:bg-yellow-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PayrollDeleteModal({ isOpen, onClose, onConfirm, payrollName, message }: PayrollDeleteModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+        <h2 className="text-lg font-semibold text-red-600">
+          CRITICAL: Delete Payroll?
+        </h2>
+
+        <p className="mt-2 text-sm text-gray-700">
+          {message}
+        </p>
+
+        <p className="mt-3 text-sm text-gray-800">
+          Employee: <b>{payrollName}</b>
+        </p>
+
+        <div className="flex justify-end space-x-2 mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700"
+          >
+            Confirm Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChange }: PayrollProcessingProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrolls, setPayrolls] = useState<any[]>([]);
@@ -23,6 +165,35 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const [calculating, setCalculating] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [editingPayroll, setEditingPayroll] = useState<any>(null);
+  // Modal states
+  const [successModal, setSuccessModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
+  const [errorModal, setErrorModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
+  const [warningModal, setWarningModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; payroll?: any; message?: string }>({
+    open: false,
+  });
+
+  // Helper function to show modals
+  const showModalMessage = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
+    console.log('🔔 showModalMessage called:', { type, title, message }); // Debug log
+    
+    if (type === 'success') {
+      setSuccessModal({ open: true, message });
+    } else if (type === 'error') {
+      setErrorModal({ open: true, message });
+    } else if (type === 'warning') {
+      setWarningModal({ open: true, message });
+    } else if (type === 'info') {
+      // For now, treat info as success
+      setSuccessModal({ open: true, message });
+    }
+  };
 
   // Form state
   const [formData, setFormData] = useState({
@@ -157,19 +328,19 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const calculatePayroll = async () => {
     // Prevent recalculation when editing to preserve original values
     if (editingPayroll) {
-      alert('Recalculation is disabled during edit mode to preserve the original payroll values. If you need to recalculate, please save your changes first and create a new payroll entry.');
+      showModalMessage('warning', 'Recalculation Disabled', 'Recalculation is disabled during edit mode to preserve the original payroll values. If you need to recalculate, please save your changes first and create a new payroll entry.');
       return;
     }
     
     // Validate required fields
     if (!formData.employeeId || !formData.cutoffStart || !formData.cutoffEnd) {
-      alert('Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
+      showModalMessage('error', 'Missing Required Fields', 'Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
       return;
     }
 
     // For individual employee selection, basic salary is required
     if (formData.employeeId !== 'all' && !formData.basicSalary) {
-      alert('Please fill in the Basic Salary field for individual employee payroll');
+      showModalMessage('error', 'Missing Basic Salary', 'Please fill in the Basic Salary field for individual employee payroll');
       return;
     }
 
@@ -247,18 +418,18 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const processPayroll = async () => {
     // Validate required fields
     if (!formData.employeeId || !formData.cutoffStart || !formData.cutoffEnd) {
-      alert('Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
+      showModalMessage('error', 'Missing Required Fields', 'Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
       return;
     }
 
     // For individual employee selection, basic salary is required
     if (formData.employeeId !== 'all' && !formData.basicSalary) {
-      alert('Please fill in the Basic Salary field for individual employee payroll');
+      showModalMessage('error', 'Missing Basic Salary', 'Please fill in the Basic Salary field for individual employee payroll');
       return;
     }
 
     if (editingPayroll && editingPayroll.status === 'completed') {
-      alert('Completed payrolls cannot be processed. Please contact an administrator if changes are needed.');
+      showModalMessage('warning', 'Cannot Process', 'Completed payrolls cannot be processed. Please contact an administrator if changes are needed.');
       return;
     }
 
@@ -313,9 +484,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         }
 
         if (createdPayrolls.length > 0) {
-          alert(`Successfully created ${createdPayrolls.length} payroll records!${errors.length > 0 ? `\n\nErrors:\n${errors.join('\n')}` : ''}`);
+          showModalMessage('success', 'Bulk Payroll Created', `Successfully created ${createdPayrolls.length} payroll records!${errors.length > 0 ? `\n\nErrors:\n${errors.join('\n')}` : ''}`);
         } else {
-          alert('Failed to create any payroll records. Please check the console for details.');
+          showModalMessage('error', 'Creation Failed', 'Failed to create any payroll records. Please check the console for details.');
         }
       } else {
         // Handle individual employee payroll
@@ -356,23 +527,16 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
       if (editingPayroll) {
         await apiService.updatePayroll(editingPayroll.id, payrollData);
-        alert('Payroll updated and processed successfully! Status changed to "Processed"');
+        showModalMessage('success', 'Success!', 'Payroll updated and processed successfully! Status changed to "Processed"');
       } else {
         await apiService.createPayroll(payrollData);
-        alert('Payroll processed successfully! Status changed to "Processed"');
+        showModalMessage('success', 'Success!', 'Payroll processed successfully! Status changed to "Processed"');
         }
       }
       
-      setShowPayrollForm(false);
-      resetForm();
-      fetchData(); // Refresh the list
-      
-      // Notify parent component about payroll status change
-      if (onPayrollStatusChange) {
-        onPayrollStatusChange();
-      }
+      // Don't do immediate cleanup - let the modal handle it
     } catch (error: any) {
-      alert(error.message || 'Processing failed');
+      showModalMessage('error', 'Processing Failed', error.message || 'Processing failed');
     } finally {
       setProcessing(false);
     }
@@ -380,7 +544,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
   const handleEdit = (payroll: any) => {
     if (payroll.status === 'completed') {
-      alert('Completed payrolls cannot be edited. Please contact an administrator if changes are needed.');
+      showModalMessage('warning', 'Cannot Edit', 'Completed payrolls cannot be edited. Please contact an administrator if changes are needed.');
       return;
     }
 
@@ -412,7 +576,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     // Don't automatically show the form - let user decide
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     const payroll = payrolls.find(p => p.id === id);
     if (!payroll) return;
 
@@ -423,19 +587,20 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       confirmMessage = '⚠️ CRITICAL: This payroll has been completed. Deleting it will permanently remove all financial records and may affect compliance. Are you absolutely sure you want to proceed?';
     }
 
-    if (confirm(confirmMessage)) {
-      try {
-        await apiService.deletePayroll(id);
-        alert('Payroll permanently deleted!');
-        fetchData(); // Refresh the list
-        
-        // Notify parent component about payroll change
-        if (onPayrollChange) {
-          onPayrollChange();
-        }
-      } catch (error: any) {
-        alert(error.message || 'Delete failed');
-      }
+    setDeleteModal({ open: true, payroll, message: confirmMessage });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.payroll) return;
+
+    try {
+      await apiService.deletePayroll(deleteModal.payroll.id);
+      setDeleteModal({ open: false });
+      showModalMessage('success', 'Deleted Successfully', 'Payroll permanently deleted!');
+      // Don't do immediate cleanup - let the modal handle it
+    } catch (error: any) {
+      setDeleteModal({ open: false });
+      showModalMessage('error', 'Delete Failed', error.message || 'Delete failed');
     }
   };
 
@@ -472,21 +637,21 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     setFormLoading(true);
 
     if (editingPayroll && editingPayroll.status === 'completed') {
-      alert('Completed payrolls cannot be modified. Please contact an administrator if changes are needed.');
+      showModalMessage('warning', 'Cannot Modify', 'Completed payrolls cannot be modified. Please contact an administrator if changes are needed.');
       setFormLoading(false);
       return;
     }
 
     // Validate required fields
     if (!formData.employeeId || !formData.cutoffStart || !formData.cutoffEnd) {
-      alert('Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
+      showModalMessage('error', 'Missing Required Fields', 'Please fill in all required fields: Employee, Cutoff Start, and Cutoff End dates');
       setFormLoading(false);
       return;
     }
 
     // For individual employee selection, basic salary is required
     if (formData.employeeId !== 'all' && !formData.basicSalary) {
-      alert('Please fill in the Basic Salary field for individual employee payroll');
+      showModalMessage('error', 'Missing Basic Salary', 'Please fill in the Basic Salary field for individual employee payroll');
       setFormLoading(false);
       return;
     }
@@ -534,9 +699,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         }
 
         if (createdPayrolls.length > 0) {
-          alert(`Successfully saved ${createdPayrolls.length} payroll drafts!${errors.length > 0 ? `\n\nErrors:\n${errors.join('\n')}` : ''}`);
+          showModalMessage('success', 'Bulk Drafts Saved', `Successfully saved ${createdPayrolls.length} payroll drafts!${errors.length > 0 ? `\n\nErrors:\n${errors.join('\n')}` : ''}`);
         } else {
-          alert('Failed to create any payroll drafts. Please check the console for details.');
+          showModalMessage('error', 'Save Failed', 'Failed to create any payroll drafts. Please check the console for details.');
         }
       } else {
         // Handle individual employee payroll
@@ -562,18 +727,16 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
       if (editingPayroll) {
         await apiService.updatePayroll(editingPayroll.id, payrollData);
-        alert('Payroll updated successfully! Status: Pending');
+        showModalMessage('success', 'Updated Successfully', 'Payroll updated successfully! Status: Pending');
       } else {
         await apiService.createPayroll(payrollData);
-        alert('Payroll saved as draft successfully! Status: Pending');
+        showModalMessage('success', 'Draft Saved', 'Payroll saved as draft successfully! Status: Pending');
         }
       }
       
-      setShowPayrollForm(false);
-      resetForm();
-      fetchData(); // Refresh the list
+      // Don't do anything immediately - let the modal handle cleanup
     } catch (error: any) {
-      alert(error.message || 'Operation failed');
+      showModalMessage('error', 'Operation Failed', error.message || 'Operation failed');
     } finally {
       setFormLoading(false);
     }
@@ -592,6 +755,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const shouldShowBulkForm = showBulkForm && !loading;
 
   return (
+    <>
     <div className="space-y-6">
 
       {/* Add/Edit Form Sliding Panel */}
@@ -1406,6 +1570,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         </div>
       )}
 
+
       {/* Floating Add Payroll Button */}
       <button
         onClick={(e) => {
@@ -1515,6 +1680,64 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           </div>
         </div>
       )}
+
     </div>
+    
+    <div>
+      {/* Render Modals - Outside main container like EmployeeManagement */}
+      <PayrollSuccessModal
+        isOpen={successModal.open}
+        onClose={() => {
+          console.log('✅ Success modal closing, message:', successModal.message);
+          setSuccessModal({ open: false });
+          
+          // Handle cleanup after user acknowledges success
+          if (successModal.message?.includes('Draft Saved') || 
+              successModal.message?.includes('Updated Successfully') ||
+              successModal.message?.includes('Payroll updated and processed') ||
+              successModal.message?.includes('Payroll processed successfully')) {
+            setShowPayrollForm(false);
+            resetForm();
+            fetchData(); // Refresh the list
+            
+            // Notify parent component
+            if (onPayrollStatusChange) {
+              onPayrollStatusChange();
+            }
+          }
+          
+          // Handle delete success
+          if (successModal.message?.includes('permanently deleted')) {
+            fetchData(); // Refresh the list
+            if (onPayrollChange) {
+              onPayrollChange();
+            }
+          }
+        }}
+        message={successModal.message}
+      />
+
+      <PayrollErrorModal
+        isOpen={errorModal.open}
+        onClose={() => setErrorModal({ open: false })}
+        message={errorModal.message}
+      />
+
+      <PayrollWarningModal
+        isOpen={warningModal.open}
+        onClose={() => setWarningModal({ open: false })}
+        message={warningModal.message}
+      />
+
+      <PayrollDeleteModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false })}
+        onConfirm={confirmDelete}
+        payrollName={deleteModal.payroll?.employeeName || 'Unknown Employee'}
+        message={deleteModal.message}
+      />
+    </div>
+    </>
   );
 }
+

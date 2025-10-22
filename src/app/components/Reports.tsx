@@ -37,6 +37,101 @@ interface Payslip {
   netPay: number;
   generatedAt: string;
   downloadUrl?: string;
+  createdAt: string;
+}
+
+// Modal Component Interfaces and Definitions
+interface SuccessModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message?: string;
+}
+
+function SuccessModal({ isOpen, onClose, message }: SuccessModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-green-600">
+          Success!
+        </h2>
+        <p className="mt-3 text-sm text-gray-700">
+          {message || "Operation completed successfully!"}
+        </p>
+        <div className="mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ErrorModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message?: string;
+}
+
+function ErrorModal({ isOpen, onClose, message }: ErrorModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-red-600">
+          Error
+        </h2>
+        <p className="mt-3 text-sm text-gray-700">
+          {message || "An error occurred. Please try again."}
+        </p>
+        <div className="mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface WarningModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  message?: string;
+}
+
+function WarningModal({ isOpen, onClose, message }: WarningModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <h2 className="text-lg font-semibold text-yellow-600">
+          Warning
+        </h2>
+        <p className="mt-3 text-sm text-gray-700">
+          {message || "Please review the information and try again."}
+        </p>
+        <div className="mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-md bg-yellow-600 text-white hover:bg-yellow-700"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Reports() {
@@ -48,6 +143,17 @@ export default function Reports() {
   const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
+  
+  // Modal states
+  const [successModal, setSuccessModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
+  const [errorModal, setErrorModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
+  const [warningModal, setWarningModal] = useState<{ open: boolean; message?: string }>({
+    open: false,
+  });
 
   useEffect(() => {
     fetchData();
@@ -75,17 +181,17 @@ export default function Reports() {
 
   const generatePayslip = async (payroll: Payroll) => {
     if (payroll.status !== 'processed' && payroll.status !== 'completed') {
-      alert('Only processed or completed payrolls can generate payslips');
+      setWarningModal({ open: true, message: 'Only processed or completed payrolls can generate payslips' });
       return;
     }
 
     setGenerating(true);
     try {
       const payslip = await apiService.generatePayslip(payroll._id || payroll.id || '');
-      alert('Payslip generated successfully!');
+      setSuccessModal({ open: true, message: 'Payslip generated successfully!' });
       fetchData(); // Refresh the list
     } catch (error: any) {
-      alert(error.message || 'Failed to generate payslip');
+      setErrorModal({ open: true, message: error.message || 'Failed to generate payslip' });
     } finally {
       setGenerating(false);
     }
@@ -105,7 +211,7 @@ export default function Reports() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error: any) {
-      alert(error.message || 'Failed to download payslip');
+      setErrorModal({ open: true, message: error.message || 'Failed to download payslip' });
     }
   };
 
@@ -481,6 +587,29 @@ export default function Reports() {
         </div>
       </div>
         )}
+
+      {/* Render Modals */}
+      {successModal.open && (
+        <SuccessModal
+          isOpen={successModal.open}
+          onClose={() => setSuccessModal({ open: false })}
+          message={successModal.message}
+        />
+      )}
+      {errorModal.open && (
+        <ErrorModal
+          isOpen={errorModal.open}
+          onClose={() => setErrorModal({ open: false })}
+          message={errorModal.message}
+        />
+      )}
+      {warningModal.open && (
+        <WarningModal
+          isOpen={warningModal.open}
+          onClose={() => setWarningModal({ open: false })}
+          message={warningModal.message}
+        />
+      )}
     </div>
   );
 }
