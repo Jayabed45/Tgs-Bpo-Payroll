@@ -4,6 +4,7 @@ class Payroll {
   constructor(data) {
     this.employeeId = data.employeeId;
     this.employeeName = data.employeeName;
+    this.departmentId = data.departmentId; // ObjectId reference to Department
     this.cutoffStart = data.cutoffStart;
     this.cutoffEnd = data.cutoffEnd;
     this.basicSalary = data.basicSalary || 0;

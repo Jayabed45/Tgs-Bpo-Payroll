@@ -49,6 +49,7 @@ router.get('/', verifyAdminToken, async (req, res) => {
       email: emp.email,
       contactNumber: emp.contactNumber,
       hireDate: emp.hireDate,
+      departmentId: emp.departmentId?.toString(),
       isActive: emp.isActive,
       createdAt: emp.createdAt,
       updatedAt: emp.updatedAt
@@ -97,6 +98,7 @@ router.get('/:id', verifyAdminToken, async (req, res) => {
       email: employee.email,
       contactNumber: employee.contactNumber,
       hireDate: employee.hireDate,
+      departmentId: employee.departmentId?.toString(),
       isActive: employee.isActive,
       createdAt: employee.createdAt,
       updatedAt: employee.updatedAt

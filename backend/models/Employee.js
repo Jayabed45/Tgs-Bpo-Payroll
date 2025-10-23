@@ -12,6 +12,10 @@ class Employee {
     this.email = data.email;
     this.contactNumber = data.contactNumber;
     this.hireDate = data.hireDate;
+    // Convert departmentId to ObjectId if it's a string
+    this.departmentId = data.departmentId ? 
+      (typeof data.departmentId === 'string' ? new ObjectId(data.departmentId) : data.departmentId) 
+      : null;
     this.isActive = data.isActive !== undefined ? data.isActive : true;
     this.createdAt = data.createdAt || new Date();
     this.updatedAt = data.updatedAt || new Date();
@@ -60,6 +64,10 @@ class Employee {
     
     if (!this.pagibigNumber || this.pagibigNumber.trim().length === 0) {
       errors.push('Pag-IBIG number is required');
+    }
+    
+    if (!this.departmentId) {
+      errors.push('Department is required');
     }
     
     return errors;

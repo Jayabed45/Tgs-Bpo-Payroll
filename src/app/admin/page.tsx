@@ -5,6 +5,7 @@ import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Dashboard from "../components/Dashboard";
 import EmployeeManagement from "../components/EmployeeManagement";
+import DepartmentManagement from "../components/DepartmentManagement";
 import PayrollProcessing from "../components/PayrollProcessing";
 import Reports from "../components/Reports";
 import { apiService } from "../services/api";
@@ -360,6 +361,11 @@ export default function AdminPage() {
           {/* Employee Management Tab */}
           {activeTab === 'employees' && (
             <EmployeeManagement onEmployeeChange={fetchDashboardData} />
+          )}
+
+          {/* Department Management Tab */}
+          {activeTab === 'departments' && (
+            <DepartmentManagement onDepartmentChange={fetchDashboardData} />
           )}
 
           {/* Payroll Processing Tab */}

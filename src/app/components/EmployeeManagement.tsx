@@ -4,6 +4,15 @@ import { apiService } from "../services/api";
 import Papa from "papaparse";
 
 
+interface Department {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  manager?: string;
+  isActive: boolean;
+}
+
 interface Employee {
   id: string;
   name: string;
@@ -16,6 +25,8 @@ interface Employee {
   email: string;
   contactNumber: string;
   hireDate: string;
+  departmentId: string;
+  department?: Department; // Populated department info
   isActive: boolean;
 }
 
@@ -204,11 +215,16 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     pagibigNumber: "",
     email: "",
     contactNumber: "",
-    hireDate: ""
+    hireDate: "",
+    departmentId: ""
   });
+
+  // Department state
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
     fetchEmployees();
+    fetchDepartments();
   }, []);
 
   // Handle clicking outside dropdown to close it
@@ -244,6 +260,16 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const response = await apiService.getDepartments();
+      setDepartments(Array.isArray(response.departments) ? response.departments : []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setDepartments([]);
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -256,7 +282,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     setFormData({
       name: "", position: "", salary: "", workingDays: "",
       sssNumber: "", philhealthNumber: "", pagibigNumber: "",
-      email: "", contactNumber: "", hireDate: ""
+      email: "", contactNumber: "", hireDate: "", departmentId: ""
     });
     setEditingEmployee(null);
   };
@@ -300,7 +326,8 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       pagibigNumber: employee.pagibigNumber,
       email: employee.email,
       contactNumber: employee.contactNumber,
-      hireDate: employee.hireDate
+      hireDate: employee.hireDate,
+      departmentId: employee.departmentId
     });
     setShowAddForm(true);
   };
@@ -598,6 +625,30 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
                     />
                   </div>
+                </div>
+
+                {/* Department Selection */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700 flex items-center">
+                    <svg className="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    Department
+                  </label>
+                  <select
+                    name="departmentId"
+                    value={formData.departmentId}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name} ({dept.code})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

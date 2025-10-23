@@ -155,6 +155,27 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
 
 class ApiService {
+  private async retryFetch(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+    let lastError: Error = new Error('Unknown error');
+    
+    for (let i = 0; i <= maxRetries; i++) {
+      try {
+        const response = await fetch(url, options);
+        return response;
+      } catch (error) {
+        lastError = error as Error;
+        
+        if (i < maxRetries) {
+          console.warn(`API call failed (attempt ${i + 1}/${maxRetries + 1}):`, error);
+          // Wait before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+        }
+      }
+    }
+    
+    throw new Error(`Network error after ${maxRetries + 1} attempts: ${lastError.message}`);
+  }
+
   private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem("token")
     return {
@@ -165,8 +186,26 @@ class ApiService {
 
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch (parseError) {
+        // If JSON parsing fails, use the status-based message
+        console.warn('Failed to parse error response:', parseError);
+      }
+      
+      // Add more specific error messages
+      if (response.status === 404) {
+        errorMessage = 'Resource not found. Please check if the backend server is running.';
+      } else if (response.status === 500) {
+        errorMessage = 'Server error. Please try again or contact support.';
+      } else if (response.status === 0 || !response.status) {
+        errorMessage = 'Network error. Please check if the backend server is running on http://localhost:5000';
+      }
+      
+      throw new Error(errorMessage);
     }
     return response.json()
   }
@@ -402,6 +441,61 @@ class ApiService {
       headers: this.getAuthHeaders()
     });
     return this.handleResponse<{ success: boolean; payslip: any }>(response);
+  }
+
+  // Department API calls
+  async getDepartments() {
+    const response = await this.retryFetch(`${API_BASE_URL}/departments`, {
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse<{ success: boolean; departments: any[] }>(response)
+  }
+
+  async getDepartment(id: string) {
+    const response = await fetch(`${API_BASE_URL}/departments/${id}`, {
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse<{ success: boolean; department: any }>(response)
+  }
+
+  async createDepartment(departmentData: any) {
+    const response = await fetch(`${API_BASE_URL}/departments`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(departmentData),
+    })
+    return this.handleResponse<{ success: boolean; message: string; department: any }>(response)
+  }
+
+  async updateDepartment(id: string, departmentData: any) {
+    const response = await fetch(`${API_BASE_URL}/departments/${id}`, {
+      method: "PUT",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(departmentData),
+    })
+    return this.handleResponse<{ success: boolean; message: string; department: any }>(response)
+  }
+
+  async deleteDepartment(id: string) {
+    const response = await fetch(`${API_BASE_URL}/departments/${id}`, {
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse<{ success: boolean; message: string }>(response)
+  }
+
+  async getDepartmentEmployees(id: string) {
+    const response = await fetch(`${API_BASE_URL}/departments/${id}/employees`, {
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse<{ success: boolean; employees: any[] }>(response)
+  }
+
+  async getDepartmentHierarchy() {
+    const response = await fetch(`${API_BASE_URL}/departments/hierarchy/all`, {
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse<{ success: boolean; departments: any[] }>(response)
   }
 }
 
