@@ -11,19 +11,25 @@
     "setup:db": "npm run seed:departments && npm run create:indexes"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "mongodb": "^6.3.0",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
-    "express-rate-limit": "^7.1.5"
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.3.0",
+    "pdfkit": "^0.17.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
   },
-  "keywords": ["payroll", "backend", "express", "mongodb"],
+  "keywords": [
+    "payroll",
+    "backend",
+    "express",
+    "mongodb"
+  ],
   "author": "TGS BPO",
   "license": "MIT"
-} 
+}
