@@ -28,6 +28,11 @@ export default function AdminPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
+  // KPI data
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [payrolls, setPayrolls] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  
   // Activity timestamps for dynamic relative time - load from localStorage or use defaults
   const [activityTimestamps, setActivityTimestamps] = useState(() => {
     // Check if we're in the browser environment
@@ -195,14 +200,26 @@ export default function AdminPage() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getDashboardStats();
       
-      setDashboardData(data);
+      // Fetch all data in parallel
+      const [dashboardStats, departmentsData, payrollsData, employeesData] = await Promise.all([
+        apiService.getDashboardStats(),
+        apiService.getDepartmentHierarchy(),
+        apiService.getPayrolls(),
+        apiService.getEmployees()
+      ]);
+      
+      setDashboardData(dashboardStats);
+      
+      // Set KPI data
+      setDepartments(departmentsData.departments || []);
+      setPayrolls(payrollsData.payrolls || []);
+      setEmployees(employeesData.employees || []);
       
       // Check if database is empty or has no meaningful data
-      const hasEmployees = data.employeeStats?.totalEmployees > 0;
-      const hasPayrolls = data.payrollStats?.processedPayrolls > 0 || data.payrollStats?.completedPayrolls > 0;
-      const hasPayrollData = data.payrollStats?.monthlyPayrollData?.length > 0;
+      const hasEmployees = dashboardStats.employeeStats?.totalEmployees > 0;
+      const hasPayrolls = dashboardStats.payrollStats?.processedPayrolls > 0 || dashboardStats.payrollStats?.completedPayrolls > 0;
+      const hasPayrollData = dashboardStats.payrollStats?.monthlyPayrollData?.length > 0;
       
       // If database is empty, clear activity timestamps
       if (!hasEmployees && !hasPayrolls && !hasPayrollData) {
@@ -211,10 +228,10 @@ export default function AdminPage() {
       }
       
       // Set employee stats
-      if (data.employeeStats) {
-        const newTotalEmployees = data.employeeStats.totalEmployees || 0;
+      if (dashboardStats.employeeStats) {
+        const newTotalEmployees = dashboardStats.employeeStats.totalEmployees || 0;
         setTotalEmployees(newTotalEmployees);
-        setEmployeeDistribution(data.employeeStats.departmentDistribution || []);
+        setEmployeeDistribution(dashboardStats.employeeStats.departmentDistribution || []);
         
         // Update timestamp only if new employees were actually added (not on page refresh)
         if (newTotalEmployees > previousValues.totalEmployees && previousValues.totalEmployees > 0) {
@@ -223,15 +240,15 @@ export default function AdminPage() {
       }
       
       // Set payroll stats
-      if (data.payrollStats) {
-        const newProcessedCount = data.payrollStats.processedPayrolls || 0;
-        setPendingReports(data.payrollStats.pendingPayrolls || 0);
+      if (dashboardStats.payrollStats) {
+        const newProcessedCount = dashboardStats.payrollStats.processedPayrolls || 0;
+        setPendingReports(dashboardStats.payrollStats.pendingPayrolls || 0);
         setProcessedCount(newProcessedCount);
-        setCompletedCount(data.payrollStats.completedPayrolls || 0);
-        setMonthlyPayrollData(data.payrollStats.monthlyPayrollData || []);
+        setCompletedCount(dashboardStats.payrollStats.completedPayrolls || 0);
+        setMonthlyPayrollData(dashboardStats.payrollStats.monthlyPayrollData || []);
         
         // Calculate total payroll from monthly data
-        const total = data.payrollStats.monthlyPayrollData?.reduce((sum: number, item: any) => sum + (item.amount || 0), 0) || 0;
+        const total = dashboardStats.payrollStats.monthlyPayrollData?.reduce((sum: number, item: any) => sum + (item.amount || 0), 0) || 0;
         setTotalPayroll(total);
         
         // Update timestamp only if new payrolls were actually processed (not on page refresh)
@@ -242,8 +259,8 @@ export default function AdminPage() {
       
       // Update previous values for next comparison
       setPreviousValues({
-        processedCount: data.payrollStats?.processedPayrolls || 0,
-        totalEmployees: data.employeeStats?.totalEmployees || 0,
+        processedCount: dashboardStats.payrollStats?.processedPayrolls || 0,
+        totalEmployees: dashboardStats.employeeStats?.totalEmployees || 0,
       });
       
       setLastUpdated(new Date());
@@ -355,6 +372,9 @@ export default function AdminPage() {
               setActiveTimeFilter={setActiveTimeFilter}
               getRelativeTime={getRelativeTime}
               getFilteredActivities={getFilteredActivities}
+              departments={departments}
+              payrolls={payrolls}
+              employees={employees}
             />
           )}
 

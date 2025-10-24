@@ -212,21 +212,21 @@ class ApiService {
 
   // Employee API calls
   async getEmployees() {
-    const response = await fetch(`${API_BASE_URL}/employees`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/employees`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; employees: any[]; total: number }>(response)
   }
 
   async getEmployee(id: string) {
-    const response = await fetch(`${API_BASE_URL}/employees/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/employees/${id}`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; employee: any }>(response)
   }
 
   async createEmployee(employeeData: any) {
-    const response = await fetch(`${API_BASE_URL}/employees`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/employees`, {
       method: "POST",
       headers: this.getAuthHeaders(),
       body: JSON.stringify(employeeData),
@@ -235,7 +235,7 @@ class ApiService {
   }
 
   async updateEmployee(id: string, employeeData: any) {
-    const response = await fetch(`${API_BASE_URL}/employees/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/employees/${id}`, {
       method: "PUT",
       headers: this.getAuthHeaders(),
       body: JSON.stringify(employeeData),
@@ -244,7 +244,7 @@ class ApiService {
   }
 
   async deleteEmployee(id: string) {
-    const response = await fetch(`${API_BASE_URL}/employees/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/employees/${id}`, {
       method: "DELETE",
       headers: this.getAuthHeaders(),
     })
@@ -252,14 +252,14 @@ class ApiService {
   }
 
   async getEmployeeStats() {
-    const response = await fetch(`${API_BASE_URL}/employees/stats/overview`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/employees/stats/overview`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; stats: any }>(response)
   }
 
   async bulkImportEmployees(employeesData: any[]) {
-    const response = await fetch(`${API_BASE_URL}/employees/bulk-import`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/employees/bulk-import`, {
       method: "POST",
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ employees: employeesData }),
@@ -269,21 +269,21 @@ class ApiService {
 
   // Payroll API calls
   async getPayrolls() {
-    const response = await fetch(`${API_BASE_URL}/payroll`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payroll`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; payrolls: any[]; total: number }>(response)
   }
 
   async getPayroll(id: string) {
-    const response = await fetch(`${API_BASE_URL}/payroll/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payroll/${id}`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; payroll: any }>(response)
   }
 
   async createPayroll(payrollData: any) {
-    const response = await fetch(`${API_BASE_URL}/payroll`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payroll`, {
       method: "POST",
       headers: this.getAuthHeaders(),
       body: JSON.stringify(payrollData),
@@ -292,7 +292,7 @@ class ApiService {
   }
 
   async updatePayroll(id: string, payrollData: any) {
-    const response = await fetch(`${API_BASE_URL}/payroll/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payroll/${id}`, {
       method: "PUT",
       headers: this.getAuthHeaders(),
       body: JSON.stringify(payrollData),
@@ -301,7 +301,7 @@ class ApiService {
   }
 
   async processPayroll(id: string) {
-    const response = await fetch(`${API_BASE_URL}/payroll/${id}/process`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payroll/${id}/process`, {
       method: "PATCH",
       headers: this.getAuthHeaders(),
     })
@@ -309,7 +309,7 @@ class ApiService {
   }
 
   async deletePayroll(id: string) {
-    const response = await fetch(`${API_BASE_URL}/payroll/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payroll/${id}`, {
       method: "DELETE",
       headers: this.getAuthHeaders(),
     })
@@ -375,7 +375,7 @@ class ApiService {
   }
 
   async getPayrollStats() {
-    const response = await fetch(`${API_BASE_URL}/payroll/stats/overview`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payroll/stats/overview`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; stats: any }>(response)
@@ -408,14 +408,14 @@ class ApiService {
 
   // Payslip API calls
   async getPayslips() {
-    const response = await fetch(`${API_BASE_URL}/payslips`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payslips`, {
       headers: this.getAuthHeaders()
     });
     return this.handleResponse<{ success: boolean; payslips: any[]; total: number }>(response);
   }
 
   async generatePayslip(payrollId: string) {
-    const response = await fetch(`${API_BASE_URL}/payslips/generate`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payslips/generate`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ payrollId })
@@ -424,7 +424,7 @@ class ApiService {
   }
 
   async downloadPayslip(payslipId: string) {
-    const response = await fetch(`${API_BASE_URL}/payslips/${payslipId}/download`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payslips/${payslipId}/download`, {
       headers: this.getAuthHeaders()
     });
     
@@ -437,7 +437,7 @@ class ApiService {
   }
 
   async getPayslip(payslipId: string) {
-    const response = await fetch(`${API_BASE_URL}/payslips/${payslipId}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/payslips/${payslipId}`, {
       headers: this.getAuthHeaders()
     });
     return this.handleResponse<{ success: boolean; payslip: any }>(response);
@@ -452,14 +452,14 @@ class ApiService {
   }
 
   async getDepartment(id: string) {
-    const response = await fetch(`${API_BASE_URL}/departments/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/departments/${id}`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; department: any }>(response)
   }
 
   async createDepartment(departmentData: any) {
-    const response = await fetch(`${API_BASE_URL}/departments`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/departments`, {
       method: "POST",
       headers: this.getAuthHeaders(),
       body: JSON.stringify(departmentData),
@@ -468,7 +468,7 @@ class ApiService {
   }
 
   async updateDepartment(id: string, departmentData: any) {
-    const response = await fetch(`${API_BASE_URL}/departments/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/departments/${id}`, {
       method: "PUT",
       headers: this.getAuthHeaders(),
       body: JSON.stringify(departmentData),
@@ -477,7 +477,7 @@ class ApiService {
   }
 
   async deleteDepartment(id: string) {
-    const response = await fetch(`${API_BASE_URL}/departments/${id}`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/departments/${id}`, {
       method: "DELETE",
       headers: this.getAuthHeaders(),
     })
@@ -485,17 +485,40 @@ class ApiService {
   }
 
   async getDepartmentEmployees(id: string) {
-    const response = await fetch(`${API_BASE_URL}/departments/${id}/employees`, {
-      headers: this.getAuthHeaders(),
-    })
-    return this.handleResponse<{ success: boolean; employees: any[] }>(response)
+    try {
+      console.log(`🔍 Fetching employees for department: ${id}`);
+      const response = await this.retryFetch(`${API_BASE_URL}/departments/${id}/employees`, {
+        headers: this.getAuthHeaders(),
+      })
+      const result = await this.handleResponse<{ success: boolean; employees: any[] }>(response);
+      console.log(`👥 Got ${result.employees?.length || 0} employees for department ${id}`);
+      return result;
+    } catch (error) {
+      console.error(`❌ Error fetching employees for department ${id}:`, error);
+      return { success: false, employees: [] };
+    }
   }
 
   async getDepartmentHierarchy() {
-    const response = await fetch(`${API_BASE_URL}/departments/hierarchy/all`, {
+    const response = await this.retryFetch(`${API_BASE_URL}/departments/hierarchy/all`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; departments: any[] }>(response)
+  }
+
+  async getDepartmentPayrolls(departmentId: string) {
+    try {
+      console.log(`💰 Fetching payrolls for department: ${departmentId}`);
+      const response = await this.retryFetch(`${API_BASE_URL}/departments/${departmentId}/payrolls`, {
+        headers: this.getAuthHeaders(),
+      })
+      const result = await this.handleResponse<{ success: boolean; payrolls: any[] }>(response);
+      console.log(`💰 Got ${result.payrolls?.length || 0} payrolls for department ${departmentId}`);
+      return result;
+    } catch (error) {
+      console.error(`❌ Error fetching payrolls for department ${departmentId}:`, error);
+      return { success: false, payrolls: [] };
+    }
   }
 }
 

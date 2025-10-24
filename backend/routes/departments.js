@@ -62,6 +62,53 @@ router.get('/', verifyAdminToken, async (req, res) => {
   }
 });
 
+// Get department hierarchy with employee counts (MUST be before /:id route)
+router.get('/hierarchy/all', verifyAdminToken, async (req, res) => {
+  try {
+    if (!global.db) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+    
+    const departments = await Department.getDepartmentHierarchy(global.db);
+    
+    // Add employee counts to each department
+    const departmentsWithCounts = await Promise.all(
+      departments.map(async (dept) => {
+        // Ensure we have the id
+        const deptId = dept.id || dept._id?.toString();
+        if (!deptId) {
+          console.error('Department missing ID:', dept);
+        }
+        
+        const stats = await Department.getDepartmentStats(global.db, deptId);
+        return {
+          id: deptId,
+          name: dept.name,
+          code: dept.code,
+          description: dept.description,
+          manager: dept.manager,
+          isActive: dept.isActive,
+          createdAt: dept.createdAt,
+          updatedAt: dept.updatedAt,
+          employeeCount: stats.employeeCount,
+          payrollCount: stats.payrollCount
+        };
+      })
+    );
+
+    res.json({ 
+      success: true, 
+      departments: departmentsWithCounts 
+    });
+  } catch (error) {
+    console.error('Error fetching department hierarchy:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch department hierarchy' 
+    });
+  }
+});
+
 // Get department by ID with statistics
 router.get('/:id', verifyAdminToken, async (req, res) => {
   try {
@@ -346,13 +393,19 @@ router.get('/:id/employees', verifyAdminToken, async (req, res) => {
     
     const employeesCollection = global.db.collection('employees');
 
+    // Try both ObjectId and string formats for departmentId
     const employees = await employeesCollection
       .find({ 
-        departmentId: new ObjectId(id), 
+        $or: [
+          { departmentId: new ObjectId(id) },
+          { departmentId: id }
+        ],
         isActive: true 
       })
       .sort({ name: 1 })
       .toArray();
+
+    console.log(`🔍 Looking for employees in department ${id}, found ${employees.length} employees`);
 
     const formattedEmployees = employees.map(emp => ({
       id: emp._id.toString(),
@@ -375,49 +428,75 @@ router.get('/:id/employees', verifyAdminToken, async (req, res) => {
   }
 });
 
-// Get department hierarchy with employee counts
-router.get('/hierarchy/all', verifyAdminToken, async (req, res) => {
+// Get payrolls by department
+router.get('/:id/payrolls', verifyAdminToken, async (req, res) => {
   try {
+    const { id } = req.params;
+    
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid department ID' 
+      });
+    }
+
     if (!global.db) {
       return res.status(500).json({ error: 'Database connection not available' });
     }
     
-    const departments = await Department.getDepartmentHierarchy(global.db);
-    
-    // Add employee counts to each department
-    const departmentsWithCounts = await Promise.all(
-      departments.map(async (dept) => {
-        // Ensure we have the id
-        const deptId = dept.id || dept._id?.toString();
-        if (!deptId) {
-          console.error('Department missing ID:', dept);
-        }
-        
-        const stats = await Department.getDepartmentStats(global.db, deptId);
-        return {
-          id: deptId,
-          name: dept.name,
-          code: dept.code,
-          description: dept.description,
-          manager: dept.manager,
-          isActive: dept.isActive,
-          createdAt: dept.createdAt,
-          updatedAt: dept.updatedAt,
-          employeeCount: stats.employeeCount,
-          payrollCount: stats.payrollCount
-        };
+    const employeesCollection = global.db.collection('employees');
+    const payrollCollection = global.db.collection('payroll');
+
+    // First get all employees in this department
+    const employees = await employeesCollection
+      .find({ 
+        $or: [
+          { departmentId: new ObjectId(id) },
+          { departmentId: id }
+        ],
+        isActive: true 
       })
-    );
+      .toArray();
+
+    console.log(`🔍 Looking for payrolls in department ${id}, found ${employees.length} employees`);
+
+    const employeeIds = employees.map(emp => emp._id.toString());
+
+    // Get payrolls for these employees
+    const payrolls = await payrollCollection
+      .find({ 
+        employeeId: { $in: employeeIds }
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    // Format payrolls with employee details
+    const formattedPayrolls = payrolls.map(payroll => {
+      const employee = employees.find(emp => emp._id.toString() === payroll.employeeId);
+      
+      return {
+        id: payroll._id.toString(),
+        employeeId: payroll.employeeId,
+        employeeName: employee ? employee.name : 'Unknown Employee',
+        period: `${payroll.cutoffStart} - ${payroll.cutoffEnd}`,
+        basicSalary: payroll.basicSalary || 0,
+        allowances: (payroll.holidayPay || 0) + (payroll.nightDifferential || 0) + (payroll.salaryAdjustment || 0),
+        deductions: (payroll.absences || 0) + (payroll.lateDeductions || 0) + (payroll.sssContribution || 0) + (payroll.philhealthContribution || 0) + (payroll.pagibigContribution || 0) + (payroll.withholdingTax || 0),
+        netSalary: payroll.netPay || 0,
+        status: payroll.status || 'pending',
+        createdAt: payroll.createdAt
+      };
+    });
 
     res.json({ 
       success: true, 
-      departments: departmentsWithCounts 
+      payrolls: formattedPayrolls 
     });
   } catch (error) {
-    console.error('Error fetching department hierarchy:', error);
+    console.error('Error fetching department payrolls:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to fetch department hierarchy' 
+      error: 'Failed to fetch department payrolls' 
     });
   }
 });

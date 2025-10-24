@@ -93,12 +93,23 @@ class Department {
         ]
       });
     
-    const payrollCount = await db.collection('payroll')
-      .countDocuments({ 
+    // Get payroll count by finding employees in this department first
+    const employees = await db.collection('employees')
+      .find({ 
         $or: [
           { departmentId: new ObjectId(departmentId) },
           { departmentId: departmentId }
-        ]
+        ],
+        isActive: true 
+      })
+      .toArray();
+    
+    const employeeIds = employees.map(emp => emp._id.toString());
+    
+    // Count payrolls for these employees
+    const payrollCount = await db.collection('payroll')
+      .countDocuments({ 
+        employeeId: { $in: employeeIds }
       });
     
     console.log(`📈 Department ${departmentId}: ${employeeCount} employees, ${payrollCount} payrolls`);

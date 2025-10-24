@@ -82,6 +82,10 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [viewModal, setViewModal] = useState<{ open: boolean; employee?: Employee }>({
+    open: false,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -147,6 +151,18 @@ useEffect(() => {
     }
   };
 }, []);
+
+// Close dropdown when clicking outside
+useEffect(() => {
+  const handleClickOutside = () => {
+    if (openDropdownId) {
+      setOpenDropdownId(null);
+    }
+  };
+
+  document.addEventListener('click', handleClickOutside);
+  return () => document.removeEventListener('click', handleClickOutside);
+}, [openDropdownId]);
 
   // const confirmDelete = () => {
   //   if (!deleteModal.employee) return;
@@ -918,14 +934,19 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Position</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Department</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Salary</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {employees.map((employee) => (
-                  <tr key={employee.id} className="hover:bg-gray-50">
+                {employees.map((employee, index) => (
+                  <tr 
+                    key={employee.id} 
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => setViewModal({ open: true, employee })}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">{employee.name}</div>
@@ -933,6 +954,10 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{employee.position}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{employee.department?.name || 'N/A'}</div>
+                      <div className="text-xs text-gray-500">{employee.department?.code || ''}</div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{employee.salary.toLocaleString()}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -944,20 +969,49 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(employee)}
-                        className="text-indigo-600 hover:text-indigo-900 mr-3"
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                       type="button"
-                        onClick={() => handleDeleteClick(employee)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                      <div className="relative" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setOpenDropdownId(openDropdownId === employee.id ? null : employee.id)}
+                          className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                          title="More options"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                          </svg>
+                        </button>
+                        
+                        {openDropdownId === employee.id && (
+                          <div className={`absolute right-0 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 ${
+                            index >= employees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'
+                          }`}>
+                            <button
+                              onClick={() => {
+                                handleEdit(employee);
+                                setOpenDropdownId(null);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center space-x-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              <span>Edit Employee</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleDeleteClick(employee);
+                                setOpenDropdownId(null);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              <span>Delete Employee</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1243,6 +1297,12 @@ const confirmDelete = async (e?: React.MouseEvent) => {
           onClose={() => setErrorModal({ open: false })}
           message={errorModal.message}
         />
+
+        <EmployeeViewModal
+          isOpen={viewModal.open}
+          onClose={() => setViewModal({ open: false })}
+          employee={viewModal.employee}
+        />
     </div>
     </div>
     
@@ -1384,6 +1444,363 @@ export function SuccessModalForm({ isOpen, onClose, message }: FormSuccessModalP
           >
             OK
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Employee View Modal
+interface EmployeeViewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  employee?: Employee;
+}
+
+export function EmployeeViewModal({ isOpen, onClose, employee }: EmployeeViewModalProps) {
+  const [payrollHistory, setPayrollHistory] = useState<any[]>([]);
+  const [loadingPayroll, setLoadingPayroll] = useState(false);
+
+  // Fetch payroll history when modal opens
+  useEffect(() => {
+    if (isOpen && employee?.id) {
+      const fetchPayrollHistory = async () => {
+        try {
+          setLoadingPayroll(true);
+          const response = await apiService.getPayrolls();
+          console.log('📊 All payrolls:', response.payrolls);
+          console.log('🔍 Looking for employee:', { id: employee.id, name: employee.name });
+          
+          // Filter payrolls for this employee and sort by date
+          const employeePayrolls = response.payrolls
+            .filter((p: any) => {
+              const idMatch = p.employeeId === employee.id;
+              const nameMatch = p.employeeName === employee.name;
+              console.log('Checking payroll:', { 
+                payrollEmployeeId: p.employeeId, 
+                payrollEmployeeName: p.employeeName,
+                targetEmployeeId: employee.id,
+                targetEmployeeName: employee.name,
+                idMatch,
+                nameMatch,
+                finalMatch: idMatch || nameMatch
+              });
+              // Match by ID or name (fallback)
+              return idMatch || nameMatch;
+            })
+            .filter((p: any) => {
+              const netAmount = p.netPay || p.netSalary;
+              const hasNetAmount = netAmount && typeof netAmount === 'number';
+              console.log('Validating payroll net amount:', { netPay: p.netPay, netSalary: p.netSalary, netAmount, valid: hasNetAmount });
+              return hasNetAmount;
+            })
+            .sort((a: any, b: any) => {
+              const dateA = new Date(a.cutoffStart || a.payPeriodStart || 0).getTime();
+              const dateB = new Date(b.cutoffStart || b.payPeriodStart || 0).getTime();
+              return dateA - dateB;
+            })
+            .slice(-6); // Get last 6 payroll records
+          
+          console.log('✅ Filtered payrolls for employee:', employeePayrolls);
+          console.log('📈 Number of payrolls found:', employeePayrolls.length);
+          setPayrollHistory(employeePayrolls);
+        } catch (error) {
+          console.error('Error fetching payroll history:', error);
+          setPayrollHistory([]);
+        } finally {
+          setLoadingPayroll(false);
+        }
+      };
+      fetchPayrollHistory();
+    }
+  }, [isOpen, employee]);
+
+  if (!isOpen || !employee) return null;
+
+  // Get initials for avatar
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Generate chart points from payroll data
+  const generateChartPoints = () => {
+    if (payrollHistory.length === 0) {
+      return { points: '', circles: [], labels: [], maxSalary: 0, minSalary: 0 };
+    }
+
+    // Filter out any invalid payroll records
+    const validPayrolls = payrollHistory.filter(p => {
+      const netAmount = p.netPay || p.netSalary;
+      return p && typeof netAmount === 'number';
+    });
+    
+    if (validPayrolls.length === 0) {
+      return { points: '', circles: [], labels: [], maxSalary: 0, minSalary: 0 };
+    }
+
+    const maxSalary = Math.max(...validPayrolls.map(p => p.netPay || p.netSalary));
+    const minSalary = Math.min(...validPayrolls.map(p => p.netPay || p.netSalary));
+    const range = maxSalary - minSalary || 1;
+
+    const chartWidth = 400;
+    const chartHeight = 150;
+    const padding = 20;
+    const usableHeight = chartHeight - padding * 2;
+    const step = validPayrolls.length > 1 ? chartWidth / (validPayrolls.length - 1) : chartWidth / 2;
+
+    const points = validPayrolls.map((p, i) => {
+      const netAmount = p.netPay || p.netSalary;
+      const x = i * step;
+      const normalizedValue = (netAmount - minSalary) / range;
+      const y = chartHeight - padding - (normalizedValue * usableHeight);
+      return `${x},${y}`;
+    }).join(' ');
+
+    const circles = validPayrolls.map((p, i) => {
+      const netAmount = p.netPay || p.netSalary;
+      const x = i * step;
+      const normalizedValue = (netAmount - minSalary) / range;
+      const y = chartHeight - padding - (normalizedValue * usableHeight);
+      return { x, y, salary: netAmount || 0 };
+    });
+
+    const labels = validPayrolls.map(p => {
+      const date = new Date(p.cutoffStart || p.payPeriodStart || p.createdAt);
+      return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    });
+
+    return { points, circles, labels, maxSalary, minSalary };
+  };
+
+  const chartData = generateChartPoints();
+  const hasPayrollData = payrollHistory.length > 0 && chartData.circles.length > 0;
+  const latestPayroll = hasPayrollData ? payrollHistory[payrollHistory.length - 1] : null;
+  const firstPayroll = hasPayrollData ? payrollHistory[0] : null;
+  const latestSalary = latestPayroll ? (latestPayroll.netPay || latestPayroll.netSalary || 0) : (employee.salary || 0);
+  const firstSalary = firstPayroll ? (firstPayroll.netPay || firstPayroll.netSalary || 0) : (employee.salary || 0);
+  const growthPercent = hasPayrollData && firstSalary > 0 
+    ? (((latestSalary - firstSalary) / firstSalary) * 100).toFixed(1) 
+    : '0';
+
+  // Calculate KPIs
+  const calculateKPIs = () => {
+    if (!hasPayrollData) {
+      return {
+        averageMonthlyPay: 0,
+        ytdEarnings: 0,
+        deductionRate: 0
+      };
+    }
+
+    // Average Monthly Pay
+    const totalNetPay = payrollHistory.reduce((sum, p) => sum + (p.netPay || p.netSalary || 0), 0);
+    const averageMonthlyPay = totalNetPay / payrollHistory.length;
+
+    // YTD Earnings (current year)
+    const currentYear = new Date().getFullYear();
+    const ytdEarnings = payrollHistory
+      .filter(p => {
+        const payrollYear = new Date(p.cutoffStart || p.payPeriodStart || p.createdAt).getFullYear();
+        return payrollYear === currentYear;
+      })
+      .reduce((sum, p) => sum + (p.netPay || p.netSalary || 0), 0);
+
+    // Deduction Rate
+    const totalGrossPay = payrollHistory.reduce((sum, p) => sum + (p.grossPay || 0), 0);
+    const totalDeductions = payrollHistory.reduce((sum, p) => sum + (p.totalDeductions || 0), 0);
+    const deductionRate = totalGrossPay > 0 ? (totalDeductions / totalGrossPay) * 100 : 0;
+
+    return {
+      averageMonthlyPay: Math.round(averageMonthlyPay),
+      ytdEarnings: Math.round(ytdEarnings),
+      deductionRate: deductionRate.toFixed(1)
+    };
+  };
+
+  const kpis = calculateKPIs();
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-[9999] p-4">
+      <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] overflow-hidden flex flex-col p-4 gap-4">
+        {/* Header Card - Full Width */}
+        <div className="bg-white rounded-xl p-6 relative flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          
+          <div className="flex items-start justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-gray-500 rounded-full flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
+                {getInitials(employee.name)}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-gray-900">{employee.name}</h2>
+                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${
+                    employee.isActive 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {employee.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <p className="text-gray-500 text-sm mt-1">Email: {employee.email}</p>
+                <p className="text-gray-500 text-xs mt-0.5">Hire Date: {employee.hireDate}</p>
+              </div>
+            </div>
+            
+            {/* Government IDs Section */}
+            <div className="flex gap-6 mr-12">
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wide block mb-0.5">SSS Number</label>
+                <p className="text-gray-900 text-xs font-medium">{employee.sssNumber || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wide block mb-0.5">PhilHealth Number</label>
+                <p className="text-gray-900 text-xs font-medium">{employee.philhealthNumber || 'N/A'}</p>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wide block mb-0.5">Pag-IBIG Number</label>
+                <p className="text-gray-900 text-xs font-medium">{employee.pagibigNumber || 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content Grid - Unequal Columns */}
+        <div className="flex-1 min-h-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-full">
+            {/* Details Section - Takes 1 column */}
+            <div className="bg-white rounded-xl p-4 lg:col-span-1 flex flex-col">
+              <h3 className="text-base font-bold text-gray-900 mb-3">Details</h3>
+              
+              <div className="space-y-4 flex-1">
+                <div>
+                  <label className="text-xs text-gray-500">Position</label>
+                  <p className="text-gray-900 mt-0.5 text-sm">{employee.position}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Department</label>
+                  <p className="text-gray-900 mt-0.5 text-sm">
+                    {employee.department?.name || 'N/A'}
+                    {employee.department?.code && (
+                      <span className="text-xs text-gray-400 ml-2">({employee.department.code})</span>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Salary</label>
+                  <p className="text-gray-900 mt-0.5 text-sm font-semibold">₱{employee.salary.toLocaleString()}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Working Days</label>
+                  <p className="text-gray-900 mt-0.5 text-sm">{employee.workingDays} days</p>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500">Contact Number</label>
+                  <p className="text-gray-900 mt-0.5 text-sm">{employee.contactNumber}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* KPI Section - Takes 2 columns */}
+            <div className="bg-white rounded-xl p-4 lg:col-span-2 flex flex-col">
+              {/* Header */}
+              <h3 className="text-base font-bold text-gray-900 mb-3 flex-shrink-0">Payroll History</h3>
+              
+              {/* KPI Box */}
+              {hasPayrollData && (
+                <div className="mb-3 border border-gray-200 rounded-lg p-3 bg-gray-50 flex-shrink-0">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Avg Monthly Pay</p>
+                      <p className="text-xl font-black text-gray-900">₱{kpis.averageMonthlyPay.toLocaleString()}</p>
+                    </div>
+                    <div className="text-center border-l border-r border-gray-300">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">YTD Earnings</p>
+                      <p className="text-xl font-black text-gray-900">₱{kpis.ytdEarnings.toLocaleString()}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Deduction Rate</p>
+                      <p className="text-xl font-black text-gray-900">{kpis.deductionRate}%</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {loadingPayroll ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : !hasPayrollData ? (
+                <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                  <svg className="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <p className="text-sm">No payroll history available for this employee</p>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Chart Container */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-3 flex flex-col">
+                    <svg className="w-full h-55" viewBox="0 0 500 200" preserveAspectRatio="none">
+                      {/* Minimal grid lines */}
+                      <line x1="0" y1="50" x2="500" y2="50" stroke="#f3f4f6" strokeWidth="1"/>
+                      <line x1="0" y1="100" x2="500" y2="100" stroke="#f3f4f6" strokeWidth="1"/>
+                      <line x1="0" y1="150" x2="500" y2="150" stroke="#f3f4f6" strokeWidth="1"/>
+                      
+                      {/* Payroll line with real data */}
+                      {chartData.points && (
+                        <>
+                          {/* Subtle area fill */}
+                          <polygon
+                            points={`${chartData.points} 500,200 0,200`}
+                            fill="#000000"
+                            opacity="0.03"
+                          />
+                          
+                          {/* Main line */}
+                          <polyline
+                            points={chartData.points}
+                            fill="none"
+                            stroke="#000000"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </>
+                      )}
+                      
+                      {/* Data points */}
+                      {chartData.circles.map((circle, i) => (
+                        <g key={i}>
+                          <circle cx={circle.x} cy={circle.y} r="5" fill="#ffffff" stroke="#000000" strokeWidth="2"/>
+                          <title>₱{circle.salary.toLocaleString()}</title>
+                        </g>
+                      ))}
+                    </svg>
+                    
+                    {/* Month labels */}
+                    <div className="flex justify-between mt-1.5 px-2 flex-shrink-0">
+                      {chartData.labels.map((label, i) => (
+                        <span key={i} className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

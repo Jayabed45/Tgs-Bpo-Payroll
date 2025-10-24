@@ -25,6 +25,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   
   // Modal states
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; department?: Department }>({
@@ -40,6 +41,10 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
   const [formSuccessModal, setFormSuccessModal] = useState<{ open: boolean; message?: string }>({
     open: false,
   });
+  // For department preview modal
+  const [previewModal, setPreviewModal] = useState<{ open: boolean; department?: Department }>({
+    open: false,
+  });
 
   // Form state
   const [formData, setFormData] = useState({
@@ -52,6 +57,18 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
   useEffect(() => {
     fetchDepartments();
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (openDropdownId) {
+        setOpenDropdownId(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [openDropdownId]);
 
 
   const fetchDepartments = async () => {
@@ -269,7 +286,11 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
       {/* Department Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {departments.map((department, index) => (
-          <div key={department.id || `department-${index}`} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div 
+            key={department.id || `department-${index}`} 
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setPreviewModal({ open: true, department })}
+          >
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-indigo-100 rounded-lg">
@@ -282,25 +303,45 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
                   <p className="text-sm text-gray-500 font-mono">{department.code}</p>
                 </div>
               </div>
-              <div className="flex space-x-2">
+              <div className="relative" onClick={(e) => e.stopPropagation()}>
                 <button
-                  onClick={() => handleEdit(department)}
-                  className="text-indigo-600 hover:text-indigo-800 p-1"
-                  title="Edit department"
+                  onClick={() => setOpenDropdownId(openDropdownId === department.id ? null : department.id)}
+                  className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  title="More options"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                   </svg>
                 </button>
-                <button
-                  onClick={() => handleDeleteClick(department)}
-                  className="text-red-600 hover:text-red-800 p-1"
-                  title="Delete department"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+                
+                {openDropdownId === department.id && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                    <button
+                      onClick={() => {
+                        handleEdit(department);
+                        setOpenDropdownId(null);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center space-x-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      <span>Edit Department</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleDeleteClick(department);
+                        setOpenDropdownId(null);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Delete Department</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             
@@ -314,13 +355,13 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
                   </svg>
-                  {department.employeeCount || 0} employees
+                  {department.employeeCount ?? 0} employees
                 </span>
                 <span className="flex items-center">
                   <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                   </svg>
-                  {department.payrollCount || 0} payrolls
+                  {department.payrollCount ?? 0} payrolls
                 </span>
               </div>
             </div>
@@ -546,6 +587,12 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
         message={errorModal.message}
       />
 
+      <DepartmentPreviewModal
+        isOpen={previewModal.open}
+        onClose={() => setPreviewModal({ open: false })}
+        department={previewModal.department}
+      />
+
       {/* Floating Action Button */}
       <div className="fixed bottom-6 right-6 z-40">
         <button
@@ -733,6 +780,331 @@ export function SuccessModalForm({ isOpen, onClose, message }: FormSuccessModalP
           >
             OK
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Department Preview Modal with Tabs
+interface DepartmentPreviewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  department?: Department;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  email: string;
+  position: string;
+  hireDate: string;
+}
+
+interface PayrollRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  period: string;
+  basicSalary: number;
+  allowances: number;
+  deductions: number;
+  netSalary: number;
+  status: string;
+  createdAt: string;
+}
+
+export function DepartmentPreviewModal({ isOpen, onClose, department }: DepartmentPreviewModalProps) {
+  const [activeTab, setActiveTab] = useState<'employees' | 'payroll'>('employees');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch real data from API
+  useEffect(() => {
+    if (isOpen && department?.id) {
+      setLoading(true);
+      
+      const fetchData = async () => {
+        try {
+          console.log('🔍 Fetching data for department:', department.id, department.name);
+          
+          // Fetch employees and payrolls in parallel
+          const [employeesResponse, payrollsResponse] = await Promise.all([
+            apiService.getDepartmentEmployees(department.id),
+            apiService.getDepartmentPayrolls(department.id)
+          ]);
+          
+          console.log('👥 Employees response:', employeesResponse);
+          console.log('💰 Payrolls response:', payrollsResponse);
+          
+          setEmployees(employeesResponse.employees || []);
+          setPayrollRecords(payrollsResponse.payrolls || []);
+          
+          console.log('✅ Set employees:', employeesResponse.employees?.length || 0);
+          console.log('✅ Set payrolls:', payrollsResponse.payrolls?.length || 0);
+        } catch (error) {
+          console.error('❌ Error fetching department data:', error);
+          // Set empty arrays on error
+          setEmployees([]);
+          setPayrollRecords([]);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchData();
+    }
+  }, [isOpen, department]);
+
+  // Filter employees based on search query
+  const filteredEmployees = React.useMemo(() => {
+    if (!searchQuery.trim()) return employees;
+    
+    const query = searchQuery.toLowerCase();
+    return employees.filter(emp => 
+      emp.name.toLowerCase().includes(query) ||
+      emp.position.toLowerCase().includes(query) ||
+      emp.email.toLowerCase().includes(query)
+    );
+  }, [employees, searchQuery]);
+
+  // Filter payroll records based on search query
+  const filteredPayrollRecords = React.useMemo(() => {
+    if (!searchQuery.trim()) return payrollRecords;
+    
+    const query = searchQuery.toLowerCase();
+    return payrollRecords.filter(record => 
+      record.employeeName.toLowerCase().includes(query) ||
+      record.period.toLowerCase().includes(query) ||
+      record.status.toLowerCase().includes(query)
+    );
+  }, [payrollRecords, searchQuery]);
+
+  if (!isOpen || !department) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-[9999] p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
+          <div className="flex justify-between items-start gap-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-white/20 rounded-lg">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">{department.name}</h2>
+              </div>
+            </div>
+            
+            {/* Search Bar */}
+            <div className="flex-1 max-w-md">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={activeTab === 'employees' ? 'Search employees...' : 'Search payroll records...'}
+                  className="w-full px-4 py-2 pl-10 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50 focus:bg-white/30 transition-all"
+                />
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/70 hover:text-white"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/20 transition-colors flex-shrink-0"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            <button
+              onClick={() => setActiveTab('employees')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'employees'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                </svg>
+                <span>Employees ({filteredEmployees.length}{searchQuery ? ` of ${employees.length}` : ''})</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('payroll')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'payroll'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <span>Payroll ({filteredPayrollRecords.length}{searchQuery ? ` of ${payrollRecords.length}` : ''})</span>
+              </div>
+            </button>
+          </nav>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 flex-1 overflow-y-auto overflow-x-hidden">
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'employees' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-gray-900">Department Employees</h3>
+                    <span className="text-sm text-gray-500">
+                      {searchQuery ? `${filteredEmployees.length} of ${employees.length}` : `${employees.length} total`} employees
+                    </span>
+                  </div>
+                  
+                  {filteredEmployees.length === 0 ? (
+                    <div className="text-center py-12">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                      </svg>
+                      <p className="mt-2 text-gray-500">
+                        {searchQuery ? `No employees found matching "${searchQuery}"` : 'No employees found in this department'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {filteredEmployees.map((employee) => (
+                        <div key={employee.id} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span className="text-blue-600 font-semibold text-sm">
+                                  {employee.name.split(' ').map(n => n[0]).join('')}
+                                </span>
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-gray-900">{employee.name}</h4>
+                                <p className="text-sm text-gray-600">{employee.position}</p>
+                                <p className="text-xs text-gray-500">{employee.email}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                Active
+                              </span>
+                              <p className="text-xs text-gray-500 mt-1">Hired: {employee.hireDate}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'payroll' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-gray-900">Payroll Records</h3>
+                    <span className="text-sm text-gray-500">
+                      {searchQuery ? `${filteredPayrollRecords.length} of ${payrollRecords.length}` : `${payrollRecords.length}`} records
+                    </span>
+                  </div>
+                  
+                  {filteredPayrollRecords.length === 0 ? (
+                    <div className="text-center py-12">
+                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      <p className="mt-2 text-gray-500">
+                        {searchQuery ? `No payroll records found matching "${searchQuery}"` : 'No payroll records found for this department'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-hidden">
+                      <table className="w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Period</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Basic Salary</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allowances</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deductions</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Salary</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {filteredPayrollRecords.map((record) => (
+                            <tr key={record.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">{record.employeeName}</div>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">{record.period}</div>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm text-gray-900">₱{record.basicSalary.toLocaleString()}</div>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm text-green-600">+₱{record.allowances.toLocaleString()}</div>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm text-red-600">-₱{record.deductions.toLocaleString()}</div>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <div className="text-sm font-semibold text-gray-900">₱{record.netSalary.toLocaleString()}</div>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                  record.status === 'Paid' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : record.status === 'Processing'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {record.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

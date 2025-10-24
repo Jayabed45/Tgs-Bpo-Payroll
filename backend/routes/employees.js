@@ -31,28 +31,60 @@ router.get('/', verifyAdminToken, async (req, res) => {
     const client = await clientPromise;
     const db = client.db();
     const employeesCollection = db.collection('employees');
+    const departmentsCollection = db.collection('departments');
 
     const employees = await employeesCollection
       .find({ isActive: true })
       .sort({ createdAt: -1 })
       .toArray();
 
-    const formattedEmployees = employees.map(emp => ({
-      id: emp._id.toString(),
-      name: emp.name,
-      position: emp.position,
-      salary: emp.salary,
-      workingDays: emp.workingDays,
-      sssNumber: emp.sssNumber,
-      philhealthNumber: emp.philhealthNumber,
-      pagibigNumber: emp.pagibigNumber,
-      email: emp.email,
-      contactNumber: emp.contactNumber,
-      hireDate: emp.hireDate,
-      departmentId: emp.departmentId?.toString(),
-      isActive: emp.isActive,
-      createdAt: emp.createdAt,
-      updatedAt: emp.updatedAt
+    // Populate department information for each employee
+    const formattedEmployees = await Promise.all(employees.map(async (emp) => {
+      let department = null;
+      
+      if (emp.departmentId) {
+        try {
+          // Try to find department by ObjectId or string
+          const deptId = ObjectId.isValid(emp.departmentId) 
+            ? new ObjectId(emp.departmentId) 
+            : emp.departmentId;
+          
+          department = await departmentsCollection.findOne({ 
+            _id: deptId,
+            isActive: true 
+          });
+          
+          if (department) {
+            department = {
+              id: department._id.toString(),
+              name: department.name,
+              code: department.code,
+              description: department.description
+            };
+          }
+        } catch (error) {
+          console.error('Error fetching department for employee:', emp._id, error);
+        }
+      }
+
+      return {
+        id: emp._id.toString(),
+        name: emp.name,
+        position: emp.position,
+        salary: emp.salary,
+        workingDays: emp.workingDays,
+        sssNumber: emp.sssNumber,
+        philhealthNumber: emp.philhealthNumber,
+        pagibigNumber: emp.pagibigNumber,
+        email: emp.email,
+        contactNumber: emp.contactNumber,
+        hireDate: emp.hireDate,
+        departmentId: emp.departmentId?.toString(),
+        department: department,
+        isActive: emp.isActive,
+        createdAt: emp.createdAt,
+        updatedAt: emp.updatedAt
+      };
     }));
 
     res.json({ 
