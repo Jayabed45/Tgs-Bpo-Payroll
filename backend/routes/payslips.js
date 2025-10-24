@@ -215,10 +215,10 @@ function generatePayslipPDF(doc, payroll, payslip) {
   doc.fontSize(12).font('Helvetica-Bold').text('Earnings & Deductions:');
   doc.moveDown(0.5);
   doc.fontSize(10).font('Helvetica');
-  doc.text(`Gross Pay: ₱${payroll.grossPay?.toLocaleString() || '0'}`);
-  doc.text(`Total Deductions: ₱${payroll.totalDeductions?.toLocaleString() || '0'}`);
+  doc.text(`Gross Pay: PHP ${payroll.grossPay?.toLocaleString() || '0'}`);
+  doc.text(`Total Deductions: PHP ${payroll.totalDeductions?.toLocaleString() || '0'}`);
   doc.fontSize(11).font('Helvetica-Bold');
-  doc.text(`Net Pay: ₱${payroll.netPay?.toLocaleString() || '0'}`);
+  doc.text(`Net Pay: PHP ${payroll.netPay?.toLocaleString() || '0'}`);
   doc.moveDown(1);
   
   // Detailed Breakdown - Earnings
@@ -226,21 +226,21 @@ function generatePayslipPDF(doc, payroll, payslip) {
   doc.moveDown(0.5);
   doc.fontSize(11).font('Helvetica-Bold').text('Earnings:');
   doc.fontSize(10).font('Helvetica');
-  doc.text(`  Basic Salary: ₱${payroll.basicSalary?.toLocaleString() || '0'}`);
-  doc.text(`  Holiday Pay: ₱${payroll.holidayPay?.toLocaleString() || '0'}`);
-  doc.text(`  Night Differential: ₱${payroll.nightDifferential?.toLocaleString() || '0'}`);
-  doc.text(`  Salary Adjustment: ₱${payroll.salaryAdjustment?.toLocaleString() || '0'}`);
+  doc.text(`  Basic Salary: PHP ${payroll.basicSalary?.toLocaleString() || '0'}`);
+  doc.text(`  Holiday Pay: PHP ${payroll.holidayPay?.toLocaleString() || '0'}`);
+  doc.text(`  Night Differential: PHP ${payroll.nightDifferential?.toLocaleString() || '0'}`);
+  doc.text(`  Salary Adjustment: PHP ${payroll.salaryAdjustment?.toLocaleString() || '0'}`);
   doc.moveDown(0.5);
   
   // Detailed Breakdown - Deductions
   doc.fontSize(11).font('Helvetica-Bold').text('Deductions:');
   doc.fontSize(10).font('Helvetica');
-  doc.text(`  Absences: ₱${payroll.absences?.toLocaleString() || '0'}`);
-  doc.text(`  Late Deductions: ₱${payroll.lateDeductions?.toLocaleString() || '0'}`);
-  doc.text(`  SSS Contribution: ₱${payroll.sssContribution?.toLocaleString() || '0'}`);
-  doc.text(`  PhilHealth Contribution: ₱${payroll.philhealthContribution?.toLocaleString() || '0'}`);
-  doc.text(`  Pag-IBIG Contribution: ₱${payroll.pagibigContribution?.toLocaleString() || '0'}`);
-  doc.text(`  Withholding Tax: ₱${payroll.withholdingTax?.toLocaleString() || '0'}`);
+  doc.text(`  Absences: PHP ${payroll.absences?.toLocaleString() || '0'}`);
+  doc.text(`  Late Deductions: PHP ${payroll.lateDeductions?.toLocaleString() || '0'}`);
+  doc.text(`  SSS Contribution: PHP ${payroll.sssContribution?.toLocaleString() || '0'}`);
+  doc.text(`  PhilHealth Contribution: PHP ${payroll.philhealthContribution?.toLocaleString() || '0'}`);
+  doc.text(`  Pag-IBIG Contribution: PHP ${payroll.pagibigContribution?.toLocaleString() || '0'}`);
+  doc.text(`  Withholding Tax: PHP ${payroll.withholdingTax?.toLocaleString() || '0'}`);
   doc.moveDown(2);
   
   // Footer

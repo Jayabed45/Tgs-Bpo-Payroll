@@ -199,18 +199,30 @@ export default function Reports() {
 
   const downloadPayslip = async (payslipId: string) => {
     try {
+      console.log('Downloading payslip:', payslipId);
       const response = await apiService.downloadPayslip(payslipId);
+      console.log('Download response received, size:', response.byteLength);
+      
       // Create a blob and download
       const blob = new Blob([response], { type: 'application/pdf' });
+      console.log('Blob created, size:', blob.size, 'type:', blob.type);
+      
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `payslip-${payslipId}.pdf`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      
+      // Clean up
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 100);
+      
+      console.log('Download triggered successfully');
     } catch (error: any) {
+      console.error('Download error:', error);
       setErrorModal({ open: true, message: error.message || 'Failed to download payslip' });
     }
   };
