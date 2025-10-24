@@ -190,9 +190,9 @@ const confirmDelete = async (e?: React.MouseEvent) => {
   const name = deleteModal.employee.name;
 
   try {
-    console.log("🟢 Deleting employee:", id);
+    console.log(" Deleting employee:", id);
     await apiService.deleteEmployee(id);
-    console.log("✅ Delete succeeded");
+    console.log(" Delete succeeded");
 
     // Store success state in sessionStorage
     sessionStorage.setItem('showDeleteSuccess', 'true');
@@ -202,7 +202,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     // Update local state
     setEmployees(prev => prev.filter(emp => emp.id !== id));
     
-    // 👇 CRITICAL: Notify parent components to refresh their data
+    //  CRITICAL: Notify parent components to refresh their data
     if (onEmployeeChange) {
       console.log("📢 Notifying parent of employee change");
       onEmployeeChange(); // This should trigger refreshes in other components
@@ -929,7 +929,9 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       ) : (
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <div className="inline-block min-w-full align-middle">
+              <div className="overflow-visible">
+                <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Name</th>
@@ -937,7 +939,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Department</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Salary</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase tracking-wider w-32">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -968,7 +970,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                         {employee.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium relative">
                       <div className="relative" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => setOpenDropdownId(openDropdownId === employee.id ? null : employee.id)}
@@ -981,9 +983,12 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                         </button>
                         
                         {openDropdownId === employee.id && (
-                          <div className={`absolute right-0 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 ${
-                            index >= employees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'
-                          }`}>
+                          <div className={`absolute w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999] ${
+                            index === 0 ? 'top-full mt-2' : index >= employees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'
+                          }`} style={{ 
+                            right: '0',
+                            marginRight: '-0.5rem'
+                          }}>
                             <button
                               onClick={() => {
                                 handleEdit(employee);
@@ -1017,6 +1022,8 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                 ))}
               </tbody>
             </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1385,7 +1392,7 @@ export function SuccessModal({ isOpen, onClose, message }: {
   if (!isOpen) return null;
 
 const handleOk = () => {
-  console.log("✅ OK clicked - cleaning up and closing modal");
+  console.log(" OK clicked - cleaning up and closing modal");
   // Clean up sessionStorage
   sessionStorage.removeItem('showDeleteSuccess');
   sessionStorage.removeItem('deleteSuccessMessage');
@@ -1501,8 +1508,8 @@ export function EmployeeViewModal({ isOpen, onClose, employee }: EmployeeViewMod
             })
             .slice(-6); // Get last 6 payroll records
           
-          console.log('✅ Filtered payrolls for employee:', employeePayrolls);
-          console.log('📈 Number of payrolls found:', employeePayrolls.length);
+          console.log(' Filtered payrolls for employee:', employeePayrolls);
+          console.log(' Number of payrolls found:', employeePayrolls.length);
           setPayrollHistory(employeePayrolls);
         } catch (error) {
           console.error('Error fetching payroll history:', error);

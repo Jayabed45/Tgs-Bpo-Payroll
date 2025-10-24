@@ -8,7 +8,9 @@ import EmployeeManagement from "../components/EmployeeManagement";
 import DepartmentManagement from "../components/DepartmentManagement";
 import PayrollProcessing from "../components/PayrollProcessing";
 import Reports from "../components/Reports";
+import Settings from "../components/Settings";
 import { apiService } from "../services/api";
+import { SettingsProvider } from "../contexts/SettingsContext";
 
 export default function AdminPage() {
   const [user, setUser] = useState<any>(null);
@@ -341,44 +343,45 @@ export default function AdminPage() {
 	}
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <Sidebar 
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onLogout={handleLogout}
-        user={user}
-      />
+    <SettingsProvider>
+      <div className="min-h-screen bg-gray-50 flex">
+        {/* Sidebar */}
+        <Sidebar 
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onLogout={handleLogout}
+          user={user}
+        />
 
-      {/* Main Content */}
-      <div className="flex-1 ml-64">
-        {/* Top Header */}
-        <Header activeTab={activeTab} currentTime={currentTime} onSearchResult={handleSearchResult} />
+        {/* Main Content */}
+        <div className="flex-1 ml-64">
+          {/* Top Header */}
+          <Header activeTab={activeTab} currentTime={currentTime} onSearchResult={handleSearchResult} />
 
-        {/* Page Content */}
-        <main className="p-6">
-          {/* Dashboard Tab */}
-          {activeTab === 'dashboard' && (
-            <Dashboard
-              monthlyPayrollData={monthlyPayrollData}
-              employeeDistribution={employeeDistribution}
-              totalEmployees={totalEmployees}
-              totalPayroll={totalPayroll}
-              pendingReports={pendingReports}
-              processedCount={processedCount}
-              completedCount={completedCount}
-              activityTimestamps={activityTimestamps}
-              activeTimeFilter={activeTimeFilter}
-              setActiveTimeFilter={setActiveTimeFilter}
-              getRelativeTime={getRelativeTime}
-              getFilteredActivities={getFilteredActivities}
-              departments={departments}
-              payrolls={payrolls}
-              employees={employees}
-            />
-          )}
+          {/* Page Content */}
+          <main className="p-6">
+            {/* Dashboard Tab */}
+            {activeTab === 'dashboard' && (
+              <Dashboard
+                monthlyPayrollData={monthlyPayrollData}
+                employeeDistribution={employeeDistribution}
+                totalEmployees={totalEmployees}
+                totalPayroll={totalPayroll}
+                pendingReports={pendingReports}
+                processedCount={processedCount}
+                completedCount={completedCount}
+                activityTimestamps={activityTimestamps}
+                activeTimeFilter={activeTimeFilter}
+                setActiveTimeFilter={setActiveTimeFilter}
+                getRelativeTime={getRelativeTime}
+                getFilteredActivities={getFilteredActivities}
+                departments={departments}
+                payrolls={payrolls}
+                employees={employees}
+              />
+            )}
 
-          {/* Employee Management Tab */}
+            {/* Employee Management Tab */}
           {activeTab === 'employees' && (
             <EmployeeManagement onEmployeeChange={fetchDashboardData} />
           )}
@@ -401,8 +404,14 @@ export default function AdminPage() {
             <Reports />
           )}
 
-        </main>
+          {/* Settings Tab */}
+          {activeTab === 'settings' && (
+            <Settings />
+          )}
+
+          </main>
+        </div>
       </div>
-    </div>
+    </SettingsProvider>
   );
 } 

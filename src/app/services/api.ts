@@ -173,7 +173,12 @@ class ApiService {
       }
     }
     
-    throw new Error(`Network error after ${maxRetries + 1} attempts: ${lastError.message}`);
+    // Provide a more user-friendly error message
+    const errorMessage = lastError.message.includes('fetch') 
+      ? 'Cannot connect to backend server. Please ensure the backend is running on http://localhost:5000'
+      : `Network error: ${lastError.message}`;
+    
+    throw new Error(errorMessage);
   }
 
   private getAuthHeaders(): HeadersInit {
@@ -519,6 +524,54 @@ class ApiService {
       console.error(`❌ Error fetching payrolls for department ${departmentId}:`, error);
       return { success: false, payrolls: [] };
     }
+  }
+
+  // Settings API
+  async getSettings() {
+    try {
+      const response = await this.retryFetch(`${API_BASE_URL}/settings`, {
+        headers: this.getAuthHeaders(),
+      })
+      return this.handleResponse<{ success: boolean; settings: any }>(response);
+    } catch (error) {
+      console.error('❌ Error fetching settings:', error);
+      return { 
+        success: false, 
+        settings: {
+          sssRate: 4.5,
+          philhealthRate: 2.0,
+          pagibigRate: 2.0,
+          withholdingTaxRate: 15.0,
+          overtimeMultiplier: 1.25,
+          nightDiffRate: 10.0,
+          holidayRate: 200.0,
+          workingHoursPerDay: 8,
+          workingDaysPerWeek: 5,
+          currency: 'PHP',
+          dateFormat: 'MM/DD/YYYY',
+          timezone: 'Asia/Manila'
+        }
+      };
+    }
+  }
+
+  async updateSettings(settings: any) {
+    const response = await this.retryFetch(`${API_BASE_URL}/settings`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(settings),
+    })
+    return this.handleResponse<{ success: boolean; message: string; settings: any }>(response);
+  }
+
+  // Update user profile (email, password, name)
+  async updateProfile(data: { email?: string; currentPassword?: string; newPassword?: string; name?: string }) {
+    const response = await this.retryFetch(`${API_BASE_URL}/auth/update-profile`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    return this.handleResponse<{ success: boolean; message: string; user: any; token?: string }>(response);
   }
 }
 

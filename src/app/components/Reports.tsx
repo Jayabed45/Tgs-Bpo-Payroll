@@ -170,10 +170,13 @@ export default function Reports() {
       console.log('Payrolls response:', payrollsResponse);
       console.log('Payslips response:', payslipsResponse);
       
-      setPayrolls(payrollsResponse.payrolls || []);
-      setPayslips(payslipsResponse.payslips || []);
+      setPayrolls(Array.isArray(payrollsResponse.payrolls) ? payrollsResponse.payrolls : []);
+      setPayslips(Array.isArray(payslipsResponse.payslips) ? payslipsResponse.payslips : []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      // Set empty arrays on error to prevent crashes
+      setPayrolls([]);
+      setPayslips([]);
     } finally {
       setLoading(false);
     }

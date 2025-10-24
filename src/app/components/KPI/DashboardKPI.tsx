@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 
 interface DepartmentData {
   id: string;
@@ -41,6 +41,10 @@ export default function DashboardKPI({
   showOtherKPIs = true,
   showPayrollStatus = true,
 }: DashboardKPIProps) {
+  // Hover states
+  const [hoveredDept, setHoveredDept] = useState<number | null>(null);
+  const [hoveredStatus, setHoveredStatus] = useState<number | null>(null);
+  const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
   // Department KPI: Employee Distribution by Department (Donut Chart)
   const departmentDistribution = useMemo(() => {
     const sorted = [...departments].sort((a, b) => b.employeeCount - a.employeeCount);
@@ -213,19 +217,38 @@ export default function DashboardKPI({
             </div>
           </div>
           
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-center relative">
             <svg viewBox="0 0 200 200" className="w-40 h-40">
               {departmentDistribution.map((dept, index) => (
                 dept.percentage > 0 && (
-                  <path
-                    key={index}
-                    d={createDonutPath(dept.startPercentage, dept.endPercentage, 80, 30)}
-                    fill={dept.color}
-                    className="transition-all duration-300 hover:opacity-80"
-                  />
+                  <g key={index}>
+                    <path
+                      d={createDonutPath(dept.startPercentage, dept.endPercentage, 80, 30)}
+                      fill={dept.color}
+                      className="transition-all duration-300 cursor-pointer"
+                      style={{ 
+                        opacity: hoveredDept === null || hoveredDept === index ? 1 : 0.3,
+                        filter: hoveredDept === index ? 'brightness(1.1)' : 'none'
+                      }}
+                      onMouseEnter={() => setHoveredDept(index)}
+                      onMouseLeave={() => setHoveredDept(null)}
+                    />
+                  </g>
                 )
               ))}
             </svg>
+            {/* Tooltip */}
+            {hoveredDept !== null && departmentDistribution[hoveredDept] && (
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap">
+                <div className="font-semibold">{departmentDistribution[hoveredDept].name}</div>
+                <div className="text-gray-300">
+                  {departmentDistribution[hoveredDept].count} employees ({departmentDistribution[hoveredDept].percentage.toFixed(1)}%)
+                </div>
+                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+                  <div className="border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="mt-4">
@@ -261,25 +284,44 @@ export default function DashboardKPI({
             </div>
           </div>
           
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-center relative">
             <svg viewBox="0 0 200 200" className="w-40 h-40">
               {payrollStatusDistribution.map((status, index) => (
                 status.percentage > 0 && (
-                  <path
-                    key={index}
-                    d={createDonutPath(status.startPercentage, status.endPercentage, 80, 30)}
-                    fill={status.color}
-                    className="transition-all duration-300 hover:opacity-80"
-                  />
+                  <g key={index}>
+                    <path
+                      d={createDonutPath(status.startPercentage, status.endPercentage, 80, 30)}
+                      fill={status.color}
+                      className="transition-all duration-300 cursor-pointer"
+                      style={{ 
+                        opacity: hoveredStatus === null || hoveredStatus === index ? 1 : 0.3,
+                        filter: hoveredStatus === index ? 'brightness(1.1)' : 'none'
+                      }}
+                      onMouseEnter={() => setHoveredStatus(index)}
+                      onMouseLeave={() => setHoveredStatus(null)}
+                    />
+                  </g>
                 )
               ))}
-              <text x="100" y="95" textAnchor="middle" className="text-2xl font-bold fill-gray-900">
+              <text x="100" y="95" textAnchor="middle" className="text-2xl font-bold fill-gray-900 pointer-events-none">
                 {payrolls.length}
               </text>
-              <text x="100" y="115" textAnchor="middle" className="text-xs fill-gray-500">
+              <text x="100" y="115" textAnchor="middle" className="text-xs fill-gray-500 pointer-events-none">
                 Total
               </text>
             </svg>
+            {/* Tooltip */}
+            {hoveredStatus !== null && payrollStatusDistribution[hoveredStatus] && (
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap">
+                <div className="font-semibold">{payrollStatusDistribution[hoveredStatus].name}</div>
+                <div className="text-gray-300">
+                  {payrollStatusDistribution[hoveredStatus].count} payrolls ({payrollStatusDistribution[hoveredStatus].percentage.toFixed(1)}%)
+                </div>
+                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+                  <div className="border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="mt-4 space-y-2">
@@ -350,6 +392,7 @@ export default function DashboardKPI({
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                className="pointer-events-none"
               />
               
               {/* Data points */}
@@ -358,14 +401,40 @@ export default function DashboardKPI({
                   <circle 
                     cx={point.x} 
                     cy={point.y} 
-                    r="4" 
+                    r={hoveredPoint === i ? "6" : "4"}
                     fill="#10B981" 
                     stroke="white" 
                     strokeWidth="2"
+                    className="cursor-pointer transition-all duration-200"
+                    style={{ 
+                      filter: hoveredPoint === i ? 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.5))' : 'none'
+                    }}
+                    onMouseEnter={() => setHoveredPoint(i)}
+                    onMouseLeave={() => setHoveredPoint(null)}
                   />
                 </g>
               ))}
             </svg>
+            
+            {/* Tooltip for line chart */}
+            {hoveredPoint !== null && employeeGrowthTrend.months[hoveredPoint] && (
+              <div 
+                className="absolute bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap pointer-events-none"
+                style={{
+                  left: `${(hoveredPoint / (employeeGrowthTrend.months.length - 1)) * 100}%`,
+                  top: '20%',
+                  transform: 'translate(-50%, -100%)'
+                }}
+              >
+                <div className="font-semibold">{employeeGrowthTrend.months[hoveredPoint].label}</div>
+                <div className="text-gray-300">
+                  {employeeGrowthTrend.points[hoveredPoint].value} employees
+                </div>
+                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+                  <div className="border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+            )}
             
             {/* X-axis labels */}
             <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-500 px-8">

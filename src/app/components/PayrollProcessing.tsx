@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { apiService } from "../services/api";
+import { calculateSSS, calculatePhilHealth, calculatePagIBIG, calculateWithholdingTax } from "../utils/philippinePayroll";
 
 interface Employee {
   id: string;
@@ -43,7 +44,7 @@ interface PayrollDeleteModalProps {
 
 // Modal Components
 function PayrollSuccessModal({ isOpen, onClose, message }: PayrollSuccessModalProps) {
-  console.log('✅ PayrollSuccessModal render:', { isOpen, message }); // Debug log
+  console.log(' PayrollSuccessModal render:', { isOpen, message }); // Debug log
   if (!isOpen) return null;
 
   return (
@@ -219,6 +220,22 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const [selectAll, setSelectAll] = useState(false);
   const [showBulkForm, setShowBulkForm] = useState(false);
   const [bulkFormData, setBulkFormData] = useState<{[key: string]: any}>({});
+  
+  // Search state for employee dropdown
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
+
+  // Settings state for contribution rates
+  const [payrollSettings, setPayrollSettings] = useState({
+    sssRate: 4.5,
+    philhealthRate: 2.0,
+    pagibigRate: 2.0,
+    withholdingTaxRate: 15.0,
+    overtimeMultiplier: 1.25,
+    nightDiffRate: 10.0,
+    holidayRate: 200.0,
+  });
 
   // Calculated values
   const [calculatedValues, setCalculatedValues] = useState({
@@ -227,12 +244,50 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     netPay: 0
   });
 
+  // Fetch payroll settings on component mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await apiService.getSettings();
+        if (response.success && response.settings) {
+          setPayrollSettings({
+            sssRate: response.settings.sssRate || 4.5,
+            philhealthRate: response.settings.philhealthRate || 2.0,
+            pagibigRate: response.settings.pagibigRate || 2.0,
+            withholdingTaxRate: response.settings.withholdingTaxRate || 15.0,
+            overtimeMultiplier: response.settings.overtimeMultiplier || 1.25,
+            nightDiffRate: response.settings.nightDiffRate || 10.0,
+            holidayRate: response.settings.holidayRate || 200.0,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching payroll settings:", error);
+        // Use default values if fetch fails
+      }
+    };
+    fetchSettings();
+  }, []);
+
   useEffect(() => {
     fetchData();
     // Ensure forms are hidden when component mounts
     setShowPayrollForm(false);
     setShowBulkForm(false);
   }, []);
+
+  // Filter employees based on search
+  useEffect(() => {
+    if (employeeSearch.trim() === "") {
+      setFilteredEmployees(employees);
+    } else {
+      const searchLower = employeeSearch.toLowerCase();
+      const filtered = employees.filter(emp => 
+        emp.name.toLowerCase().includes(searchLower) || 
+        emp.position.toLowerCase().includes(searchLower)
+      );
+      setFilteredEmployees(filtered);
+    }
+  }, [employeeSearch, employees]);
 
   // Cleanup effect to hide forms when component unmounts
   useEffect(() => {
@@ -242,6 +297,24 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     };
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.employee-search-container')) {
+        setShowEmployeeDropdown(false);
+      }
+    };
+
+    if (showEmployeeDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmployeeDropdown]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -250,10 +323,13 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         apiService.getPayrolls()
       ]);
       
-      setEmployees(employeesResponse.employees);
-      setPayrolls(payrollsResponse.payrolls);
+      setEmployees(Array.isArray(employeesResponse.employees) ? employeesResponse.employees : []);
+      setPayrolls(Array.isArray(payrollsResponse.payrolls) ? payrollsResponse.payrolls : []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      // Set empty arrays on error to prevent crashes
+      setEmployees([]);
+      setPayrolls([]);
     } finally {
       setLoading(false);
     }
@@ -261,36 +337,25 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    // Auto-calculate contributions when basic salary changes
+    if (name === 'basicSalary' && value) {
+      const basicSalary = parseFloat(value);
+      if (!isNaN(basicSalary) && basicSalary > 0) {
+        const contributions = autoCalculateContributions(basicSalary);
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          ...contributions
+        }));
+        return;
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-
-    // Auto-fill employee details when employee is selected
-    if (name === 'employeeId') {
-      if (value === 'all') {
-        // Handle select all
-        setSelectAll(true);
-        setFormData(prev => ({
-          ...prev,
-          employeeId: 'all',
-          employeeName: 'All Employees',
-          basicSalary: ''
-        }));
-      } else {
-        // Handle individual employee selection
-        setSelectAll(false);
-      const selectedEmployee = employees.find(emp => emp.id === value);
-      if (selectedEmployee) {
-        setFormData(prev => ({
-          ...prev,
-          employeeId: value,
-          employeeName: selectedEmployee.name || '',
-          basicSalary: selectedEmployee.salary?.toString() || ''
-        }));
-        }
-      }
-    }
   };
 
   // Bulk form handling
@@ -358,6 +423,22 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     } finally {
       setCalculating(false);
     }
+  };
+
+  // Auto-calculate contributions based on Philippine payroll system
+  const autoCalculateContributions = (basicSalary: number) => {
+    // Use actual Philippine contribution tables
+    const sss = calculateSSS(basicSalary);
+    const philhealth = calculatePhilHealth(basicSalary);
+    const pagibig = calculatePagIBIG(basicSalary);
+    const tax = calculateWithholdingTax(basicSalary);
+    
+    return {
+      sssContribution: sss.toFixed(2),
+      philhealthContribution: philhealth.toFixed(2),
+      pagibigContribution: pagibig.toFixed(2),
+      withholdingTax: tax.toFixed(2)
+    };
   };
 
   const calculatePayrollLocally = () => {
@@ -572,6 +653,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       totalDeductions: payroll.totalDeductions || 0,
       netPay: payroll.netPay || 0
     });
+    setEmployeeSearch(payroll.employeeName || "");
     setSelectAll(false); // Reset select all state when editing
     // Don't automatically show the form - let user decide
   };
@@ -604,6 +686,37 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     }
   };
 
+  const handleEmployeeSelect = (employeeId: string, employeeName: string) => {
+    if (employeeId === 'all') {
+      // Handle select all
+      setSelectAll(true);
+      setFormData(prev => ({
+        ...prev,
+        employeeId: 'all',
+        employeeName: 'All Employees',
+        basicSalary: ''
+      }));
+    } else {
+      // Handle individual employee selection
+      setSelectAll(false);
+      const selectedEmployee = employees.find(emp => emp.id === employeeId);
+      if (selectedEmployee) {
+        const salary = selectedEmployee.salary || 0;
+        const contributions = autoCalculateContributions(salary);
+        
+        setFormData(prev => ({
+          ...prev,
+          employeeId: employeeId,
+          employeeName: selectedEmployee.name || '',
+          basicSalary: salary.toString(),
+          ...contributions
+        }));
+      }
+    }
+    setEmployeeSearch(employeeName);
+    setShowEmployeeDropdown(false);
+  };
+
   const resetForm = () => {
     setFormData({
       employeeId: "",
@@ -628,6 +741,8 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     setSelectAll(false);
     setShowBulkForm(false);
     setBulkFormData({});
+    setEmployeeSearch("");
+    setShowEmployeeDropdown(false);
     // Ensure main form is also hidden
     setShowPayrollForm(false);
   };
@@ -826,20 +941,81 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                       </svg>
                       Employee
                     </label>
-                                 <select
-                   name="employeeId"
-                   value={formData.employeeId}
-                   onChange={handleInputChange}
-                   required
-                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
-                 >
-                  <option value="">Select Employee</option>
-                      <option value="all" className="font-semibold text-blue-600">📋 Select All Employees</option>
-                      <option value="" disabled className="text-gray-400">───────────</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.name} - {emp.position}</option>
-                  ))}
-                </select>
+                    <div className="relative employee-search-container">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={employeeSearch}
+                          onChange={(e) => {
+                            setEmployeeSearch(e.target.value);
+                            setShowEmployeeDropdown(true);
+                            // Clear selection if user types
+                            if (formData.employeeId) {
+                              setFormData(prev => ({
+                                ...prev,
+                                employeeId: "",
+                                employeeName: "",
+                                basicSalary: ""
+                              }));
+                              setSelectAll(false);
+                            }
+                          }}
+                          onFocus={() => setShowEmployeeDropdown(true)}
+                          placeholder="Search employee..."
+                          required={!formData.employeeId}
+                          className="w-full text-black pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
+                        />
+                        <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        {formData.employeeId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmployeeSearch("");
+                              setFormData(prev => ({
+                                ...prev,
+                                employeeId: "",
+                                employeeName: "",
+                                basicSalary: ""
+                              }));
+                              setSelectAll(false);
+                              setShowEmployeeDropdown(false);
+                            }}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      {showEmployeeDropdown && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          <div
+                            onClick={() => handleEmployeeSelect('all', '📋 Select All Employees')}
+                            className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-200 font-semibold text-blue-600"
+                          >
+                            📋 Select All Employees
+                          </div>
+                          {filteredEmployees.length > 0 ? (
+                            filteredEmployees.map(emp => (
+                              <div
+                                key={emp.id}
+                                onClick={() => handleEmployeeSelect(emp.id, `${emp.name} - ${emp.position}`)}
+                                className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 text-black"
+                              >
+                                {emp.name} - {emp.position}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="px-4 py-3 text-gray-500 text-center">
+                              No employees found
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {selectAll && (
                       <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <div className="flex items-center space-x-2">
@@ -852,6 +1028,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           This will create payroll entries for all {employees.length} employees with the same cutoff period and settings.
                         </p>
                         <button
+                          type="button"
                           onClick={initializeBulkForm}
                           className="mt-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
                         >
@@ -1075,9 +1252,14 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
               {/* Government Contributions Section */}
               <div className="space-y-4">
-                <div className="flex items-center space-x-2 mb-4">
-                  <div className="w-1 h-6 bg-purple-500 rounded-full"></div>
-                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Government Contributions</h5>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-1 h-6 bg-purple-500 rounded-full"></div>
+                    <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Government Contributions</h5>
+                  </div>
+                  <div className="text-xs text-purple-600 bg-purple-50 px-3 py-1 rounded-full font-medium">
+                    🇵🇭 Philippine Payroll System (2024)
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1688,7 +1870,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       <PayrollSuccessModal
         isOpen={successModal.open}
         onClose={() => {
-          console.log('✅ Success modal closing, message:', successModal.message);
+          console.log(' Success modal closing, message:', successModal.message);
           setSuccessModal({ open: false });
           
           // Handle cleanup after user acknowledges success

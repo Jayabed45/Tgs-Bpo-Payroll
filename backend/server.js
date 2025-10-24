@@ -10,6 +10,7 @@ const employeeRoutes = require('./routes/employees');
 const payrollRoutes = require('./routes/payroll');
 const payslipRoutes = require('./routes/payslips');
 const departmentRoutes = require('./routes/departments');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,7 +24,10 @@ let client;
 async function connectToDatabase() {
   try {
     console.log('🔄 Connecting to MongoDB...');
-    client = new MongoClient(MONGODB_URI);
+    client = new MongoClient(MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
     await client.connect();
     db = client.db();
     
@@ -34,6 +38,16 @@ async function connectToDatabase() {
     // Make db available globally
     global.db = db;
     
+    // Monitor connection events
+    client.on('error', (error) => {
+      console.error('❌ MongoDB connection error:', error);
+    });
+    
+    client.on('close', () => {
+      console.warn('⚠️  MongoDB connection closed');
+      global.db = null;
+    });
+    
     return db;
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
@@ -43,29 +57,30 @@ async function connectToDatabase() {
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\n🔄 Shutting down gracefully...');
+  console.log('\n Shutting down gracefully...');
   if (client) {
     await client.close();
-    console.log('✅ MongoDB connection closed');
+    console.log('MongoDB connection closed');
   }
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('\n🔄 Shutting down gracefully...');
+  console.log('\n Shutting down gracefully...');
   if (client) {
     await client.close();
-    console.log('✅ MongoDB connection closed');
+    console.log('MongoDB connection closed');
   }
   process.exit(0);
 });
 
 // Security middleware
 
-// Rate limiting
+// Rate limiting - more lenient for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Higher limit in development
+  message: { error: 'Too many requests, please try again later.' }
 });
 app.use(limiter);
 
@@ -79,12 +94,25 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Database connection check middleware
+app.use((req, res, next) => {
+  if (!global.db) {
+    console.error('❌ Database connection lost');
+    return res.status(503).json({ 
+      error: 'Database connection unavailable',
+      message: 'Please restart the server'
+    });
+  }
+  next();
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/payslips', payslipRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -117,13 +145,13 @@ async function startServer() {
     
     // Start the server
     app.listen(PORT, () => {
-      console.log(`🚀 TGS Payroll Backend running on port ${PORT}`);
-      console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
-      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-      console.log(`📊 Database: ${MONGODB_URI}`);
+      console.log(`TGS Payroll Backend running on port ${PORT}`);
+      console.log(`Health check: http://localhost:${PORT}/api/health`);
+      console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+      console.log(`Database: ${MONGODB_URI}`);
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    console.error('Failed to start server:', error);
     process.exit(1);
   }
 }

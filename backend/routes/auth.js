@@ -201,4 +201,124 @@ const verifyAdminToken = (req, res, next) => {
   }
 };
 
-module.exports = { router, verifyAdminToken }; 
+// Update user profile (email, password, name)
+router.put('/update-profile', verifyAdminToken, async (req, res) => {
+  try {
+    const { email, currentPassword, newPassword, name } = req.body;
+    const userId = req.user.userId;
+
+    const db = global.db;
+    if (!db) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection unavailable'
+      });
+    }
+
+    const usersCollection = db.collection('users');
+    
+    // Find the current user
+    const user = await usersCollection.findOne({ _id: new (require('mongodb').ObjectId)(userId) });
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    const updateData = {};
+
+    // Update name if provided
+    if (name && name !== user.name) {
+      updateData.name = name;
+    }
+
+    // Update email if provided and different
+    if (email && email !== user.email) {
+      // Check if new email already exists
+      const existingUser = await usersCollection.findOne({ email, _id: { $ne: user._id } });
+      if (existingUser) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Email already in use by another account' 
+        });
+      }
+      updateData.email = email;
+    }
+
+    // Update password if provided
+    if (newPassword && currentPassword) {
+      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Current password is incorrect' 
+        });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      updateData.password = hashedPassword;
+    }
+
+    // If nothing to update
+    if (Object.keys(updateData).length === 0) {
+      return res.json({ 
+        success: true, 
+        message: 'No changes to update',
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name
+        }
+      });
+    }
+
+    // Update user
+    updateData.updatedAt = new Date();
+    await usersCollection.updateOne(
+      { _id: user._id },
+      { $set: updateData }
+    );
+
+    // Get updated user
+    const updatedUser = await usersCollection.findOne({ _id: user._id });
+
+    // Generate new token if email changed
+    let newToken = null;
+    if (updateData.email) {
+      newToken = jwt.sign(
+        { 
+          userId: updatedUser._id, 
+          email: updatedUser.email, 
+          role: updatedUser.role 
+        },
+        process.env.JWT_SECRET || 'your-secret-key',
+        { expiresIn: '24h' }
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: updatedUser._id,
+        email: updatedUser.email,
+        name: updatedUser.name
+      },
+      token: newToken // Send new token if email changed
+    });
+
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile',
+      error: error.message
+    });
+  }
+});
+
+module.exports = { router, verifyAdminToken };
