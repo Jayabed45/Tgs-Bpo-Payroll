@@ -7,16 +7,16 @@ async function createAllIndexes() {
   let client;
   
   try {
-    console.log('🔄 Connecting to MongoDB...');
+    console.log('Connecting to MongoDB...');
     client = new MongoClient(uri);
     await client.connect();
     
     const db = client.db();
     
-    console.log('📊 Creating optimized indexes for department integration...\n');
+    console.log('Creating optimized indexes for department integration...\n');
     
     // Department Collection Indexes
-    console.log('1️⃣ Creating Department indexes...');
+    console.log('1️Creating Department indexes...');
     const departmentsCollection = db.collection('departments');
     
     await departmentsCollection.createIndex(
@@ -39,10 +39,10 @@ async function createAllIndexes() {
       { name: 'idx_department_created_desc' }
     );
     
-    console.log('✅ Department indexes created');
+    console.log('Department indexes created');
     
     // Employee Collection Indexes
-    console.log('2️⃣ Creating Employee indexes...');
+    console.log('Creating Employee indexes...');
     const employeesCollection = db.collection('employees');
     
     // Department-based filtering (most important for BPO)
@@ -81,10 +81,10 @@ async function createAllIndexes() {
       { name: 'idx_employee_dept_hire_active' }
     );
     
-    console.log('✅ Employee indexes created');
+    console.log('Employee indexes created');
     
     // Payroll Collection Indexes
-    console.log('3️⃣ Creating Payroll indexes...');
+    console.log('Creating Payroll indexes...');
     const payrollCollection = db.collection('payroll');
     
     // Department-based payroll filtering
@@ -117,10 +117,10 @@ async function createAllIndexes() {
       { name: 'idx_payroll_dept_cutoff_status' }
     );
     
-    console.log('✅ Payroll indexes created');
+    console.log('Payroll indexes created');
     
     // Payslips Collection Indexes (if exists)
-    console.log('4️⃣ Creating Payslip indexes...');
+    console.log('Creating Payslip indexes...');
     const payslipsCollection = db.collection('payslips');
     
     // Department-based payslip filtering
@@ -135,10 +135,10 @@ async function createAllIndexes() {
       { name: 'idx_payslip_employee_generated' }
     );
     
-    console.log('✅ Payslip indexes created');
+    console.log('Payslip indexes created');
     
     // Performance Analysis
-    console.log('\n📈 Index Performance Analysis:');
+    console.log('\n Index Performance Analysis:');
     console.log('=================================');
     
     const collections = ['departments', 'employees', 'payroll', 'payslips'];
@@ -148,7 +148,7 @@ async function createAllIndexes() {
       const indexes = await collection.listIndexes().toArray();
       const stats = await collection.stats().catch(() => ({ count: 0, size: 0 }));
       
-      console.log(`\n📋 ${collectionName.toUpperCase()} Collection:`);
+      console.log(`\n ${collectionName.toUpperCase()} Collection:`);
       console.log(`   Documents: ${stats.count || 0}`);
       console.log(`   Size: ${Math.round((stats.size || 0) / 1024)} KB`);
       console.log(`   Indexes: ${indexes.length}`);
@@ -160,26 +160,26 @@ async function createAllIndexes() {
       });
     }
     
-    console.log('\n🎯 Recommended Query Patterns:');
+    console.log('\n Recommended Query Patterns:');
     console.log('===============================');
-    console.log('✅ Fast: db.employees.find({ departmentId: ObjectId("..."), isActive: true })');
-    console.log('✅ Fast: db.payroll.find({ departmentId: ObjectId("...") }).sort({ cutoffStart: -1 })');
-    console.log('✅ Fast: db.departments.find({ isActive: true }).sort({ name: 1 })');
-    console.log('✅ Fast: db.employees.find({ departmentId: ObjectId("..."), position: "Manager" })');
+    console.log(' Fast: db.employees.find({ departmentId: ObjectId("..."), isActive: true })');
+    console.log(' Fast: db.payroll.find({ departmentId: ObjectId("...") }).sort({ cutoffStart: -1 })');
+    console.log(' Fast: db.departments.find({ isActive: true }).sort({ name: 1 })');
+    console.log(' Fast: db.employees.find({ departmentId: ObjectId("..."), position: "Manager" })');
     
-    console.log('\n⚠️  Avoid These Patterns:');
-    console.log('❌ Slow: db.employees.find({ salary: { $gt: 50000 } }) // No salary index');
-    console.log('❌ Slow: db.payroll.find({ netPay: { $gt: 30000 } }) // No netPay index');
+    console.log('\n  Avoid These Patterns:');
+    console.log(' Slow: db.employees.find({ salary: { $gt: 50000 } }) // No salary index');
+    console.log(' Slow: db.payroll.find({ netPay: { $gt: 30000 } }) // No netPay index');
     
-    console.log('\n🚀 All indexes created successfully!');
+    console.log('\n All indexes created successfully!');
     
   } catch (error) {
-    console.error('❌ Error creating indexes:', error);
+    console.error(' Error creating indexes:', error);
     process.exit(1);
   } finally {
     if (client) {
       await client.close();
-      console.log('🔌 Database connection closed.');
+      console.log(' Database connection closed.');
     }
   }
 }
@@ -189,7 +189,7 @@ async function analyzeQueryPerformance() {
   let client;
   
   try {
-    console.log('🔍 Analyzing query performance...');
+    console.log(' Analyzing query performance...');
     client = new MongoClient(uri);
     await client.connect();
     
@@ -222,7 +222,7 @@ async function analyzeQueryPerformance() {
         .sort(test.sort || {})
         .explain('executionStats');
       
-      console.log(`\n📊 ${test.description}:`);
+      console.log(`\n ${test.description}:`);
       console.log(`   Execution time: ${explain.executionStats.executionTimeMillis}ms`);
       console.log(`   Documents examined: ${explain.executionStats.totalDocsExamined}`);
       console.log(`   Documents returned: ${explain.executionStats.totalDocsReturned}`);
@@ -230,7 +230,7 @@ async function analyzeQueryPerformance() {
     }
     
   } catch (error) {
-    console.error('❌ Error analyzing performance:', error);
+    console.error(' Error analyzing performance:', error);
   } finally {
     if (client) {
       await client.close();
@@ -240,7 +240,7 @@ async function analyzeQueryPerformance() {
 
 // Main execution
 async function main() {
-  console.log('🚀 TGS BPO Database Indexing Script');
+  console.log(' TGS BPO Database Indexing Script');
   console.log('====================================\n');
   
   await createAllIndexes();
@@ -248,7 +248,7 @@ async function main() {
   // Uncomment to run performance analysis
   // await analyzeQueryPerformance();
   
-  console.log('\n🎉 Database optimization completed!');
+  console.log('\n Database optimization completed!');
 }
 
 // Run the script

@@ -72,6 +72,7 @@ function ErrorModal({ isOpen, onClose, message }: ErrorModalProps) {
 
 export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagementProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
@@ -544,6 +545,19 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     }
   };
 
+  // Filter employees based on search query
+  const filteredEmployees = employees.filter((employee) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      employee.name.toLowerCase().includes(query) ||
+      employee.position.toLowerCase().includes(query) ||
+      employee.email.toLowerCase().includes(query) ||
+      employee.department?.name.toLowerCase().includes(query) ||
+      employee.department?.code.toLowerCase().includes(query) ||
+      employee.contactNumber.includes(query)
+    );
+  });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -554,9 +568,39 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium text-gray-900">Employee List</h3>
-        <p className="text-sm text-gray-500">Manage your employees and their information</p>
+  
+
+      {/* Search Bar */}
+      <div className="bg-white shadow rounded-lg p-4">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name, position, email, department..."
+            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="mt-2 text-sm text-gray-600">
+            Found <span className="font-semibold text-indigo-600">{filteredEmployees.length}</span> employee{filteredEmployees.length !== 1 ? 's' : ''}
+          </p>
+        )}
       </div>
 
       {/* No backdrop - modals will slide in without covering content */}
@@ -914,15 +958,23 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       </div>
 
       {/* Employee List */}
-      {employees.length === 0 ? (
+      {filteredEmployees.length === 0 ? (
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <div className="text-center text-gray-500">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
               </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No employees</h3>
-              <p className="mt-1 text-sm text-gray-500">Get started by adding your first employee.</p>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">{searchQuery ? 'No employees found' : 'No employees'}</h3>
+              <p className="mt-1 text-sm text-gray-500">{searchQuery ? `No employees match "${searchQuery}"` : 'Get started by adding your first employee.'}</p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Clear search
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -943,7 +995,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {employees.map((employee, index) => (
+                {filteredEmployees.map((employee, index) => (
                   <tr 
                     key={employee.id} 
                     className="hover:bg-gray-50 cursor-pointer"
@@ -984,7 +1036,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                         
                         {openDropdownId === employee.id && (
                           <div className={`absolute w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[9999] ${
-                            index === 0 ? 'top-full mt-2' : index >= employees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'
+                            index === 0 ? 'top-full mt-2' : index >= filteredEmployees.length - 2 ? 'bottom-full mb-2' : 'top-full mt-2'
                           }`} style={{ 
                             right: '0',
                             marginRight: '-0.5rem'

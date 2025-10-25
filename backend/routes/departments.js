@@ -170,12 +170,12 @@ router.get('/:id', verifyAdminToken, async (req, res) => {
 // Create new department
 router.post('/', verifyAdminToken, async (req, res) => {
   try {
-    console.log('📝 Creating department with data:', req.body);
+    console.log(' Creating department with data:', req.body);
     const departmentData = new Department(req.body);
     const validationErrors = departmentData.validate();
 
     if (validationErrors.length > 0) {
-      console.log('❌ Validation failed:', validationErrors);
+      console.log(' Validation failed:', validationErrors);
       return res.status(400).json({ 
         success: false, 
         error: 'Validation failed', 
@@ -196,7 +196,7 @@ router.post('/', verifyAdminToken, async (req, res) => {
     });
 
     if (existingDept) {
-      console.log('⚠️  Department code already exists:', existingDept.code);
+      console.log(' Department code already exists:', existingDept.code);
       return res.status(409).json({ 
         success: false, 
         error: 'Department code already exists' 
@@ -206,7 +206,7 @@ router.post('/', verifyAdminToken, async (req, res) => {
     // Ensure code is uppercase
     departmentData.code = departmentData.code.toUpperCase();
 
-    console.log('💾 Inserting department into database...');
+    console.log(' Inserting department into database...');
     const result = await departmentsCollection.insertOne(departmentData.toMongoDoc());
     
     const newDepartment = {
@@ -214,7 +214,7 @@ router.post('/', verifyAdminToken, async (req, res) => {
       ...departmentData.toMongoDoc()
     };
 
-    console.log('✅ Department created successfully:', newDepartment.id);
+    console.log(' Department created successfully:', newDepartment.id);
     res.status(201).json({ 
       success: true, 
       message: 'Department created successfully', 

@@ -47,7 +47,7 @@ export default function Home() {
 
       if (response.ok) {
         if (isCreatingAdmin) {
-          setSuccess("✅ Admin created successfully! You can now login.");
+          setSuccess(" Admin created successfully! You can now login.");
           setIsCreatingAdmin(false);
           setEmail("");
           setPassword("");

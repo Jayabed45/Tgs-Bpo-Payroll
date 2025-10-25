@@ -21,6 +21,7 @@ interface DepartmentManagementProps {
 
 export default function DepartmentManagement({ onDepartmentChange }: DepartmentManagementProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
@@ -107,7 +108,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
         };
       });
       
-      console.log("🔄 Mapped departments with IDs:", mappedDepartments.map(d => ({ id: d.id, name: d.name })));
+      console.log(" Mapped departments with IDs:", mappedDepartments.map(d => ({ id: d.id, name: d.name })));
       
       setDepartments(mappedDepartments);
     } catch (error) {
@@ -158,7 +159,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
         manager: formData.manager.trim()
       };
       
-      console.log('🚀 Submitting department form:', cleanFormData);
+      console.log(' Submitting department form:', cleanFormData);
       
       if (editingDepartment) {
         // Update existing department
@@ -172,7 +173,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
       
       // Note: Don't close form or reset here - it's handled in the modal's onClose
     } catch (error: any) {
-      console.error('❌ Department operation failed:', error);
+      console.error(' Department operation failed:', error);
       setErrorModal({ open: true, message: error.message || 'Operation failed' });
     } finally {
       setFormLoading(false);
@@ -180,7 +181,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
   };
 
   const handleEdit = (department: Department) => {
-    console.log("✏️ Edit button clicked for department:", {
+    console.log(" Edit button clicked for department:", {
       id: department.id,
       name: department.name,
       fullObject: department
@@ -196,7 +197,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
   };
 
   const handleDeleteClick = (department: Department) => {
-    console.log("🗑️ Delete button clicked for department:", {
+    console.log(" Delete button clicked for department:", {
       id: department.id,
       name: department.name,
       fullObject: department
@@ -206,7 +207,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
 
   const confirmDelete = async () => {
     if (!deleteModal.department) {
-      console.error("❌ No department selected for deletion");
+      console.error(" No department selected for deletion");
       return;
     }
 
@@ -214,20 +215,20 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
     const departmentName = deleteModal.department.name;
 
     if (!departmentId) {
-      console.error("❌ Department ID is undefined or null!");
+      console.error("Department ID is undefined or null!");
       console.error("Department object:", deleteModal.department);
       setErrorModal({ open: true, message: "Cannot delete: Department ID is missing" });
       setDeleteModal({ open: false });
       return;
     }
 
-    console.log("🟢 Starting delete process for department:", { id: departmentId, name: departmentName });
+    console.log(" Starting delete process for department:", { id: departmentId, name: departmentName });
 
     try {
-      console.log("🔄 Calling API to delete department...");
+      console.log("Calling API to delete department...");
       const result = await apiService.deleteDepartment(departmentId);
-      console.log("✅ API delete response:", result);
-      console.log("✅ Delete succeeded");
+      console.log(" API delete response:", result);
+      console.log(" Delete succeeded");
 
       // Close confirm delete modal
       setDeleteModal({ open: false });
@@ -239,17 +240,17 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
       });
       
       // Update local state and notify parent
-      console.log("🔄 Refreshing department list...");
+      console.log("Refreshing department list...");
       await fetchDepartments();
       
       if (onDepartmentChange) {
-        console.log("📢 Notifying parent of department change");
+        console.log(" Notifying parent of department change");
         onDepartmentChange();
       }
       
-      console.log("✅ Delete process completed successfully");
+      console.log(" Delete process completed successfully");
     } catch (error: any) {
-      console.error("❌ Delete error details:", {
+      console.error(" Delete error details:", {
         message: error.message,
         status: error.status,
         response: error.response,
@@ -268,6 +269,17 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
     }
   };
 
+  // Filter departments based on search query
+  const filteredDepartments = departments.filter((department) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      department.name.toLowerCase().includes(query) ||
+      department.code.toLowerCase().includes(query) ||
+      department.description?.toLowerCase().includes(query) ||
+      department.manager?.toLowerCase().includes(query)
+    );
+  });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
@@ -278,14 +290,65 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium text-gray-900">Department Management</h3>
-        <p className="text-sm text-gray-500">Manage organizational departments and structure</p>
+
+
+      {/* Search Bar */}
+      <div className="bg-white shadow rounded-lg p-4">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name, code, description, manager..."
+            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="mt-2 text-sm text-gray-600">
+            Found <span className="font-semibold text-indigo-600">{filteredDepartments.length}</span> department{filteredDepartments.length !== 1 ? 's' : ''}
+          </p>
+        )}
       </div>
 
       {/* Department Grid */}
+      {filteredDepartments.length === 0 ? (
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-12 sm:p-12">
+            <div className="text-center text-gray-500">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">{searchQuery ? 'No departments found' : 'No departments'}</h3>
+              <p className="mt-1 text-sm text-gray-500">{searchQuery ? `No departments match "${searchQuery}"` : 'Get started by adding your first department.'}</p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {departments.map((department, index) => (
+        {filteredDepartments.map((department, index) => (
           <div 
             key={department.id || `department-${index}`} 
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
@@ -368,6 +431,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
           </div>
         ))}
       </div>
+      )}
 
       {/* Add/Edit Form Sliding Panel */}
       <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-xl transform transition-all duration-500 ease-in-out z-50 ${
@@ -726,7 +790,7 @@ export function SuccessModal({ isOpen, onClose, message }: {
   if (!isOpen) return null;
 
   const handleOk = () => {
-    console.log("✅ OK clicked - closing modal");
+    console.log(" OK clicked - closing modal");
     onClose();
   };
 
@@ -836,16 +900,16 @@ export function DepartmentPreviewModal({ isOpen, onClose, department }: Departme
             apiService.getDepartmentPayrolls(department.id)
           ]);
           
-          console.log('👥 Employees response:', employeesResponse);
-          console.log('💰 Payrolls response:', payrollsResponse);
+          console.log(' Employees response:', employeesResponse);
+          console.log(' Payrolls response:', payrollsResponse);
           
           setEmployees(employeesResponse.employees || []);
           setPayrollRecords(payrollsResponse.payrolls || []);
           
-          console.log('✅ Set employees:', employeesResponse.employees?.length || 0);
-          console.log('✅ Set payrolls:', payrollsResponse.payrolls?.length || 0);
+          console.log(' Set employees:', employeesResponse.employees?.length || 0);
+          console.log(' Set payrolls:', payrollsResponse.payrolls?.length || 0);
         } catch (error) {
-          console.error('❌ Error fetching department data:', error);
+          console.error(' Error fetching department data:', error);
           // Set empty arrays on error
           setEmployees([]);
           setPayrollRecords([]);

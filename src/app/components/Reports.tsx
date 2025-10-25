@@ -137,6 +137,8 @@ function WarningModal({ isOpen, onClose, message }: WarningModalProps) {
 export default function Reports() {
   const [payrolls, setPayrolls] = useState<Payroll[]>([]);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [payslipSearchQuery, setPayslipSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState<Payroll | null>(null);
@@ -239,7 +241,18 @@ export default function Reports() {
     const statusMatch = filterStatus === 'all' || payroll.status === filterStatus;
     const employeeMatch = filterEmployee === 'all' || 
       (payroll.employeeName && payroll.employeeName.toLowerCase().includes(filterEmployee.toLowerCase()));
-    return statusMatch && employeeMatch;
+    
+    // Search filter
+    const query = searchQuery.toLowerCase();
+    const searchMatch = !searchQuery || (
+      payroll.employeeName?.toLowerCase().includes(query) ||
+      payroll.employeeId?.toLowerCase().includes(query) ||
+      (payroll.cutoffStart && new Date(payroll.cutoffStart).toLocaleDateString().toLowerCase().includes(query)) ||
+      (payroll.cutoffEnd && new Date(payroll.cutoffEnd).toLocaleDateString().toLowerCase().includes(query)) ||
+      payroll.status?.toLowerCase().includes(query)
+    );
+    
+    return statusMatch && employeeMatch && searchMatch;
   });
 
   const filteredPayslips = payslips.filter(payslip => {
@@ -249,7 +262,16 @@ export default function Reports() {
     const statusMatch = filterStatus === 'all' || payroll.status === filterStatus;
     const employeeMatch = filterEmployee === 'all' || 
       (payroll.employeeName && payroll.employeeName.toLowerCase().includes(filterEmployee.toLowerCase()));
-    return statusMatch && employeeMatch;
+    
+    // Search filter for payslips
+    const query = payslipSearchQuery.toLowerCase();
+    const searchMatch = !payslipSearchQuery || (
+      payslip.employeeName?.toLowerCase().includes(query) ||
+      payslip.cutoffPeriod?.toLowerCase().includes(query) ||
+      (payslip.generatedAt && new Date(payslip.generatedAt).toLocaleDateString().toLowerCase().includes(query))
+    );
+    
+    return statusMatch && employeeMatch && searchMatch;
   });
 
   console.log('Current filters - Status:', filterStatus, 'Employee:', filterEmployee);
@@ -323,13 +345,43 @@ export default function Reports() {
       {/* Payrolls Section */}
       <div className="bg-white shadow rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h4 className="text-lg font-medium text-gray-900">Payroll Records</h4>
-          <p className="text-sm text-gray-500">
-            {filterEmployee !== 'all' || filterStatus !== 'all' 
-              ? `Showing ${filteredPayrolls.length} of ${payrolls.length} payrolls`
-              : `Select a payroll to generate payslip`
-            }
-          </p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h4 className="text-lg font-medium text-gray-900">Payroll Records</h4>
+              <p className="text-sm text-gray-500">
+                {filterEmployee !== 'all' || filterStatus !== 'all' || searchQuery
+                  ? `Showing ${filteredPayrolls.length} of ${payrolls.length} payrolls`
+                  : `Select a payroll to generate payslip`
+                }
+              </p>
+            </div>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by employee name, ID, cutoff period, status..."
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -386,8 +438,43 @@ export default function Reports() {
       {/* Payslips Section */}
       <div className="bg-white shadow rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h4 className="text-lg font-medium text-gray-900">Generated Payslips</h4>
-          <p className="text-sm text-gray-500">View and download generated payslips</p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h4 className="text-lg font-medium text-gray-900">Generated Payslips</h4>
+              <p className="text-sm text-gray-500">
+                {payslipSearchQuery
+                  ? `Showing ${filteredPayslips.length} of ${payslips.length} payslips`
+                  : 'View and download generated payslips'
+                }
+              </p>
+            </div>
+          </div>
+          
+          {/* Search Bar */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={payslipSearchQuery}
+              onChange={(e) => setPayslipSearchQuery(e.target.value)}
+              placeholder="Search by employee name, cutoff period, generated date..."
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+            />
+            {payslipSearchQuery && (
+              <button
+                onClick={() => setPayslipSearchQuery("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">

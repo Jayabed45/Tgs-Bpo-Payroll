@@ -160,6 +160,7 @@ function PayrollDeleteModal({ isOpen, onClose, onConfirm, payrollName, message }
 export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChange }: PayrollProcessingProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrolls, setPayrolls] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showPayrollForm, setShowPayrollForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
@@ -1770,16 +1771,82 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         </svg>
       </button>
 
+      {/* Search Bar */}
+      <div className="bg-white shadow rounded-lg p-4">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by employee name, ID, cutoff period..."
+            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="mt-2 text-sm text-gray-600">
+            Found <span className="font-semibold text-green-600">{payrolls.filter((payroll) => {
+              const query = searchQuery.toLowerCase();
+              return (
+                payroll.employeeName?.toLowerCase().includes(query) ||
+                payroll.employeeId?.toLowerCase().includes(query) ||
+                (payroll.cutoffStart && new Date(payroll.cutoffStart).toLocaleDateString().toLowerCase().includes(query)) ||
+                (payroll.cutoffEnd && new Date(payroll.cutoffEnd).toLocaleDateString().toLowerCase().includes(query))
+              );
+            }).length}</span> payroll{payrolls.filter((payroll) => {
+              const query = searchQuery.toLowerCase();
+              return (
+                payroll.employeeName?.toLowerCase().includes(query) ||
+                payroll.employeeId?.toLowerCase().includes(query) ||
+                (payroll.cutoffStart && new Date(payroll.cutoffStart).toLocaleDateString().toLowerCase().includes(query)) ||
+                (payroll.cutoffEnd && new Date(payroll.cutoffEnd).toLocaleDateString().toLowerCase().includes(query))
+              );
+            }).length !== 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+
       {/* Payroll List */}
-      {payrolls.length === 0 ? (
+      {payrolls.filter((payroll) => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+          payroll.employeeName?.toLowerCase().includes(query) ||
+          payroll.employeeId?.toLowerCase().includes(query) ||
+          (payroll.cutoffStart && new Date(payroll.cutoffStart).toLocaleDateString().toLowerCase().includes(query)) ||
+          (payroll.cutoffEnd && new Date(payroll.cutoffEnd).toLocaleDateString().toLowerCase().includes(query))
+        );
+      }).length === 0 ? (
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <div className="text-center text-gray-500">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No payroll data</h3>
-              <p className="mt-1 text-sm text-gray-500">Start processing payroll for your employees.</p>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">{searchQuery ? 'No payroll found' : 'No payroll data'}</h3>
+              <p className="mt-1 text-sm text-gray-500">{searchQuery ? `No payroll records match "${searchQuery}"` : 'Start processing payroll for your employees.'}</p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  Clear search
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1808,7 +1875,16 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {payrolls.map((payroll) => (
+                {payrolls.filter((payroll) => {
+                  if (!searchQuery) return true;
+                  const query = searchQuery.toLowerCase();
+                  return (
+                    payroll.employeeName?.toLowerCase().includes(query) ||
+                    payroll.employeeId?.toLowerCase().includes(query) ||
+                    (payroll.cutoffStart && new Date(payroll.cutoffStart).toLocaleDateString().toLowerCase().includes(query)) ||
+                    (payroll.cutoffEnd && new Date(payroll.cutoffEnd).toLocaleDateString().toLowerCase().includes(query))
+                  );
+                }).map((payroll) => (
                   <tr key={payroll.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>

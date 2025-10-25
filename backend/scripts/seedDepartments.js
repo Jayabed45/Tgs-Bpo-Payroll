@@ -71,7 +71,7 @@ async function seedDepartments() {
   let client;
   
   try {
-    console.log('🔄 Connecting to MongoDB...');
+    console.log(' Connecting to MongoDB...');
     client = new MongoClient(uri);
     await client.connect();
     
@@ -82,12 +82,12 @@ async function seedDepartments() {
     const existingCount = await departmentsCollection.countDocuments();
     
     if (existingCount > 0) {
-      console.log(`ℹ️  Found ${existingCount} existing departments. Skipping seed.`);
-      console.log('💡 To force re-seed, delete existing departments first.');
+      console.log(` Found ${existingCount} existing departments. Skipping seed.`);
+      console.log(' To force re-seed, delete existing departments first.');
       return;
     }
     
-    console.log('📝 Creating sample departments...');
+    console.log(' Creating sample departments...');
     
     // Create department documents
     const departmentDocs = sampleDepartments.map(deptData => {
@@ -98,7 +98,7 @@ async function seedDepartments() {
     // Insert departments
     const result = await departmentsCollection.insertMany(departmentDocs);
     
-    console.log(`✅ Successfully created ${result.insertedCount} departments:`);
+    console.log(` Successfully created ${result.insertedCount} departments:`);
     
     // Display created departments
     const createdDepartments = await departmentsCollection
@@ -110,16 +110,16 @@ async function seedDepartments() {
       console.log(`   ${index + 1}. ${dept.name} (${dept.code}) - ID: ${dept._id}`);
     });
     
-    console.log('\n🎯 Department seeding completed successfully!');
-    console.log('💼 You can now assign employees to these departments.');
+    console.log('\n Department seeding completed successfully!');
+    console.log(' You can now assign employees to these departments.');
     
   } catch (error) {
-    console.error('❌ Error seeding departments:', error);
+    console.error(' Error seeding departments:', error);
     process.exit(1);
   } finally {
     if (client) {
       await client.close();
-      console.log('🔌 Database connection closed.');
+      console.log(' Database connection closed.');
     }
   }
 }
@@ -129,7 +129,7 @@ async function createIndexes() {
   let client;
   
   try {
-    console.log('🔄 Creating department indexes...');
+    console.log(' Creating department indexes...');
     client = new MongoClient(uri);
     await client.connect();
     
@@ -142,10 +142,10 @@ async function createIndexes() {
     await departmentsCollection.createIndex({ isActive: 1 });
     await departmentsCollection.createIndex({ createdAt: -1 });
     
-    console.log('✅ Department indexes created successfully!');
+    console.log(' Department indexes created successfully!');
     
   } catch (error) {
-    console.error('❌ Error creating indexes:', error);
+    console.error(' Error creating indexes:', error);
   } finally {
     if (client) {
       await client.close();
@@ -158,7 +158,7 @@ async function assignDefaultDepartment() {
   let client;
   
   try {
-    console.log('🔄 Checking for employees without departments...');
+    console.log(' Checking for employees without departments...');
     client = new MongoClient(uri);
     await client.connect();
     
@@ -172,7 +172,7 @@ async function assignDefaultDepartment() {
       .toArray();
     
     if (employeesWithoutDept.length === 0) {
-      console.log('ℹ️  All employees already have departments assigned.');
+      console.log(' All employees already have departments assigned.');
       return;
     }
     
@@ -180,7 +180,7 @@ async function assignDefaultDepartment() {
     const defaultDepartment = await departmentsCollection.findOne({ code: 'HR' });
     
     if (!defaultDepartment) {
-      console.log('⚠️  No HR department found. Please run seed first.');
+      console.log('No HR department found. Please run seed first.');
       return;
     }
     
@@ -195,10 +195,10 @@ async function assignDefaultDepartment() {
       }
     );
     
-    console.log(`✅ Assigned ${updateResult.modifiedCount} employees to HR department.`);
+    console.log(`Assigned ${updateResult.modifiedCount} employees to HR department.`);
     
   } catch (error) {
-    console.error('❌ Error assigning default departments:', error);
+    console.error(' Error assigning default departments:', error);
   } finally {
     if (client) {
       await client.close();
@@ -208,15 +208,15 @@ async function assignDefaultDepartment() {
 
 // Main execution
 async function main() {
-  console.log('🚀 TGS BPO Department Seeding Script');
+  console.log('TGS BPO Department Seeding Script');
   console.log('=====================================\n');
   
   await seedDepartments();
   await createIndexes();
   await assignDefaultDepartment();
   
-  console.log('\n🎉 All operations completed!');
-  console.log('📋 Next steps:');
+  console.log('\n All operations completed!');
+  console.log('Next steps:');
   console.log('   1. Start your backend server');
   console.log('   2. Test department endpoints: GET /api/departments');
   console.log('   3. Create/edit employees with department assignments');

@@ -26,9 +26,9 @@ async function testConnection() {
   try {
     const client = await clientPromise;
     await client.db().admin().ping();
-    console.log('✅ MongoDB connected successfully');
+    console.log(' MongoDB connected successfully');
   } catch (error) {
-    console.error('❌ MongoDB connection failed:', error);
+    console.error(' MongoDB connection failed:', error);
     process.exit(1);
   }
 }
