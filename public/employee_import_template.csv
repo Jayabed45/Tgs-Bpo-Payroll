@@ -1,4 +1,4 @@
-name,position,salary,workingDays,sssNumber,philhealthNumber,pagibigNumber,email,contactNumber,hireDate
-Jay Yhansey A. Del Rosario,Software Developer,50000,22,1234567890,PH1234567890,PAG1234567890,john.doe@example.com,+639123456789,2024-01-15
-Nikki Sixx Acosta,HR Manager,45000,22,0987654321,PH0987654321,PAG0987654321,jane.smith@example.com,+639098765432,2024-02-01
-Gemry Delle Taparan,Cyber Security,40000,22,1122334455,PH1122334455,PAG1122334455,mike.johnson@example.com,+639112233445,2024-01-20
+name,position,salary,workingDays,sssNumber,philhealthNumber,pagibigNumber,email,contactNumber,hireDate,departmentId
+Jay Yhansey A. Del Rosario,Software Developer,50000,22,1234567890,PH1234567890,PAG1234567890,john.doe@example.com,+639123456789,2024-01-15,IT
+Nikki Sixx Acosta,HR Manager,45000,22,0987654321,PH0987654321,PAG0987654321,jane.smith@example.com,+639098765432,2024-02-01,HR
+Gemry Delle Taparan,Cyber Security,40000,22,1122334455,PH1122334455,PAG1122334455,mike.johnson@example.com,+639112233445,2024-01-20,IT

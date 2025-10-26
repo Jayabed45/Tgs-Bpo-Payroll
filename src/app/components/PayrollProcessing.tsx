@@ -1537,7 +1537,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
       {/* Bulk Form Modal */}
       {shouldShowBulkForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-hidden">
             {/* Header */}
             <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
@@ -1602,7 +1602,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.workedHours || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'workedHours', e.target.value)}
                           placeholder={formData.workedHours || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1613,7 +1613,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.overtimeHours || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'overtimeHours', e.target.value)}
                           placeholder={formData.overtimeHours || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1624,7 +1624,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.holidayPay || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'holidayPay', e.target.value)}
                           placeholder={formData.holidayPay || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1635,7 +1635,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.nightDifferential || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'nightDifferential', e.target.value)}
                           placeholder={formData.nightDifferential || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1646,7 +1646,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.salaryAdjustment || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'salaryAdjustment', e.target.value)}
                           placeholder={formData.salaryAdjustment || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1657,7 +1657,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.absences || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'absences', e.target.value)}
                           placeholder={formData.absences || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1668,7 +1668,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.lateDeductions || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'lateDeductions', e.target.value)}
                           placeholder={formData.lateDeductions || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1679,7 +1679,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.sssContribution || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'sssContribution', e.target.value)}
                           placeholder={formData.sssContribution || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1690,7 +1690,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.philhealthContribution || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'philhealthContribution', e.target.value)}
                           placeholder={formData.philhealthContribution || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1701,7 +1701,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.pagibigContribution || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'pagibigContribution', e.target.value)}
                           placeholder={formData.pagibigContribution || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
 
@@ -1712,7 +1712,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                           value={bulkFormData[employee.id]?.withholdingTax || ''}
                           onChange={(e) => handleBulkFormChange(employee.id, 'withholdingTax', e.target.value)}
                           placeholder={formData.withholdingTax || 'Default'}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          className="w-full text-black px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
                         />
                       </div>
                     </div>

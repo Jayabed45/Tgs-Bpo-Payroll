@@ -421,6 +421,15 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         }
       }
 
+      // Department validation
+      if (row.departmentId) {
+        const dept = departments.find(d => d.id === row.departmentId || d.code === row.departmentId);
+        if (!dept) {
+          errors.push(`Row ${rowNum}: Invalid department ID or code '${row.departmentId}'`);
+          return;
+        }
+      }
+
       // Transform data to match our format
       const employeeData = {
         name: row.name.trim(),
@@ -432,7 +441,8 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         pagibigNumber: row.pagibigNumber?.trim() || '',
         email: row.email.trim(),
         contactNumber: row.contactNumber?.trim() || '',
-        hireDate: row.hireDate || new Date().toISOString().split('T')[0]
+        hireDate: row.hireDate || new Date().toISOString().split('T')[0],
+        departmentId: row.departmentId ? (departments.find(d => d.id === row.departmentId || d.code === row.departmentId)?.id || '') : ''
       };
 
       valid.push(employeeData);
@@ -471,6 +481,9 @@ const confirmDelete = async (e?: React.MouseEvent) => {
   };
 
   const downloadTemplate = () => {
+    // Get department codes for the template
+    const deptCode = departments.length > 0 ? departments[0].code : 'DEPT001';
+    
     const template = [
       {
         name: 'John Doe',
@@ -482,7 +495,8 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         pagibigNumber: 'PAG1234567890',
         email: 'john.doe@example.com',
         contactNumber: '+639123456789',
-        hireDate: '2024-01-15'
+        hireDate: '2024-01-15',
+        departmentId: deptCode
       }
     ];
 
@@ -1119,6 +1133,30 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
+            {/* Info Banner */}
+            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1">
+                  <h6 className="text-sm font-semibold text-blue-900 mb-1">Department Codes Available</h6>
+                  <p className="text-xs text-blue-800 mb-2">Use these department codes in your CSV file:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {departments.length > 0 ? (
+                      departments.map((dept) => (
+                        <span key={dept.id} className="inline-flex items-center px-2 py-1 rounded-md bg-blue-100 text-blue-800 text-xs font-medium">
+                          {dept.code} - {dept.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-blue-700">No departments available. Please create departments first.</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* File Upload Section */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
@@ -1195,23 +1233,28 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                       <thead className="bg-gray-100">
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Salary</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {importPreview.slice(0, 5).map((row, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-4 py-2 text-sm text-gray-900">{row.name}</td>
-                            <td className="px-4 py-2 text-sm text-gray-900">{row.position}</td>
-                            <td className="px-4 py-2 text-sm text-gray-900">₱{parseFloat(row.salary || 0).toLocaleString()}</td>
-                            <td className="px-4 py-2 text-sm text-gray-900">{row.email}</td>
-                          </tr>
-                        ))}
+                        {importPreview.slice(0, 5).map((row, index) => {
+                          const dept = row.departmentId ? departments.find(d => d.id === row.departmentId || d.code === row.departmentId) : null;
+                          return (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-sm text-gray-900">{row.name}</td>
+                              <td className="px-4 py-2 text-sm text-gray-900">{row.position}</td>
+                              <td className="px-4 py-2 text-sm text-gray-900">{dept ? `${dept.name} (${dept.code})` : 'N/A'}</td>
+                              <td className="px-4 py-2 text-sm text-gray-900">₱{parseFloat(row.salary || 0).toLocaleString()}</td>
+                              <td className="px-4 py-2 text-sm text-gray-900">{row.email}</td>
+                            </tr>
+                          );
+                        })}
                         {importPreview.length > 5 && (
                           <tr>
-                            <td colSpan={4} className="px-4 py-2 text-sm text-gray-500 text-center">
+                            <td colSpan={5} className="px-4 py-2 text-sm text-gray-500 text-center">
                               ... and {importPreview.length - 5} more employees
                             </td>
                           </tr>
