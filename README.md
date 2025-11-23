@@ -360,4 +360,6 @@ For issues or questions:
 - Responsive design
 
 ---Developed by BSIT-4D 
-| ![](https://avatars.githubusercontent.com/u/123456?v=4 | width=50) <br> **Nikki Sixx Acosta** | [@cr4zyCute(https://github.com/cr4zyCute) | Developer |
+- Del Rosario, Jay Yhansey A.
+- Acosta, Nikki Sixx
+- Taparan, Gemry Delle.
