@@ -5,6 +5,7 @@ class Department {
     this.name = data.name;
     this.code = data.code;
     this.description = data.description;
+    this.siteLocation = data.siteLocation || ''; // e.g., "Cebu", "Dumaguete", "Tuburan"
     this.manager = data.manager; // Employee ID who manages this department
     this.isActive = data.isActive !== undefined ? data.isActive : true;
     this.createdAt = data.createdAt || new Date();
@@ -68,6 +69,7 @@ class Department {
       name: dept.name,
       code: dept.code,
       description: dept.description,
+      siteLocation: dept.siteLocation || '',
       manager: dept.manager,
       isActive: dept.isActive,
       createdAt: dept.createdAt,

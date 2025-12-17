@@ -573,6 +573,28 @@ class ApiService {
     })
     return this.handleResponse<{ success: boolean; message: string; user: any; token?: string }>(response);
   }
+
+  // Export API calls
+  async exportTimekeeping(cutoffStart?: string, cutoffEnd?: string): Promise<Blob> {
+    const token = localStorage.getItem('token');
+    const params = new URLSearchParams();
+    if (cutoffStart) params.append('cutoffStart', cutoffStart);
+    if (cutoffEnd) params.append('cutoffEnd', cutoffEnd);
+    
+    const url = `${API_BASE_URL}/export/timekeeping${params.toString() ? '?' + params.toString() : ''}`;
+    const response = await fetch(url, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+    
+    return response.blob();
+  }
 }
 
 export const apiService = new ApiService()

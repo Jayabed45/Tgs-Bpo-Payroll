@@ -11,6 +11,7 @@ const payrollRoutes = require('./routes/payroll');
 const payslipRoutes = require('./routes/payslips');
 const departmentRoutes = require('./routes/departments');
 const settingsRoutes = require('./routes/settings');
+const exportRoutes = require('./routes/export');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -113,6 +114,7 @@ app.use('/api/payroll', payrollRoutes);
 app.use('/api/payslips', payslipRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/export', exportRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

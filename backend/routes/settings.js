@@ -30,7 +30,8 @@ router.get('/', async (req, res) => {
           workingDaysPerWeek: 5,
           currency: 'PHP',
           dateFormat: 'MM/DD/YYYY',
-          timezone: 'Asia/Manila'
+          timezone: 'Asia/Manila',
+          siteLocations: ['Cebu', 'Dumaguete', 'Tuburan']
         }
       });
     }

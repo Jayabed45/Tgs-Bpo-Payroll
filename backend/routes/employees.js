@@ -69,9 +69,12 @@ router.get('/', verifyAdminToken, async (req, res) => {
 
       return {
         id: emp._id.toString(),
+        employeeCode: emp.employeeCode || '',
         name: emp.name,
         position: emp.position,
         salary: emp.salary,
+        hourlyRate: emp.hourlyRate || 0,
+        siteLocation: emp.siteLocation || '',
         workingDays: emp.workingDays,
         sssNumber: emp.sssNumber,
         philhealthNumber: emp.philhealthNumber,
@@ -120,9 +123,12 @@ router.get('/:id', verifyAdminToken, async (req, res) => {
 
     const formattedEmployee = {
       id: employee._id.toString(),
+      employeeCode: employee.employeeCode || '',
       name: employee.name,
       position: employee.position,
       salary: employee.salary,
+      hourlyRate: employee.hourlyRate || 0,
+      siteLocation: employee.siteLocation || '',
       workingDays: employee.workingDays,
       sssNumber: employee.sssNumber,
       philhealthNumber: employee.philhealthNumber,

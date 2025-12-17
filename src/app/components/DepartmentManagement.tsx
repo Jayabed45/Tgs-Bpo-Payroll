@@ -7,6 +7,7 @@ interface Department {
   name: string;
   code: string;
   description?: string;
+  siteLocation?: string;
   manager?: string;
   isActive: boolean;
   employeeCount?: number;
@@ -47,17 +48,33 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
     open: false,
   });
 
+  // Site location options - fetched from settings
+  const [siteLocationOptions, setSiteLocationOptions] = useState<string[]>(["Cebu", "Dumaguete", "Tuburan"]);
+
   // Form state
   const [formData, setFormData] = useState({
     name: "",
     code: "",
     description: "",
+    siteLocation: "",
     manager: ""
   });
 
   useEffect(() => {
     fetchDepartments();
+    fetchSiteLocations();
   }, []);
+
+  const fetchSiteLocations = async () => {
+    try {
+      const response = await apiService.getSettings();
+      if (response.success && response.settings?.siteLocations) {
+        setSiteLocationOptions(response.settings.siteLocations);
+      }
+    } catch (error) {
+      console.error('Error fetching site locations:', error);
+    }
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -129,7 +146,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
 
   const resetForm = () => {
     setFormData({
-      name: "", code: "", description: "", manager: ""
+      name: "", code: "", description: "", siteLocation: "", manager: ""
     });
     setEditingDepartment(null);
   };
@@ -156,6 +173,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
         description: formData.description.trim(),
+        siteLocation: formData.siteLocation,
         manager: formData.manager.trim()
       };
       
@@ -191,6 +209,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
       name: department.name,
       code: department.code,
       description: department.description || "",
+      siteLocation: department.siteLocation || "",
       manager: department.manager || ""
     });
     setShowAddForm(true);
@@ -364,6 +383,15 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
                 <div>
                   <h4 className="text-lg font-semibold text-gray-900">{department.name}</h4>
                   <p className="text-sm text-gray-500 font-mono">{department.code}</p>
+                  {department.siteLocation && (
+                    <p className="text-xs text-indigo-600 flex items-center mt-1">
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {department.siteLocation}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -530,6 +558,29 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
                       rows={4}
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white resize-none"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Site Location
+                    </label>
+                    <select
+                      name="siteLocation"
+                      value={formData.siteLocation}
+                      onChange={handleInputChange}
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                    >
+                      <option value="">Select site location</option>
+                      {siteLocationOptions.map((location) => (
+                        <option key={location} value={location}>
+                          {location}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="space-y-2">

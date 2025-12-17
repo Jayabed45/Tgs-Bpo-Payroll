@@ -9,7 +9,7 @@ interface SettingsProps {
 
 export default function Settings({ onClose }: SettingsProps) {
   const { refreshSettings } = useSettings();
-  const [activeTab, setActiveTab] = useState<"profile" | "system" | "payroll">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "system" | "payroll" | "locations">("profile");
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   
@@ -50,6 +50,11 @@ export default function Settings({ onClose }: SettingsProps) {
     workingHoursPerDay: "8",
     workingDaysPerWeek: "5",
   });
+
+  // Site Locations State
+  const [siteLocations, setSiteLocations] = useState<string[]>(["Cebu", "Dumaguete", "Tuburan"]);
+  const [newLocation, setNewLocation] = useState("");
+  const [editingLocation, setEditingLocation] = useState<{ index: number; value: string } | null>(null);
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -214,6 +219,78 @@ export default function Settings({ onClose }: SettingsProps) {
     }
   };
 
+  // Site Location handlers
+  const handleAddLocation = async () => {
+    if (!newLocation.trim()) {
+      setErrorModal({ open: true, message: "Please enter a location name" });
+      return;
+    }
+    if (siteLocations.includes(newLocation.trim())) {
+      setErrorModal({ open: true, message: "This location already exists" });
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const updatedLocations = [...siteLocations, newLocation.trim()];
+      await apiService.updateSettings({ siteLocations: updatedLocations });
+      setSiteLocations(updatedLocations);
+      setNewLocation("");
+      setSuccessModal({ open: true, message: "Site location added successfully!" });
+    } catch (error: any) {
+      setErrorModal({ open: true, message: error.message || "Failed to add location" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateLocation = async () => {
+    if (!editingLocation || !editingLocation.value.trim()) {
+      setErrorModal({ open: true, message: "Please enter a location name" });
+      return;
+    }
+    
+    const newValue = editingLocation.value.trim();
+    const existingIndex = siteLocations.findIndex((loc, i) => loc === newValue && i !== editingLocation.index);
+    if (existingIndex !== -1) {
+      setErrorModal({ open: true, message: "This location already exists" });
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const updatedLocations = [...siteLocations];
+      updatedLocations[editingLocation.index] = newValue;
+      await apiService.updateSettings({ siteLocations: updatedLocations });
+      setSiteLocations(updatedLocations);
+      setEditingLocation(null);
+      setSuccessModal({ open: true, message: "Site location updated successfully!" });
+    } catch (error: any) {
+      setErrorModal({ open: true, message: error.message || "Failed to update location" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteLocation = async (index: number) => {
+    if (siteLocations.length <= 1) {
+      setErrorModal({ open: true, message: "You must have at least one site location" });
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const updatedLocations = siteLocations.filter((_, i) => i !== index);
+      await apiService.updateSettings({ siteLocations: updatedLocations });
+      setSiteLocations(updatedLocations);
+      setSuccessModal({ open: true, message: "Site location deleted successfully!" });
+    } catch (error: any) {
+      setErrorModal({ open: true, message: error.message || "Failed to delete location" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Load saved settings and user data on mount
   useEffect(() => {
     const loadSettings = async () => {
@@ -291,6 +368,11 @@ export default function Settings({ onClose }: SettingsProps) {
             dateFormat: settings.dateFormat || "MM/DD/YYYY",
             timezone: settings.timezone || "Asia/Manila",
           });
+
+          // Set site locations
+          if (settings.siteLocations && Array.isArray(settings.siteLocations)) {
+            setSiteLocations(settings.siteLocations);
+          }
         }
       } catch (error) {
         console.error("Error loading settings:", error);
@@ -369,6 +451,22 @@ export default function Settings({ onClose }: SettingsProps) {
                 <span>System Settings</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab("locations")}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "locations"
+                  ? "border-indigo-600 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>Site Locations</span>
+              </div>
+            </button>
           </nav>
         </div>
 
@@ -395,6 +493,19 @@ export default function Settings({ onClose }: SettingsProps) {
               data={systemSettings}
               onChange={handleSystemChange}
               onSave={handleSaveSystem}
+              loading={loading}
+            />
+          )}
+          {activeTab === "locations" && (
+            <SiteLocationsTab
+              locations={siteLocations}
+              newLocation={newLocation}
+              editingLocation={editingLocation}
+              onNewLocationChange={setNewLocation}
+              onEditingLocationChange={setEditingLocation}
+              onAdd={handleAddLocation}
+              onUpdate={handleUpdateLocation}
+              onDelete={handleDeleteLocation}
               loading={loading}
             />
           )}
@@ -942,6 +1053,193 @@ function SystemSettingsTab({ data, onChange, onSave, loading }: SystemSettingsTa
           )}
         </button>
       </div>
+    </div>
+  );
+}
+
+// Site Locations Component
+interface SiteLocationsTabProps {
+  locations: string[];
+  newLocation: string;
+  editingLocation: { index: number; value: string } | null;
+  onNewLocationChange: (value: string) => void;
+  onEditingLocationChange: (value: { index: number; value: string } | null) => void;
+  onAdd: () => void;
+  onUpdate: () => void;
+  onDelete: (index: number) => void;
+  loading: boolean;
+}
+
+function SiteLocationsTab({
+  locations,
+  newLocation,
+  editingLocation,
+  onNewLocationChange,
+  onEditingLocationChange,
+  onAdd,
+  onUpdate,
+  onDelete,
+  loading,
+}: SiteLocationsTabProps) {
+  return (
+    <div className="space-y-8">
+      {/* Site Locations Management */}
+      <div>
+        <div className="flex items-center space-x-2 mb-4">
+          <div className="w-1 h-6 bg-teal-500 rounded-full"></div>
+          <h4 className="text-base font-semibold text-gray-900">Site Locations</h4>
+        </div>
+        <p className="text-sm text-gray-600 mb-6">
+          Manage the site locations available for departments. These locations will appear in the department creation form.
+        </p>
+
+        {/* Add New Location */}
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Add New Location
+          </label>
+          <div className="flex space-x-3">
+            <input
+              type="text"
+              value={newLocation}
+              onChange={(e) => onNewLocationChange(e.target.value)}
+              placeholder="Enter location name (e.g., Manila)"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onAdd();
+                }
+              }}
+            />
+            <button
+              onClick={onAdd}
+              disabled={loading || !newLocation.trim()}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <span>Add</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Existing Locations List */}
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">
+            Current Locations ({locations.length})
+          </label>
+          {locations.length === 0 ? (
+            <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <p className="mt-2 text-sm text-gray-500">No locations added yet</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {locations.map((location, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3 hover:shadow-sm transition-shadow"
+                >
+                  {editingLocation?.index === index ? (
+                    <div className="flex items-center space-x-2 flex-1">
+                      <input
+                        type="text"
+                        value={editingLocation.value}
+                        onChange={(e) =>
+                          onEditingLocationChange({ index, value: e.target.value })
+                        }
+                        className="flex-1 px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-gray-900 text-sm"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            onUpdate();
+                          } else if (e.key === "Escape") {
+                            onEditingLocationChange(null);
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={onUpdate}
+                        disabled={loading}
+                        className="p-1 text-green-600 hover:bg-green-50 rounded"
+                        title="Save"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => onEditingLocationChange(null)}
+                        className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                        title="Cancel"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-teal-100 rounded-lg">
+                          <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                        <span className="text-gray-900 font-medium">{location}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          onClick={() => onEditingLocationChange({ index, value: location })}
+                          className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                          title="Edit"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => onDelete(index)}
+                          disabled={loading || locations.length <= 1}
+                          className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={locations.length <= 1 ? "Cannot delete last location" : "Delete"}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Info Box */}
+      {/* <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-blue-800">How Site Locations Work</p>
+            <p className="text-xs text-blue-700 mt-1">
+              Site locations are used when creating or editing departments. Each department can be assigned to one site location.
+              Changes made here will be reflected in the department management form immediately.
+            </p>
+          </div>
+        </div>
+      </div> */}
     </div>
   );
 }

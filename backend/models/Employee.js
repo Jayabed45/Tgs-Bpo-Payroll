@@ -2,9 +2,12 @@ const { ObjectId } = require('mongodb');
 
 class Employee {
   constructor(data) {
+    this.employeeCode = data.employeeCode || ''; // e.g., "01100240"
     this.name = data.name;
     this.position = data.position;
     this.salary = data.salary;
+    this.hourlyRate = data.hourlyRate || 0; // Basic hourly rate
+    this.siteLocation = data.siteLocation || ''; // e.g., "Cebu", "Dumaguete"
     this.workingDays = data.workingDays;
     this.sssNumber = data.sssNumber;
     this.philhealthNumber = data.philhealthNumber;
