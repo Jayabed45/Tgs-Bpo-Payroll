@@ -1,7 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { apiService } from "../services/api";
-import * as XLSX from "xlsx";
 import { calculateSSS, calculatePhilHealth, calculatePagIBIG, calculateWithholdingTax } from "../utils/philippinePayroll";
 
 interface Employee {
@@ -246,12 +245,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     netPay: 0
   });
 
-  const [timekeepingImportLoading, setTimekeepingImportLoading] = useState(false);
-  const [timekeepingImportErrors, setTimekeepingImportErrors] = useState<string[]>([]);
   const [exportLoading, setExportLoading] = useState(false);
-  const [timekeepingDataByEmployee, setTimekeepingDataByEmployee] = useState<Record<string, { workedHours?: number; overtimeHours?: number }>>({});
-  const timekeepingFileInputRef = useRef<HTMLInputElement | null>(null);
-  const [timekeepingDragActive, setTimekeepingDragActive] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
 
   // Fetch payroll settings on component mount
   useEffect(() => {
@@ -344,226 +340,6 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     }
   };
 
-  const parseTimekeepingWorkbook = (workbook: XLSX.WorkBook) => {
-    const summarySheet = workbook.Sheets["Total Hours - Summary"];
-    if (!summarySheet) {
-      setTimekeepingImportErrors(["Timekeeping file is missing the 'Total Hours - Summary' sheet."]);
-      setErrorModal({ open: true, message: "Timekeeping file is missing the 'Total Hours - Summary' sheet." });
-      return;
-    }
-
-    const summaryRows = XLSX.utils.sheet_to_json<any[]>(summarySheet, { header: 1 });
-    if (!summaryRows || summaryRows.length === 0) {
-      setTimekeepingImportErrors(["The 'Total Hours - Summary' sheet does not contain any data rows."]);
-      setErrorModal({ open: true, message: "The 'Total Hours - Summary' sheet does not contain any data rows." });
-      return;
-    }
-
-    const headerRow = summaryRows[0] as any[];
-    const expectedSummaryHeader = [
-      "Emp ID",
-      "Employee Name",
-      "45946",
-      "45947",
-      "45948",
-      "45949",
-      "45950",
-      "45951",
-      "45952",
-      "45953",
-      "45954",
-      "45955",
-      "45956",
-      "45957",
-      "45958",
-      "45959",
-      "45960",
-      "45961",
-      "Grand Total",
-    ];
-
-    const normalizedHeader = (headerRow || []).map((cell) => (cell !== undefined && cell !== null ? String(cell).trim() : ""));
-    const headerValid =
-      normalizedHeader.length >= expectedSummaryHeader.length &&
-      expectedSummaryHeader.every((value, index) => normalizedHeader[index] === value);
-
-    if (!headerValid) {
-      setTimekeepingImportErrors([
-        "Header row of 'Total Hours - Summary' does not match the required template. Please use the official timekeeping template.",
-      ]);
-      setErrorModal({
-        open: true,
-        message: "Header row of 'Total Hours - Summary' does not match the required template.",
-      });
-      return;
-    }
-
-    const result: Record<string, { workedHours?: number; overtimeHours?: number }> = {};
-
-    for (let i = 1; i < summaryRows.length; i++) {
-      const row = summaryRows[i] as any[];
-      if (!row) continue;
-      const isEmpty = row.every((cell) => cell === undefined || cell === null || String(cell).trim() === "");
-      if (isEmpty) continue;
-
-      const employeeIdCell = row[0];
-      const employeeId = employeeIdCell !== undefined && employeeIdCell !== null ? String(employeeIdCell).trim() : "";
-      if (!employeeId) continue;
-
-      const grandTotalCell = row[18];
-      let workedHours = 0;
-      if (typeof grandTotalCell === "number") {
-        workedHours = grandTotalCell;
-      } else if (grandTotalCell !== undefined && grandTotalCell !== null && String(grandTotalCell).trim() !== "") {
-        const parsed = parseFloat(String(grandTotalCell));
-        if (!isNaN(parsed)) {
-          workedHours = parsed;
-        }
-      }
-
-      if (!result[employeeId]) {
-        result[employeeId] = {};
-      }
-      if (workedHours > 0) {
-        result[employeeId].workedHours = workedHours;
-      }
-    }
-
-    const otSheet = workbook.Sheets["OT"];
-    if (otSheet) {
-      const otRows = XLSX.utils.sheet_to_json<any[]>(otSheet, { header: 1 });
-      if (otRows && otRows.length > 0) {
-        const otHeaderRow = otRows[0] as any[];
-        const expectedOtHeader = [
-          "Employee ID",
-          "Employee Name",
-          "RD OT (within first 8hrs)",
-          "Regular OT",
-          "Special Non Working Holiday OT",
-          "Grand Total",
-        ];
-
-        const normalizedOtHeader = (otHeaderRow || []).map((cell) =>
-          cell !== undefined && cell !== null ? String(cell).trim() : ""
-        );
-        const otHeaderValid =
-          normalizedOtHeader.length >= expectedOtHeader.length &&
-          expectedOtHeader.every((value, index) => normalizedOtHeader[index] === value);
-
-        if (otHeaderValid) {
-          for (let i = 1; i < otRows.length; i++) {
-            const row = otRows[i] as any[];
-            if (!row) continue;
-            const isEmpty = row.every((cell) => cell === undefined || cell === null || String(cell).trim() === "");
-            if (isEmpty) continue;
-
-            const idCell = row[0];
-            const employeeId = idCell !== undefined && idCell !== null ? String(idCell).trim() : "";
-            if (!employeeId) continue;
-
-            const otTotalCell = row[5];
-            let overtimeHours = 0;
-            if (typeof otTotalCell === "number") {
-              overtimeHours = otTotalCell;
-            } else if (otTotalCell !== undefined && otTotalCell !== null && String(otTotalCell).trim() !== "") {
-              const parsed = parseFloat(String(otTotalCell));
-              if (!isNaN(parsed)) {
-                overtimeHours = parsed;
-              }
-            }
-
-            if (overtimeHours > 0) {
-              if (!result[employeeId]) {
-                result[employeeId] = {};
-              }
-              result[employeeId].overtimeHours = overtimeHours;
-            }
-          }
-        }
-      }
-    }
-
-    const employeeIds = Object.keys(result);
-    if (employeeIds.length === 0) {
-      setTimekeepingImportErrors(["No valid timekeeping rows were found in the Excel file."]); 
-      setErrorModal({ open: true, message: "No valid timekeeping rows were found in the Excel file." });
-      return;
-    }
-
-    setTimekeepingDataByEmployee(result);
-    setTimekeepingImportErrors([]);
-    showModalMessage(
-      "success",
-      "Timekeeping Imported",
-      `Timekeeping data imported for ${employeeIds.length} employee${employeeIds.length !== 1 ? "s" : ""}.`
-    );
-  };
-
-  const processTimekeepingFile = (file: File) => {
-    const fileType = file.name.toLowerCase();
-    if (!fileType.endsWith(".xlsx") && !fileType.endsWith(".xls")) {
-      setTimekeepingImportErrors(["Please upload an Excel file (.xlsx, .xls) using the official timekeeping template."]);
-      setErrorModal({ open: true, message: "Please upload an Excel file (.xlsx, .xls)." });
-      return;
-    }
-
-    setTimekeepingImportLoading(true);
-    setTimekeepingImportErrors([]);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = event.target?.result;
-        if (!data) {
-          setTimekeepingImportErrors(["Unable to read the selected file."]);
-          setErrorModal({ open: true, message: "Unable to read the selected file." });
-          return;
-        }
-        const workbook = XLSX.read(data, { type: "array" });
-        parseTimekeepingWorkbook(workbook);
-      } catch (error: any) {
-        setTimekeepingImportErrors([error?.message || "Failed to parse timekeeping file."]);
-        setErrorModal({ open: true, message: error?.message || "Failed to parse timekeeping file." });
-      } finally {
-        setTimekeepingImportLoading(false);
-      }
-    };
-    reader.onerror = () => {
-      setTimekeepingImportLoading(false);
-      setTimekeepingImportErrors(["Error reading the selected file."]);
-      setErrorModal({ open: true, message: "Error reading the selected file." });
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const handleTimekeepingFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    processTimekeepingFile(file);
-    event.target.value = "";
-  };
-
-  const handleTimekeepingDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setTimekeepingDragActive(true);
-    } else if (e.type === "dragleave") {
-      setTimekeepingDragActive(false);
-    }
-  };
-
-  const handleTimekeepingDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setTimekeepingDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      processTimekeepingFile(file);
-    }
-  };
-
   // Export timekeeping data to Excel
   const handleExportTimekeeping = async () => {
     if (payrolls.length === 0) {
@@ -573,12 +349,20 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
     setExportLoading(true);
     try {
-      // Export all payroll records - backend will determine date range
-      const blob = await apiService.exportTimekeeping();
+      // Export with date filter if provided
+      const blob = await apiService.exportTimekeeping(
+        exportStartDate || undefined,
+        exportEndDate || undefined
+      );
       
-      // Generate filename with current date
-      const today = new Date().toISOString().split('T')[0];
-      const filename = `Timekeeping-Data_Export_${today}.xlsx`;
+      // Generate filename with date range or current date
+      let filename: string;
+      if (exportStartDate && exportEndDate) {
+        filename = `Timekeeping-Data_${exportStartDate}_to_${exportEndDate}.xlsx`;
+      } else {
+        const today = new Date().toISOString().split('T')[0];
+        filename = `Timekeeping-Data_Export_${today}.xlsx`;
+      }
       
       // Create download link
       const url = window.URL.createObjectURL(blob);
@@ -590,7 +374,10 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      showModalMessage('success', 'Export Complete', `Exported ${payrolls.length} payroll records successfully!`);
+      const dateRangeMsg = exportStartDate && exportEndDate 
+        ? ` for ${exportStartDate} to ${exportEndDate}` 
+        : '';
+      showModalMessage('success', 'Export Complete', `Exported payroll records${dateRangeMsg} successfully!`);
     } catch (error: any) {
       console.error('Export error:', error);
       showModalMessage('error', 'Export Failed', error.message || 'Failed to export timekeeping data.');
@@ -967,21 +754,12 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       if (selectedEmployee) {
         const salary = selectedEmployee.salary || 0;
         const contributions = autoCalculateContributions(salary);
-        const importedTimekeeping = timekeepingDataByEmployee[employeeId];
 
         setFormData(prev => ({
           ...prev,
           employeeId: employeeId,
           employeeName: selectedEmployee.name || '',
           basicSalary: salary.toString(),
-          workedHours:
-            importedTimekeeping && importedTimekeeping.workedHours !== undefined
-              ? String(importedTimekeeping.workedHours)
-              : prev.workedHours,
-          overtimeHours:
-            importedTimekeeping && importedTimekeeping.overtimeHours !== undefined
-              ? String(importedTimekeeping.overtimeHours)
-              : prev.overtimeHours,
           ...contributions
         }));
       }
@@ -2086,15 +1864,39 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
       <div className="bg-white shadow rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h5 className="text-sm font-semibold text-gray-700">Import/Export Timekeeping (Excel)</h5>
+          <h5 className="text-sm font-semibold text-gray-700">Export Timekeeping Data</h5>
+        </div>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[150px]">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Start Date
+            </label>
+            <input
+              type="date"
+              value={exportStartDate}
+              onChange={(e) => setExportStartDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+          <div className="flex-1 min-w-[150px]">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              End Date
+            </label>
+            <input
+              type="date"
+              value={exportEndDate}
+              onChange={(e) => setExportEndDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
           <button
             onClick={handleExportTimekeeping}
             disabled={exportLoading || payrolls.length === 0}
-            className="inline-flex items-center px-3 py-1.5 border border-green-600 text-sm font-medium rounded-md text-green-600 bg-white hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-4 py-2 border border-green-600 text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {exportLoading ? (
               <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -2110,63 +1912,11 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
             )}
           </button>
         </div>
-        <div
-          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-            timekeepingDragActive ? "border-green-400 bg-green-50" : "border-gray-300 hover:border-gray-400"
-          }`}
-          onDragEnter={handleTimekeepingDrag}
-          onDragLeave={handleTimekeepingDrag}
-          onDragOver={handleTimekeepingDrag}
-          onDrop={handleTimekeepingDrop}
-        >
-          <input
-            ref={timekeepingFileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleTimekeepingFileUpload}
-            className="hidden"
-          />
-          <button
-            type="button"
-            onClick={() => timekeepingFileInputRef.current?.click()}
-            className="flex flex-col items-center space-y-2 text-gray-600 hover:text-gray-800"
-            disabled={timekeepingImportLoading}
-          >
-            <svg
-              className={`w-12 h-12 ${timekeepingDragActive ? "text-green-500" : "text-gray-400"}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
-              />
-            </svg>
-            <span className="text-sm font-medium">
-              {timekeepingDragActive ? "Drop your Excel file here" : "Click to upload CSV file"}
-            </span>
-            <span className="text-xs text-gray-500">
-              {timekeepingDragActive
-                ? "Release to upload"
-                : "or drag and drop your timekeeping Excel file (.xlsx)"}
-            </span>
-          </button>
-        </div>
-        {timekeepingImportErrors.length > 0 && (
-          <div className="mt-4">
-            <h5 className="text-sm font-semibold text-red-700 mb-2">Import Errors</h5>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-40 overflow-y-auto">
-              {timekeepingImportErrors.map((error, index) => (
-                <div key={index} className="text-xs text-red-700 mb-1">
-                  • {error}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <p className="mt-2 text-xs text-gray-500">
+          {exportStartDate && exportEndDate 
+            ? `Export payroll data from ${exportStartDate} to ${exportEndDate}`
+            : 'Select date range to filter export, or leave empty to export all records'}
+        </p>
       </div>
 
       {/* Payroll List */}

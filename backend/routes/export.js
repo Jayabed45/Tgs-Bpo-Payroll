@@ -113,17 +113,38 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     // Get payroll records - filter by cutoff if provided, otherwise get all
     let query = {};
     if (cutoffStart && cutoffEnd) {
-      query = { cutoffStart, cutoffEnd };
+      // Find payroll records where the cutoff period overlaps with the selected date range
+      // A payroll overlaps if: payroll.cutoffStart <= filterEnd AND payroll.cutoffEnd >= filterStart
+      query = {
+        $and: [
+          { cutoffStart: { $lte: cutoffEnd } },
+          { cutoffEnd: { $gte: cutoffStart } }
+        ]
+      };
     }
     const payrolls = await payrollCollection.find(query).toArray();
     
+    console.log(`Export query:`, JSON.stringify(query));
+    console.log(`Found ${payrolls.length} payroll records`);
+    
     if (payrolls.length === 0) {
-      return res.status(404).json({ error: 'No payroll records found' });
+      return res.status(404).json({ error: 'No payroll records found for the selected date range' });
     }
 
-    // Get all employees for reference
-    const employees = await employeesCollection.find({ isActive: true }).toArray();
+    // Get all employees for reference (include inactive too for payroll lookup)
+    const employees = await employeesCollection.find({}).toArray();
     const employeeMap = new Map(employees.map(e => [e._id.toString(), e]));
+
+    // Get all departments for site location lookup
+    const departmentsCollection = db.collection('departments');
+    const departments = await departmentsCollection.find({}).toArray();
+    const departmentMap = new Map(departments.map(d => [d._id.toString(), d]));
+    
+    // Debug: Log department data
+    console.log(`Found ${departments.length} departments`);
+    departments.forEach(d => {
+      console.log(`  Department: ${d.name} (${d._id.toString()}) - siteLocation: "${d.siteLocation || 'N/A'}"`);
+    });
 
     // Determine date range from payrolls if not provided
     let effectiveStartDate = cutoffStart;
@@ -159,11 +180,17 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     setColumnWidths(sssSheet, [140, 100, 110, 80]);
     XLSX.utils.book_append_sheet(wb, sssSheet, 'SSS Contribution Table');
 
+    // Helper function to get employee from map (handles both string and ObjectId)
+    const getEmployee = (employeeId) => {
+      const empId = employeeId?.toString ? employeeId.toString() : employeeId;
+      return employeeMap.get(empId) || {};
+    };
+
     // ========== Create consistent employee code mapping ==========
     // Sort payrolls alphabetically by employee name first
     const sortedPayrolls = [...payrolls].sort((a, b) => {
-      const empA = employeeMap.get(a.employeeId) || {};
-      const empB = employeeMap.get(b.employeeId) || {};
+      const empA = getEmployee(a.employeeId);
+      const empB = getEmployee(b.employeeId);
       const nameA = (a.employeeName || empA.name || '').toLowerCase();
       const nameB = (b.employeeName || empB.name || '').toLowerCase();
       return nameA.localeCompare(nameB);
@@ -172,13 +199,14 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     // Create a map of employeeId -> employeeCode for consistent codes across all sheets
     const employeeCodeMap = new Map();
     sortedPayrolls.forEach((p, index) => {
-      const emp = employeeMap.get(p.employeeId) || {};
+      const emp = getEmployee(p.employeeId);
       let employeeCode = p.employeeCode || emp.employeeCode || '';
       if (!employeeCode) {
         // Generate a code like "EMP001", "EMP002", etc. based on sorted order
         employeeCode = `EMP${String(index + 1).padStart(3, '0')}`;
       }
-      employeeCodeMap.set(p.employeeId, employeeCode);
+      const empId = p.employeeId?.toString ? p.employeeId.toString() : p.employeeId;
+      employeeCodeMap.set(empId, employeeCode);
     });
 
     // ========== Sheet 2: Total Hours - Summary ==========
@@ -197,11 +225,12 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     let overallGrandTotal = 0; // Track total of all worked hours
     
     sortedPayrolls.forEach((p) => {
-      const emp = employeeMap.get(p.employeeId) || {};
+      const emp = getEmployee(p.employeeId);
       const employeeName = p.employeeName || emp.name || '';
+      const empId = p.employeeId?.toString ? p.employeeId.toString() : p.employeeId;
       
       // Get employee code from the consistent mapping
-      const employeeCode = employeeCodeMap.get(p.employeeId) || '';
+      const employeeCode = employeeCodeMap.get(empId) || '';
       
       // Start row with Emp ID and Employee Name
       const row = [employeeCode, employeeName];
@@ -264,7 +293,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     // Build header row with employee names
     const hourlyHeader = ['TGS BPO', ''];
     payrolls.forEach(p => {
-      const emp = employeeMap.get(p.employeeId) || {};
+      const emp = getEmployee(p.employeeId);
       hourlyHeader.push(p.employeeName || emp.name || '');
     });
     
@@ -273,7 +302,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     // Row 2: Position/Role
     const roleRow = ['', 'Official Role:'];
     payrolls.forEach(p => {
-      const emp = employeeMap.get(p.employeeId) || {};
+      const emp = getEmployee(p.employeeId);
       roleRow.push(emp.position || '');
     });
     hourlyData.push(roleRow);
@@ -281,8 +310,21 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     // Row 3: Site Location
     const siteRow = ['', 'Site Location:'];
     payrolls.forEach(p => {
-      const emp = employeeMap.get(p.employeeId) || {};
-      siteRow.push(p.siteLocation || emp.siteLocation || '');
+      const emp = getEmployee(p.employeeId);
+      // Get site location from department
+      let siteLocation = '';
+      const deptId = emp.departmentId?.toString ? emp.departmentId.toString() : emp.departmentId;
+      if (deptId) {
+        const dept = departmentMap.get(deptId);
+        if (dept) {
+          siteLocation = dept.siteLocation || '';
+        }
+      }
+      // Fallback to payroll or employee siteLocation if department lookup fails
+      if (!siteLocation) {
+        siteLocation = p.siteLocation || emp.siteLocation || '';
+      }
+      siteRow.push(siteLocation);
     });
     hourlyData.push(siteRow);
     
@@ -384,10 +426,11 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     
     // Include ALL employees, sorted alphabetically (using same order as Total Hours - Summary)
     sortedPayrolls.forEach((p) => {
-      const emp = employeeMap.get(p.employeeId) || {};
+      const emp = getEmployee(p.employeeId);
+      const empId = p.employeeId?.toString ? p.employeeId.toString() : p.employeeId;
       
       // Get employee code from the consistent mapping
-      const employeeCode = employeeCodeMap.get(p.employeeId) || '';
+      const employeeCode = employeeCodeMap.get(empId) || '';
       
       const overtimeHours = parseFloat(p.overtimeHours) || 0;
       const restDayOT = parseFloat(p.restDayOT) || 0;
@@ -460,13 +503,33 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     
     // Include ALL employees, sorted alphabetically
     sortedPayrolls.forEach((p) => {
-      const emp = employeeMap.get(p.employeeId) || {};
-      const employeeCode = employeeCodeMap.get(p.employeeId) || '';
+      const emp = getEmployee(p.employeeId);
+      const empId = p.employeeId?.toString ? p.employeeId.toString() : p.employeeId;
+      const employeeCode = employeeCodeMap.get(empId) || '';
+      
+      // Get site location from department
+      let siteLocation = '';
+      const deptId = emp.departmentId?.toString ? emp.departmentId.toString() : emp.departmentId;
+      if (deptId) {
+        const dept = departmentMap.get(deptId);
+        if (dept) {
+          siteLocation = dept.siteLocation || '';
+        }
+      }
+      // Fallback to payroll or employee siteLocation if department lookup fails
+      if (!siteLocation) {
+        siteLocation = p.siteLocation || emp.siteLocation || '';
+      }
+      
+      // Debug log for first few employees
+      if (shData.length <= 3) {
+        console.log(`Special Holiday - Employee: ${p.employeeName}, empId: ${empId}, deptId: ${deptId}, siteLocation: "${siteLocation}"`);
+      }
       
       const row = [
         employeeCode,
         p.employeeName || emp.name || '',
-        p.siteLocation || emp.siteLocation || ''
+        siteLocation
       ];
       
       // Add hours for each special holiday date
@@ -525,8 +588,9 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     
     // Only include employees who have SIL/Offset data (at least one non-zero value)
     sortedPayrolls.forEach((p) => {
-      const emp = employeeMap.get(p.employeeId) || {};
-      const employeeCode = employeeCodeMap.get(p.employeeId) || '';
+      const emp = getEmployee(p.employeeId);
+      const empId = p.employeeId?.toString ? p.employeeId.toString() : p.employeeId;
+      const employeeCode = employeeCodeMap.get(empId) || '';
       
       const cto = parseFloat(p.ctoHours) || 0;
       const phHoliday = parseFloat(p.phHolidayNotWorking) || 0;
@@ -534,24 +598,23 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
       const silCredits = parseFloat(p.silCredits) || 0;
       const rowTotal = cto + phHoliday + silTenure + silCredits;
       
-      // Only add row if employee has any SIL/Offset data
-      if (rowTotal > 0) {
-        totalCTO += cto;
-        totalPHHoliday += phHoliday;
-        totalSILTenure += silTenure;
-        totalSILCredits += silCredits;
-        totalSILGrand += rowTotal;
-        
-        silData.push([
-          employeeCode,
-          p.employeeName || emp.name || '',
-          cto > 0 ? cto : null,
-          phHoliday > 0 ? phHoliday : null,
-          silTenure > 0 ? silTenure : null,
-          silCredits > 0 ? silCredits : null,
-          rowTotal
-        ]);
-      }
+      // Accumulate totals
+      totalCTO += cto;
+      totalPHHoliday += phHoliday;
+      totalSILTenure += silTenure;
+      totalSILCredits += silCredits;
+      totalSILGrand += rowTotal;
+      
+      // Include ALL employees (show null for zero values)
+      silData.push([
+        employeeCode,
+        p.employeeName || emp.name || '',
+        cto > 0 ? cto : null,
+        phHoliday > 0 ? phHoliday : null,
+        silTenure > 0 ? silTenure : null,
+        silCredits > 0 ? silCredits : null,
+        rowTotal > 0 ? rowTotal : null
+      ]);
     });
     
     // Add Grand Total row
