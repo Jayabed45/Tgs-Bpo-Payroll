@@ -360,6 +360,6 @@ For issues or questions:
 - Responsive design
 
 ---Developed by BSIT-4D 
----Del Rosario, Jay Yhansey A.
----Acosta, Nikki Six
----Taparan Gemry Delle
+- Del Rosario, Jay Yhansey A.
+- Acosta, Nikki Sixx
+- Taparan, Gemry Delle.
