@@ -2542,6 +2542,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         {/* Actions */}
                         <td className="min-w-[80px] px-2 py-1.5 text-center">
                           <button
+                            className="px-2 py-1 text-green-600 hover:text-green-900 hover:bg-green-50 rounded mr-1 disabled:opacity-50"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleExportImportedPayroll(importedPayroll);
+                            }}
+                            title="Export"
+                            disabled={exportLoading}
+                          >
+                            <i className="bi bi-download"></i>
+                          </button>
+                          <button
                             className="px-2 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
                             onClick={(event) => {
                               event.stopPropagation();

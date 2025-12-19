@@ -100,6 +100,33 @@ function setColumnWidths(sheet, widths) {
   });
 }
 
+// Sanitize strings: remove CR/LF and collapse spaces
+function sanitizeText(value) {
+  if (typeof value !== 'string') return value;
+  return value.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+// Auto-fit column widths from AOA data; returns [{ wch, wpx }]
+function autoFitColumns(aoa, opts = {}) {
+  const min = opts.min ?? 8;
+  const max = opts.max ?? 60;
+  const pad = opts.pad ?? 2;
+  const colCount = aoa.reduce((m, r) => Math.max(m, r.length), 0);
+  const widths = new Array(colCount).fill(min);
+  const strlen = (v) => {
+    if (v === null || v === undefined) return 0;
+    if (typeof v === 'string') return v.length;
+    if (typeof v === 'number') return String(v).length;
+    return String(v).length;
+  };
+  for (const row of aoa) {
+    for (let c = 0; c < colCount; c++) {
+      widths[c] = Math.min(max, Math.max(widths[c], strlen(row[c]) + pad));
+    }
+  }
+  return widths.map(w => ({ wch: Math.max(min, w), wpx: Math.round(Math.max(min, w) * 7 + 5) }));
+}
+
 // Normalize employee codes to numeric 5-digit IDs
 function formatEmployeeCode(code, index) {
   if (code !== undefined && code !== null) {
@@ -171,7 +198,7 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     
     sortedEmployees.forEach((emp) => {
       const employeeCode = employeeCodeMap.get(emp._id.toString()) || '';
-      const row = [employeeCode, emp.name || ''];
+      const row = [employeeCode, sanitizeText(emp.name || '')];
       
       // Add empty cells for each date
       dates.forEach(() => row.push(null));
@@ -192,6 +219,13 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     dates.forEach(() => summaryWidths.push(65));
     summaryWidths.push(85);
     setColumnWidths(summarySheet, summaryWidths);
+    // Auto-fit and enforce minimums for Emp ID and Name, and taller header
+    summarySheet['!cols'] = autoFitColumns(summaryData);
+    if (Array.isArray(summarySheet['!cols'])) {
+      summarySheet['!cols'][0] = { ...(summarySheet['!cols'][0] || {}), wch: Math.max(12, summarySheet['!cols'][0]?.wch || 0), wpx: Math.max(90, summarySheet['!cols'][0]?.wpx || 0) };
+      summarySheet['!cols'][1] = { ...(summarySheet['!cols'][1] || {}), wch: Math.max(50, summarySheet['!cols'][1]?.wch || 0), wpx: Math.max(400, summarySheet['!cols'][1]?.wpx || 0) };
+    }
+    summarySheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, summarySheet, 'Total Hours - Summary');
 
     // Removed: Hourly (Payroll Breakdown) sheet (per requirements)
@@ -201,13 +235,19 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     
     sortedEmployees.forEach((emp) => {
       const employeeCode = employeeCodeMap.get(emp._id.toString()) || '';
-      otData.push([employeeCode, emp.name || '', null, null, null, null, null]);
+      otData.push([employeeCode, sanitizeText(emp.name || ''), null, null, null, null, null]);
     });
     
     otData.push(['', 'Grand Total', null, null, null, null, null]);
     
     const otSheet = XLSX.utils.aoa_to_sheet(otData);
     setColumnWidths(otSheet, [80, 180, 110, 170, 90, 220, 85]);
+    otSheet['!cols'] = autoFitColumns(otData);
+    if (Array.isArray(otSheet['!cols'])) {
+      otSheet['!cols'][0] = { ...(otSheet['!cols'][0] || {}), wch: Math.max(12, otSheet['!cols'][0]?.wch || 0), wpx: Math.max(90, otSheet['!cols'][0]?.wpx || 0) };
+      otSheet['!cols'][1] = { ...(otSheet['!cols'][1] || {}), wch: Math.max(50, otSheet['!cols'][1]?.wch || 0), wpx: Math.max(400, otSheet['!cols'][1]?.wpx || 0) };
+    }
+    otSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, otSheet, 'OT');
 
     // ========== Sheet 5: Special Holiday ==========
@@ -224,13 +264,19 @@ router.get('/template', verifyAdminToken, async (req, res) => {
           siteLocation = dept.siteLocation || '';
         }
       }
-      shData.push([employeeCode, emp.name || '', siteLocation, null]);
+      shData.push([employeeCode, sanitizeText(emp.name || ''), sanitizeText(siteLocation), null]);
     });
     
     shData.push(['', 'Grand Total', '', null]);
     
     const shSheet = XLSX.utils.aoa_to_sheet(shData);
     setColumnWidths(shSheet, [80, 180, 100, 80]);
+    shSheet['!cols'] = autoFitColumns(shData);
+    if (Array.isArray(shSheet['!cols'])) {
+      shSheet['!cols'][0] = { ...(shSheet['!cols'][0] || {}), wch: Math.max(12, shSheet['!cols'][0]?.wch || 0), wpx: Math.max(90, shSheet['!cols'][0]?.wpx || 0) };
+      shSheet['!cols'][1] = { ...(shSheet['!cols'][1] || {}), wch: Math.max(50, shSheet['!cols'][1]?.wch || 0), wpx: Math.max(400, shSheet['!cols'][1]?.wpx || 0) };
+    }
+    shSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, shSheet, 'Special Holiday');
 
     // ========== Sheet 6: SIL_Offset ==========
@@ -238,13 +284,19 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     
     sortedEmployees.forEach((emp) => {
       const employeeCode = employeeCodeMap.get(emp._id.toString()) || '';
-      silData.push([employeeCode, emp.name || '', null, null, null, null, null]);
+      silData.push([employeeCode, sanitizeText(emp.name || ''), null, null, null, null, null]);
     });
     
     silData.push([null, 'Grand Total', null, null, null, null, null]);
     
     const silSheet = XLSX.utils.aoa_to_sheet(silData);
     setColumnWidths(silSheet, [90, 180, 180, 280, 240, 80, 85]);
+    silSheet['!cols'] = autoFitColumns(silData);
+    if (Array.isArray(silSheet['!cols'])) {
+      silSheet['!cols'][0] = { ...(silSheet['!cols'][0] || {}), wch: Math.max(12, silSheet['!cols'][0]?.wch || 0), wpx: Math.max(90, silSheet['!cols'][0]?.wpx || 0) };
+      silSheet['!cols'][1] = { ...(silSheet['!cols'][1] || {}), wch: Math.max(50, silSheet['!cols'][1]?.wch || 0), wpx: Math.max(400, silSheet['!cols'][1]?.wpx || 0) };
+    }
+    silSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, silSheet, 'SIL_Offset');
 
     // Generate buffer
@@ -376,7 +428,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     
     sortedPayrolls.forEach((p) => {
       const emp = getEmployee(p.employeeId);
-      const employeeName = p.employeeName || emp.name || '';
+      const employeeName = sanitizeText(p.employeeName || emp.name || '');
       const empId = p.employeeId?.toString ? p.employeeId.toString() : p.employeeId;
       
       // Get employee code from the consistent mapping
@@ -437,6 +489,13 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     dates.forEach(() => summaryWidths.push(65)); // Date columns
     summaryWidths.push(85); // Grand Total
     setColumnWidths(summarySheet, summaryWidths);
+    // Auto-fit and enforce larger minimums for first two columns
+    summarySheet['!cols'] = autoFitColumns(summaryData);
+    if (Array.isArray(summarySheet['!cols'])) {
+      summarySheet['!cols'][0] = { ...(summarySheet['!cols'][0] || {}), wch: Math.max(12, summarySheet['!cols'][0]?.wch || 0), wpx: Math.max(84, summarySheet['!cols'][0]?.wpx || 0) };
+      summarySheet['!cols'][1] = { ...(summarySheet['!cols'][1] || {}), wch: Math.max(40, summarySheet['!cols'][1]?.wch || 0), wpx: Math.max(300, summarySheet['!cols'][1]?.wpx || 0) };
+    }
+    summarySheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, summarySheet, 'Total Hours - Summary');
 
     // Removed: Hourly (Payroll Breakdown) sheet (per requirements)
@@ -470,7 +529,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
       
       otData.push([
         employeeCode,
-        p.employeeName || emp.name || '',
+        sanitizeText(p.employeeName || emp.name || ''),
         overtimeHours || null,
         restDayOT || null,
         regularOT || null,
@@ -493,6 +552,12 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     const otSheet = XLSX.utils.aoa_to_sheet(otData);
     // Set column widths for OT sheet (in pixels)
     setColumnWidths(otSheet, [80, 180, 110, 170, 90, 220, 85]);
+    otSheet['!cols'] = autoFitColumns(otData);
+    if (Array.isArray(otSheet['!cols'])) {
+      otSheet['!cols'][0] = { ...(otSheet['!cols'][0] || {}), wch: Math.max(12, otSheet['!cols'][0]?.wch || 0), wpx: Math.max(84, otSheet['!cols'][0]?.wpx || 0) };
+      otSheet['!cols'][1] = { ...(otSheet['!cols'][1] || {}), wch: Math.max(40, otSheet['!cols'][1]?.wch || 0), wpx: Math.max(300, otSheet['!cols'][1]?.wpx || 0) };
+    }
+    otSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, otSheet, 'OT');
 
     // ========== Sheet 5: Special Holiday ==========
@@ -551,8 +616,8 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
       
       const row = [
         employeeCode,
-        p.employeeName || emp.name || '',
-        siteLocation
+        sanitizeText(p.employeeName || emp.name || ''),
+        sanitizeText(siteLocation)
       ];
       
       // Add hours for each special holiday date
@@ -589,6 +654,12 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     sortedSHDates.forEach(() => shWidths.push(70)); // Date columns
     shWidths.push(80); // Total SH
     setColumnWidths(shSheet, shWidths);
+    shSheet['!cols'] = autoFitColumns(shData);
+    if (Array.isArray(shSheet['!cols'])) {
+      shSheet['!cols'][0] = { ...(shSheet['!cols'][0] || {}), wch: Math.max(12, shSheet['!cols'][0]?.wch || 0), wpx: Math.max(84, shSheet['!cols'][0]?.wpx || 0) };
+      shSheet['!cols'][1] = { ...(shSheet['!cols'][1] || {}), wch: Math.max(40, shSheet['!cols'][1]?.wch || 0), wpx: Math.max(300, shSheet['!cols'][1]?.wpx || 0) };
+    }
+    shSheet['!rows'] = [{ hpx: 36 }];
     
     // Format date columns as dates (columns starting from index 3)
     if (sortedSHDates.length > 0) {
@@ -631,7 +702,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
       // Include ALL employees (show null for zero values)
       silData.push([
         employeeCode,
-        p.employeeName || emp.name || '',
+        sanitizeText(p.employeeName || emp.name || ''),
         cto > 0 ? cto : null,
         phHoliday > 0 ? phHoliday : null,
         silTenure > 0 ? silTenure : null,
@@ -654,6 +725,12 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     const silSheet = XLSX.utils.aoa_to_sheet(silData);
     // Set column widths for SIL_Offset sheet (in pixels)
     setColumnWidths(silSheet, [90, 180, 180, 280, 240, 80, 85]);
+    silSheet['!cols'] = autoFitColumns(silData);
+    if (Array.isArray(silSheet['!cols'])) {
+      silSheet['!cols'][0] = { ...(silSheet['!cols'][0] || {}), wch: Math.max(12, silSheet['!cols'][0]?.wch || 0), wpx: Math.max(84, silSheet['!cols'][0]?.wpx || 0) };
+      silSheet['!cols'][1] = { ...(silSheet['!cols'][1] || {}), wch: Math.max(40, silSheet['!cols'][1]?.wch || 0), wpx: Math.max(300, silSheet['!cols'][1]?.wpx || 0) };
+    }
+    silSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, silSheet, 'SIL_Offset');
 
     // Generate buffer
@@ -1191,14 +1268,63 @@ router.get('/imported-payrolls/:id/export', verifyAdminToken, async (req, res) =
     // Create workbook from stored sheets
     const wb = XLSX.utils.book_new();
     
+    // Helper: auto-fit columns from AOA data
+    const autoFitFromData = (aoa) => {
+      const colCount = aoa.reduce((m, r) => Math.max(m, r.length), 0);
+      const min = 8, max = 60, pad = 2;
+      const widths = new Array(colCount).fill(min);
+      const strlen = (v) => {
+        if (v === null || v === undefined) return 0;
+        if (typeof v === 'string') return v.length;
+        if (typeof v === 'number') return String(v).length;
+        return String(v).length;
+      };
+      for (const row of aoa) {
+        for (let c = 0; c < colCount; c++) {
+          widths[c] = Math.min(max, Math.max(widths[c], strlen(row[c]) + pad));
+        }
+      }
+      // Provide both character and pixel widths for best compatibility
+      return widths.map(w => ({ wch: w, wpx: Math.round(w * 7 + 5) }));
+    };
+
+    // Helper: sanitize AOA, remove embedded newlines that cause wrapped cells
+    const sanitizeAOA = (aoa) => aoa.map(row => row.map(val => {
+      if (typeof val === 'string') {
+        // Replace CR/LF with space and collapse multiple spaces
+        return val.replace(/\r?\n/g, ' ').replace(/\s{2,}/g, ' ').trim();
+      }
+      return val;
+    }));
+
     importedPayroll.sheetNames
       .filter(name => name !== 'SSS Contribution Table' && name !== 'Hourly')
       .forEach(sheetName => {
       const sheetData = importedPayroll.sheets[sheetName];
       if (sheetData) {
         // Combine headers and rows
-        const data = [sheetData.headers, ...sheetData.rows];
+        const dataRaw = [sheetData.headers, ...sheetData.rows];
+        const data = sanitizeAOA(dataRaw);
         const ws = XLSX.utils.aoa_to_sheet(data);
+        // Auto-fit columns and make header taller for readability
+        ws['!cols'] = autoFitFromData(data);
+        // Ensure first two columns have reasonable minimums (Emp ID, Employee Name)
+        if (Array.isArray(ws['!cols'])) {
+          ws['!cols'][0] = { ...(ws['!cols'][0] || {}), wch: Math.max(10, ws['!cols'][0]?.wch || 0), wpx: Math.max(70, ws['!cols'][0]?.wpx || 0) };
+          ws['!cols'][1] = { ...(ws['!cols'][1] || {}), wch: Math.max(25, ws['!cols'][1]?.wch || 0), wpx: Math.max(180, ws['!cols'][1]?.wpx || 0) };
+        }
+        ws['!rows'] = [{ hpx: 36 }];
+        // If Special Holiday sheet, format header date columns as dates
+        if (sheetName === 'Special Holiday' && Array.isArray(sheetData.headers)) {
+          for (let i = 3; i < sheetData.headers.length - 1; i++) {
+            const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
+            const headerVal = sheetData.headers[i];
+            if (ws[cellRef] && typeof headerVal === 'number') {
+              ws[cellRef].t = 'n';
+              ws[cellRef].z = 'D-MMM';
+            }
+          }
+        }
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       }
     });
