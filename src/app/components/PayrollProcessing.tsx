@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { apiService } from "../services/api";
 import { calculateSSS, calculatePhilHealth, calculatePagIBIG, calculateWithholdingTax } from "../utils/philippinePayroll";
 
@@ -249,6 +249,33 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
 
+  // Import states
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+
+  const [importCutoffStart, setImportCutoffStart] = useState('');
+  const [importCutoffEnd, setImportCutoffEnd] = useState('');
+  const [importFileData, setImportFileData] = useState<string | null>(null);
+  
+  // Main view tab state - for displaying imported data with tabs
+  const [mainViewTab, setMainViewTab] = useState<string>('payroll');
+  const [displayImportData, setDisplayImportData] = useState<{
+    sheets: Record<string, { headers: string[]; rows: any[][]; rowCount: number }>;
+    sheetNames: string[];
+  } | null>(null);
+  
+  // Preview state for viewing a specific payroll record
+  const [previewPayroll, setPreviewPayroll] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  
+  // Imported payroll files state
+  const [importedPayrolls, setImportedPayrolls] = useState<any[]>([]);
+  const [viewingImportedPayroll, setViewingImportedPayroll] = useState<any>(null);
+
+  // State for the new individual payroll view
+  const [individualPayroll, setIndividualPayroll] = useState<any>(null);
+  const [showIndividualModal, setShowIndividualModal] = useState(false);
+
   // Fetch payroll settings on component mount
   useEffect(() => {
     const fetchSettings = async () => {
@@ -279,6 +306,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     setShowPayrollForm(false);
     setShowBulkForm(false);
   }, []);
+
 
   // Filter employees based on search
   useEffect(() => {
@@ -323,18 +351,21 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [employeesResponse, payrollsResponse] = await Promise.all([
+      const [employeesResponse, payrollsResponse, importedPayrollsResponse] = await Promise.all([
         apiService.getEmployees(),
-        apiService.getPayrolls()
+        apiService.getPayrolls(),
+        apiService.getImportedPayrolls().catch(() => ({ success: false, importedPayrolls: [] }))
       ]);
       
       setEmployees(Array.isArray(employeesResponse.employees) ? employeesResponse.employees : []);
       setPayrolls(Array.isArray(payrollsResponse.payrolls) ? payrollsResponse.payrolls : []);
+      setImportedPayrolls(Array.isArray(importedPayrollsResponse.importedPayrolls) ? importedPayrollsResponse.importedPayrolls : []);
     } catch (error) {
       console.error('Error fetching data:', error);
       // Set empty arrays on error to prevent crashes
       setEmployees([]);
       setPayrolls([]);
+      setImportedPayrolls([]);
     } finally {
       setLoading(false);
     }
@@ -385,6 +416,372 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       setExportLoading(false);
     }
   };
+
+  // Handle file selection for import - automatically save to database
+  const handleImportFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      showModalMessage('error', 'Invalid File', 'Please select an Excel file (.xlsx or .xls)');
+      return;
+    }
+
+    setImportLoading(true);
+    try {
+      // Read file as base64
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const base64 = (event.target?.result as string).split(',')[1];
+          
+          // Get preview data
+          const response = await apiService.importTimekeepingPreview(base64);
+          if (response.success && response.data) {
+            // Auto-generate cutoff dates from current date
+            const today = new Date();
+            const cutoffStart = new Date(today.getFullYear(), today.getMonth(), 1);
+            const cutoffEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            
+            const startDateStr = cutoffStart.toISOString().split('T')[0];
+            const endDateStr = cutoffEnd.toISOString().split('T')[0];
+            
+            // Automatically save to database
+            const saveResponse = await apiService.saveImportedPayroll(
+              base64,
+              startDateStr,
+              endDateStr,
+              file.name.replace(/\\.xlsx?$/i, '')
+            );
+            
+            if (saveResponse.success) {
+              showModalMessage('success', 'Import Successful', `File "${file.name}" has been imported and saved to the database.`);
+              fetchData(); // Refresh the payroll list
+              setMainViewTab('payroll'); // Switch to payroll tab to see the imported file
+            }
+          }
+        } catch (error: any) {
+          showModalMessage('error', 'Import Failed', error.message || 'Failed to import and save Excel file');
+        } finally {
+          setImportLoading(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error: any) {
+      showModalMessage('error', 'Import Error', error.message || 'Failed to read file');
+      setImportLoading(false);
+    }
+    
+    // Reset file input
+    e.target.value = '';
+  };
+
+  // Handle import confirmation - saves the Excel file as a payroll record
+  const handleImportConfirm = async () => {
+    if (!importFileData) {
+      showModalMessage('error', 'No File', 'Please select a file to import');
+      return;
+    }
+
+    if (!importCutoffStart || !importCutoffEnd) {
+      showModalMessage('error', 'Missing Dates', 'Please enter cutoff start and end dates');
+      return;
+    }
+
+    setImportLoading(true);
+    try {
+      // Save the imported Excel file as a payroll record
+      const response = await apiService.saveImportedPayroll(
+        importFileData, 
+        importCutoffStart, 
+        importCutoffEnd,
+        `Payroll_${importCutoffStart}_to_${importCutoffEnd}`
+      );
+      
+      if (response.success) {
+        showModalMessage('success', 'Saved Successfully', response.message);
+        setShowImportModal(false);
+        setDisplayImportData(null);
+        setImportFileData(null);
+        setImportCutoffStart('');
+        setImportCutoffEnd('');
+        setMainViewTab('payroll');
+        fetchData(); // Refresh payroll list including imported payrolls
+      }
+    } catch (error: any) {
+      showModalMessage('error', 'Save Failed', error.message || 'Failed to save imported payroll');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+  
+  // View an imported payroll file (shows all sheets)
+  const handleViewImportedPayroll = async (importedPayroll: any) => {
+    setPreviewLoading(true);
+    try {
+      const response = await apiService.getImportedPayroll(importedPayroll.id);
+      if (response.success && response.importedPayroll) {
+        setViewingImportedPayroll(response.importedPayroll);
+        setDisplayImportData({
+          sheets: response.importedPayroll.sheets,
+          sheetNames: response.importedPayroll.sheetNames
+        });
+        setMainViewTab(response.importedPayroll.sheetNames[0] || 'payroll');
+      }
+    } catch (error: any) {
+      showModalMessage('error', 'Load Failed', error.message || 'Failed to load payroll data');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+  
+  // Export an imported payroll file back to Excel
+  const handleExportImportedPayroll = async (importedPayroll: any) => {
+    setExportLoading(true);
+    try {
+      const blob = await apiService.exportImportedPayroll(importedPayroll.id);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${importedPayroll.fileName}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      showModalMessage('success', 'Export Complete', `Exported ${importedPayroll.fileName} successfully!`);
+    } catch (error: any) {
+      showModalMessage('error', 'Export Failed', error.message || 'Failed to export payroll');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+  
+  // Delete an imported payroll file
+  const handleDeleteImportedPayroll = async (importedPayroll: any) => {
+    if (!confirm(`Are you sure you want to delete "${importedPayroll.fileName}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const response = await apiService.deleteImportedPayroll(importedPayroll.id);
+      if (response.success) {
+        showModalMessage('success', 'Deleted', 'Payroll file deleted successfully');
+        fetchData(); // Refresh list
+      }
+    } catch (error: any) {
+      showModalMessage('error', 'Delete Failed', error.message || 'Failed to delete payroll');
+    }
+  };
+  
+  // Close the imported payroll view
+  const handleCloseImportedPayrollView = () => {
+    setViewingImportedPayroll(null);
+    setDisplayImportData(null);
+    setMainViewTab('payroll');
+  };
+
+  // Handle preview of a specific payroll record
+  const handlePreviewPayroll = (payroll: any) => {
+    setIndividualPayroll(payroll);
+    setShowIndividualModal(true);
+  };
+
+  // Handle export of a specific payroll record
+  const handleExportSinglePayroll = async (payroll: any) => {
+    setExportLoading(true);
+    try {
+      // Export with the specific payroll's cutoff dates
+      const blob = await apiService.exportTimekeeping(payroll.cutoffStart, payroll.cutoffEnd);
+      
+      // Generate filename
+      const filename = `Payroll_${payroll.employeeName?.replace(/\s+/g, '_') || 'Unknown'}_${payroll.cutoffStart}_to_${payroll.cutoffEnd}.xlsx`;
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      showModalMessage('success', 'Export Complete', `Exported payroll for ${payroll.employeeName} successfully!`);
+    } catch (error: any) {
+      console.error('Export error:', error);
+      showModalMessage('error', 'Export Failed', error.message || 'Failed to export payroll data.');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  // Close preview and go back to payroll list
+  const handleClosePreview = () => {
+    setPreviewPayroll(null);
+    setDisplayImportData(null);
+    setMainViewTab('payroll');
+  };
+
+  // Convert payroll records to Excel-like sheet format for display
+  const convertPayrollsToSheets = (payrollList: any[]) => {
+    if (!payrollList || payrollList.length === 0) return null;
+
+    // Get unique cutoff dates to create date columns
+    const allDates = new Set<string>();
+    payrollList.forEach(p => {
+      if (p.dailyHours) {
+        Object.keys(p.dailyHours).forEach(date => allDates.add(date));
+      }
+    });
+    const sortedDates = Array.from(allDates).sort();
+
+    // Sheet 1: Total Hours - Summary
+    const summaryHeaders = ['Emp ID', 'Employee Name', ...sortedDates.map(d => {
+      const date = new Date(d);
+      const day = date.getDate();
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${day}-${monthNames[date.getMonth()]}`;
+    }), 'Grand Total'];
+    
+    const summaryRows = payrollList.map(p => {
+      const row = [p.employeeCode || '', p.employeeName || ''];
+      sortedDates.forEach(date => {
+        row.push(p.dailyHours?.[date] || '');
+      });
+      row.push(p.workedHours || p.totalWorkedHours || '');
+      return row;
+    });
+
+    // Sheet 2: OT (Overtime)
+    const otHeaders = ['Emp ID', "Employee's Name", 'Overtime Hours', 'RD OT', 'Regular OT', 'Special Holiday OT', 'Grand Total'];
+    const otRows = payrollList.map(p => [
+      p.employeeCode || '',
+      p.employeeName || '',
+      p.overtimeHours || '',
+      p.restDayOT || '',
+      p.regularOT || '',
+      p.specialHolidayOT || '',
+      (parseFloat(p.overtimeHours || 0) + parseFloat(p.restDayOT || 0) + parseFloat(p.regularOT || 0) + parseFloat(p.specialHolidayOT || 0)) || ''
+    ]);
+
+    // Sheet 3: Special Holiday
+    const shDates = new Set<string>();
+    payrollList.forEach(p => {
+      if (p.specialHolidayDates) {
+        Object.keys(p.specialHolidayDates).forEach(date => shDates.add(date));
+      }
+    });
+    const sortedSHDates = Array.from(shDates).sort();
+    
+    const shHeaders = ['Emp ID', "Employee's Name", 'Site Location', ...sortedSHDates.map(d => {
+      const date = new Date(d);
+      const day = date.getDate();
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${day}-${monthNames[date.getMonth()]}`;
+    }), 'Total SH'];
+    
+    const shRows = payrollList.map(p => {
+      const row = [p.employeeCode || '', p.employeeName || '', p.siteLocation || ''];
+      sortedSHDates.forEach(date => {
+        row.push(p.specialHolidayDates?.[date] || '');
+      });
+      row.push(p.specialHolidayHours || '');
+      return row;
+    });
+
+    // Sheet 4: SIL_Offset
+    const silHeaders = ['Employee ID', 'Employee Name', 'CTO', 'PH Holidays Not Working', 'SIL Credit (Tenure)', 'SIL Credits', 'Grand Total'];
+    const silRows = payrollList.map(p => [
+      p.employeeCode || '',
+      p.employeeName || '',
+      p.ctoHours || '',
+      p.phHolidayNotWorking || '',
+      p.silTenureCredits || '',
+      p.silCredits || '',
+      (parseFloat(p.ctoHours || 0) + parseFloat(p.phHolidayNotWorking || 0) + parseFloat(p.silTenureCredits || 0) + parseFloat(p.silCredits || 0)) || ''
+    ]);
+
+    // Sheet 5: Hourly (Payroll Breakdown)
+    const hourlyHeaders = ['Field', ...payrollList.map(p => p.employeeName || 'Unknown')];
+    const hourlyRows = [
+      ['Position', ...payrollList.map(p => p.position || '')],
+      ['Site Location', ...payrollList.map(p => p.siteLocation || '')],
+      ['Cutoff Period', ...payrollList.map(p => `${p.cutoffStart || ''} to ${p.cutoffEnd || ''}`)],
+      ['', ...payrollList.map(() => '')],
+      ['Basic Salary', ...payrollList.map(p => p.basicSalary || 0)],
+      ['Worked Hours', ...payrollList.map(p => p.workedHours || 0)],
+      ['Overtime Hours', ...payrollList.map(p => p.overtimeHours || 0)],
+      ['Holiday Pay', ...payrollList.map(p => p.holidayPay || 0)],
+      ['Night Differential', ...payrollList.map(p => p.nightDifferential || 0)],
+      ['Salary Adjustment', ...payrollList.map(p => p.salaryAdjustment || 0)],
+      ['', ...payrollList.map(() => '')],
+      ['DEDUCTIONS', ...payrollList.map(() => '')],
+      ['Absences', ...payrollList.map(p => p.absences || 0)],
+      ['Late Deductions', ...payrollList.map(p => p.lateDeductions || 0)],
+      ['SSS Contribution', ...payrollList.map(p => p.sssContribution || 0)],
+      ['PhilHealth', ...payrollList.map(p => p.philhealthContribution || 0)],
+      ['Pag-IBIG', ...payrollList.map(p => p.pagibigContribution || 0)],
+      ['Withholding Tax', ...payrollList.map(p => p.withholdingTax || 0)],
+      ['', ...payrollList.map(() => '')],
+      ['SUMMARY', ...payrollList.map(() => '')],
+      ['Gross Pay', ...payrollList.map(p => p.grossPay || 0)],
+      ['Total Deductions', ...payrollList.map(p => p.totalDeductions || 0)],
+      ['Net Pay', ...payrollList.map(p => p.netPay || 0)],
+      ['Status', ...payrollList.map(p => p.status || 'pending')],
+    ];
+
+    return {
+      sheets: {
+        'Total Hours - Summary': { headers: summaryHeaders, rows: summaryRows, rowCount: summaryRows.length },
+        'Hourly': { headers: hourlyHeaders, rows: hourlyRows, rowCount: hourlyRows.length },
+        'OT': { headers: otHeaders, rows: otRows, rowCount: otRows.length },
+        'Special Holiday': { headers: shHeaders, rows: shRows, rowCount: shRows.length },
+        'SIL_Offset': { headers: silHeaders, rows: silRows, rowCount: silRows.length },
+      },
+      sheetNames: ['Total Hours - Summary', 'Hourly', 'OT', 'Special Holiday', 'SIL_Offset']
+    };
+  };
+
+  // View all payroll records in Excel format
+  const handleViewAllPayrolls = () => {
+    const sheetsData = convertPayrollsToSheets(payrolls);
+    if (sheetsData) {
+      setDisplayImportData(sheetsData);
+      setMainViewTab('Total Hours - Summary');
+      setPreviewPayroll({ isAllPayrolls: true }); // Flag to indicate viewing all payrolls
+    }
+  };
+
+  // Render individual payroll view
+  const renderIndividualPayroll = () => {
+    if (!individualPayroll) return null;
+
+    return (
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <h3 className="text-xl font-semibold mb-4">Individual Payroll Details</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p><strong>Employee Name:</strong> {individualPayroll.employeeName}</p>
+            <p><strong>Employee ID:</strong> {individualPayroll.employeeId}</p>
+            <p><strong>Cutoff Period:</strong> {individualPayroll.cutoffStart} to {individualPayroll.cutoffEnd}</p>
+            <p><strong>Basic Salary:</strong> ₱{individualPayroll.basicSalary.toLocaleString()}</p>
+          </div>
+          <div>
+            <p><strong>Gross Pay:</strong> ₱{individualPayroll.grossPay.toLocaleString()}</p>
+            <p><strong>Total Deductions:</strong> ₱{individualPayroll.totalDeductions.toLocaleString()}</p>
+            <p><strong>Net Pay:</strong> ₱{individualPayroll.netPay.toLocaleString()}</p>
+            <p><strong>Status:</strong> {individualPayroll.status}</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -963,6 +1360,8 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
           {/* Form Content */}
           <div className="flex-1 overflow-y-auto p-6">
+            
+
             {/* Workflow Information */}
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center space-x-2 mb-2">
@@ -1044,10 +1443,10 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                       {showEmployeeDropdown && (
                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           <div
-                            onClick={() => handleEmployeeSelect('all', '📋 Select All Employees')}
+                            onClick={() => handleEmployeeSelect('all', 'Select All Employees')}
                             className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-200 font-semibold text-blue-600"
                           >
-                            📋 Select All Employees
+                            <i className="bi bi-clipboard-check me-2"></i>Select All Employees
                           </div>
                           {filteredEmployees.length > 0 ? (
                             filteredEmployees.map(emp => (
@@ -1144,7 +1543,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                 />
                     {!formData.basicSalary && formData.employeeId && formData.employeeId !== 'all' && (
                       <div className="mt-1 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                        💡 Basic salary will be automatically filled from the selected employee's data
+                        <i className="bi bi-lightbulb me-1"></i>Basic salary will be automatically filled from the selected employee's data
                       </div>
                     )}
               </div>
@@ -1301,7 +1700,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                     <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Government Contributions</h5>
                   </div>
                   <div className="text-xs text-purple-600 bg-purple-50 px-3 py-1 rounded-full font-medium">
-                    🇵🇭 Philippine Payroll System (2024)
+                    <i className="bi bi-flag me-1"></i>Philippine Payroll System (2024)
                   </div>
                 </div>
                 
@@ -1796,6 +2195,8 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       )}
 
 
+
+
       {/* Floating Add Payroll Button */}
       <button
         onClick={(e) => {
@@ -1862,181 +2263,622 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         )}
       </div>
 
+      {/* Export/Import Section */}
       <div className="bg-white shadow rounded-lg p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h5 className="text-sm font-semibold text-gray-700">Export Timekeeping Data</h5>
-        </div>
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Start Date
-            </label>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-[140px]">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
             <input
               type="date"
               value={exportStartDate}
               onChange={(e) => setExportStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-green-500"
             />
           </div>
-          <div className="flex-1 min-w-[150px]">
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              End Date
-            </label>
+          <div className="w-[140px]">
+            <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
             <input
               type="date"
               value={exportEndDate}
               onChange={(e) => setExportEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-green-500"
             />
           </div>
           <button
             onClick={handleExportTimekeeping}
             disabled={exportLoading || payrolls.length === 0}
-            className="inline-flex items-center px-4 py-2 border border-green-600 text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
           >
             {exportLoading ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Exporting...
-              </>
+              <><svg className="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Exporting...</>
             ) : (
-              <>
-                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Export Excel
-              </>
+              <><svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>Export</>
             )}
           </button>
+          <label className="cursor-pointer">
+            <input type="file" accept=".xlsx,.xls" onChange={handleImportFileSelect} className="hidden" />
+            <span className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+              {importLoading ? (
+                <><svg className="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Loading...</>
+              ) : (
+                <><svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>Import</>
+              )}
+            </span>
+          </label>
+          {displayImportData && (
+            <>
+              <button
+                onClick={() => { setDisplayImportData(null); setImportFileData(null); setPreviewPayroll(null); setMainViewTab('payroll'); }}
+                className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-red-600 bg-red-50 hover:bg-red-100"
+              >
+                <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                Clear Preview
+              </button>
+            </>
+          )}
         </div>
-        <p className="mt-2 text-xs text-gray-500">
-          {exportStartDate && exportEndDate 
-            ? `Export payroll data from ${exportStartDate} to ${exportEndDate}`
-            : 'Select date range to filter export, or leave empty to export all records'}
-        </p>
       </div>
 
-      {/* Payroll List */}
-      {payrolls.filter((payroll) => {
-        if (!searchQuery) return true;
-        const query = searchQuery.toLowerCase();
-        return (
-          payroll.employeeName?.toLowerCase().includes(query) ||
-          payroll.employeeId?.toLowerCase().includes(query) ||
-          (payroll.cutoffStart && new Date(payroll.cutoffStart).toLocaleDateString().toLowerCase().includes(query)) ||
-          (payroll.cutoffEnd && new Date(payroll.cutoffEnd).toLocaleDateString().toLowerCase().includes(query))
-        );
-      }).length === 0 ? (
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="text-center text-gray-500">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">{searchQuery ? 'No payroll found' : 'No payroll data'}</h3>
-              <p className="mt-1 text-sm text-gray-500">{searchQuery ? `No payroll records match "${searchQuery}"` : 'Start processing payroll for your employees.'}</p>
-              {searchQuery && (
+      {/* Tabs for Payroll and Imported Sheets */}
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="border-b border-gray-200 bg-gray-50">
+          <div className="flex overflow-x-auto scrollbar-thin">
+            {/* Payroll Records Tab - Always First */}
+            <button
+              onClick={() => setMainViewTab('payroll')}
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                mainViewTab === 'payroll'
+                  ? 'border-green-500 text-green-600 bg-white'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <i className="bi bi-clipboard-data me-2"></i>Imported Payroll Files
+              <span className="ml-2 px-2 py-0.5 text-xs bg-gray-200 rounded-full">{importedPayrolls.length}</span>
+            </button>
+
+            {/* Individual Payroll Records Tab */}
+            <button
+              onClick={() => setMainViewTab('individualList')}
+              className={`flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                mainViewTab === 'individualList'
+                  ? 'border-indigo-500 text-indigo-600 bg-white'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <i className="bi bi-people-fill me-2"></i>Individual Records
+              <span className="ml-2 px-2 py-0.5 text-xs bg-gray-200 rounded-full">{payrolls.length}</span>
+            </button>
+            {/* Imported Sheet Tabs */}
+            {displayImportData?.sheetNames.map((sheetName) => (
+              <button
+                key={sheetName}
+                onClick={() => setMainViewTab(sheetName)}
+                className={`flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  mainViewTab === sheetName
+                    ? 'border-blue-500 text-blue-600 bg-white'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                📊 {sheetName}
+                <span className="ml-2 px-2 py-0.5 text-xs bg-gray-200 rounded-full">
+                  {displayImportData.sheets[sheetName]?.rowCount || 0}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tab Content - Excel-like styling */}
+        {mainViewTab === 'payroll' ? (
+          <>
+            {/* Saved Payroll Files List */}
+            <div className="overflow-x-auto bg-white">
+              {/* Excel-like toolbar for imported payroll files */}
+              <div className="flex items-center justify-between px-2 py-1 bg-[#217346] text-white text-xs border-b border-[#185c37]">
+                <div className="flex items-center">
+                  <span className="font-semibold mr-4"><i className="bi bi-file-earmark-spreadsheet me-2"></i>Saved Payroll Files</span>
+                  <span className="text-green-200">{importedPayrolls.length} files</span>
+                </div>
+              </div>
+              {/* Excel-like spreadsheet for imported payroll files */}
+              <div className="overflow-auto max-h-[600px]">
+                <table className="w-full border-collapse text-xs font-['Calibri',_'Segoe_UI',_sans-serif]">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-[#d9e8d9] border-b-2 border-[#217346]">
+                      <th className="w-8 px-2 py-1.5 text-left text-[10px] text-gray-600 border-r border-[#a8d08d] bg-[#f0f0f0] font-semibold">#</th>
+                      <th className="min-w-[240px] px-2 py-1.5 text-left text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d]">File Name</th>
+                      <th className="min-w-[180px] px-2 py-1.5 text-left text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d]">Cutoff Period</th>
+                      <th className="min-w-[120px] px-2 py-1.5 text-left text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d]">Employees</th>
+                      <th className="w-24 px-2 py-1.5 text-center text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d]">Sheets</th>
+                      <th className="min-w-[160px] px-2 py-1.5 text-left text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d]">Imported Date</th>
+                      <th className="w-28 px-2 py-1.5 text-center text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d]">Status</th>
+                      <th className="w-16 px-2 py-1.5 text-center text-[11px] font-semibold text-[#1f4e3d]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#d8e4d8] bg-white">
+                    {importedPayrolls.map((importedPayroll, index) => (
+                      <tr 
+                        key={importedPayroll.id} 
+                        className="hover:bg-[#f3f7f3] cursor-pointer"
+                        onClick={() => handleViewImportedPayroll(importedPayroll)}
+                      >
+                        <td className="px-2 py-1.5 text-[10px] text-gray-600 border-r border-[#d8e4d8]">{index + 1}</td>
+                        <td className="px-2 py-1.5 text-[11px] text-gray-900 border-r border-[#d8e4d8] font-medium">{importedPayroll.fileName}</td>
+                        <td className="px-2 py-1.5 text-[11px] text-gray-700 border-r border-[#d8e4d8]">{importedPayroll.cutoffStart} to {importedPayroll.cutoffEnd}</td>
+                        <td className="px-2 py-1.5 text-[11px] text-gray-700 border-r border-[#d8e4d8]">{importedPayroll.employeeCount || 0}</td>
+                        <td className="px-2 py-1.5 text-[11px] text-center text-gray-700 border-r border-[#d8e4d8]">{importedPayroll.sheetNames.length}</td>
+                        <td className="px-2 py-1.5 text-[11px] text-gray-700 border-r border-[#d8e4d8]">{new Date(importedPayroll.createdAt).toLocaleString()}</td>
+                        <td className="px-2 py-1.5 text-center">
+                          <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${
+                            importedPayroll.status === 'completed' ? 'bg-green-100 text-green-700' :
+                            importedPayroll.status === 'processed' ? 'bg-blue-100 text-blue-700' :
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {importedPayroll.status || 'imported'}
+                          </span>
+                        </td>
+                        {/* Actions */}
+                        <td className="min-w-[80px] px-2 py-1.5 text-center">
+                          <button
+                            className="px-2 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteImportedPayroll(importedPayroll);
+                            }}
+                            title="Delete"
+                          >
+                            <i className="bi bi-trash"></i>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Excel-like status bar */}
+              <div className="flex items-center justify-between px-2 py-1 bg-[#f0f0f0] border-t border-[#c0c0c0] text-[10px] text-gray-600">
+                {/* <div className="flex items-center space-x-4">
+                  <span>Total Files: {importedPayrolls.length}</span>
+                  <span>|</span>
+                  <span>Total Employees: {importedPayrolls.reduce((sum, p) => sum + (p.employeeCount || 0), 0)}</span>
+                </div> */}
+              </div>
+            </div>
+          </>
+        ) : mainViewTab === 'individualList' ? (
+          <div className="mt-0 bg-white rounded-lg shadow-sm border border-gray-200">
+            {/* <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Individual Payroll Records</h3>
+              </div>
+              <span className="text-sm text-gray-500">Total: <span className="font-semibold">{payrolls.length}</span></span>
+            </div> */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee Name</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutoff Period</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {payrolls.length > 0 ? payrolls.map((p, index) => (
+                    <tr
+                      key={p.id}
+                      className="hover:bg-indigo-50 cursor-pointer"
+                      onClick={() => handlePreviewPayroll(p)}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.employeeName}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(p.cutoffStart).toLocaleDateString()} to {new Date(p.cutoffEnd).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                        ₱{p.netPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          p.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                          p.status === 'processed' ? 'bg-blue-100 text-blue-800' : 
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="relative group">
+                          <button
+                            className="px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <i className="bi bi-three-dots-vertical"></i>
+                          </button>
+                          <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 hidden group-hover:block z-10">
+                            <button
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 flex items-center"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(p);
+                                setShowPayrollForm(true);
+                              }}
+                            >
+                              <i className="bi bi-pencil me-2"></i>Edit
+                            </button>
+                            <button
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(p.id);
+                              }}
+                            >
+                              <i className="bi bi-trash me-2"></i>Delete
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
+                        No individual payroll records found. Create a new payroll to get started.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : mainViewTab === 'individual' ? (
+          renderIndividualPayroll()
+        ) : displayImportData?.sheets[mainViewTab] ? (
+          <div className="overflow-x-auto bg-white">
+            {/* Excel-like toolbar */}
+            <div className="flex items-center justify-between px-2 py-1 bg-[#217346] text-white text-xs border-b border-[#185c37]">
+              <div className="flex items-center">
+                {(viewingImportedPayroll || previewPayroll) && (
+                  <button
+                    onClick={() => {
+                      if (viewingImportedPayroll) {
+                        handleCloseImportedPayrollView();
+                      } else {
+                        handleClosePreview();
+                      }
+                    }}
+                    className="mr-3 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-white flex items-center"
+                  >
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Back
+                  </button>
+                )}
+                <span className="font-semibold mr-4">📊 {mainViewTab}</span>
+                <span className="text-green-200">{displayImportData.sheets[mainViewTab]?.rowCount || 0} rows</span>
+                {viewingImportedPayroll && (
+                  <span className="ml-4 text-green-200">| {viewingImportedPayroll.fileName} ({viewingImportedPayroll.cutoffStart} to {viewingImportedPayroll.cutoffEnd})</span>
+                )}
+                {previewPayroll && !viewingImportedPayroll && (
+                  <span className="ml-4 text-green-200">| {previewPayroll.employeeName} - {previewPayroll.cutoffStart} to {previewPayroll.cutoffEnd}</span>
+                )}
+              </div>
+              {viewingImportedPayroll && (
                 <button
-                  onClick={() => setSearchQuery("")}
-                  className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                  onClick={() => handleExportImportedPayroll(viewingImportedPayroll)}
+                  disabled={exportLoading}
+                  className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-white flex items-center"
                 >
-                  Clear search
+                  {exportLoading ? (
+                    <svg className="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  )}
+                  Export Excel
+                </button>
+              )}
+              {previewPayroll && !viewingImportedPayroll && (
+                <button
+                  onClick={() => handleExportSinglePayroll(previewPayroll)}
+                  disabled={exportLoading}
+                  className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-white flex items-center"
+                >
+                  {exportLoading ? (
+                    <svg className="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  )}
+                  Export Excel
                 </button>
               )}
             </div>
+            {/* Excel-like spreadsheet */}
+            <div className="overflow-auto max-h-[600px]">
+              <table className="w-full border-collapse text-xs font-['Calibri',_'Segoe_UI',_sans-serif]" style={{ minWidth: 'max-content' }}>
+                <thead className="sticky top-0 z-10">
+                  {/* Column letters row (A, B, C, etc.) */}
+                  <tr className="bg-[#e6e6e6] border-b border-[#b4b4b4]">
+                    <th className="w-10 min-w-[40px] px-1 py-0.5 text-center text-[10px] text-gray-600 border-r border-[#b4b4b4] bg-[#f0f0f0]"></th>
+                    {displayImportData.sheets[mainViewTab].headers.map((_, idx) => (
+                      <th key={idx} className="min-w-[80px] px-1 py-0.5 text-center text-[10px] text-gray-600 border-r border-[#b4b4b4] bg-[#f0f0f0] font-normal">
+                        {String.fromCharCode(65 + (idx % 26))}{idx >= 26 ? Math.floor(idx / 26) : ''}
+                      </th>
+                    ))}
+                  </tr>
+                  {/* Header row */}
+                  <tr className="bg-[#d9e8d9] border-b-2 border-[#217346]">
+                    <th className="w-10 min-w-[40px] px-1 py-1 text-center text-[10px] text-gray-600 border-r border-[#b4b4b4] bg-[#f0f0f0] font-normal">1</th>
+                    {displayImportData.sheets[mainViewTab].headers.map((header, idx) => {
+                      // Convert Excel date serial numbers to readable dates
+                      let displayHeader = header;
+                      if (typeof header === 'number' && header > 40000 && header < 50000) {
+                        const date = new Date((header - 25569) * 86400 * 1000);
+                        const day = date.getDate();
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        displayHeader = `${day}-${monthNames[date.getMonth()]}`;
+                      }
+                      return (
+                        <th key={idx} className="min-w-[80px] px-2 py-1.5 text-left text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d] whitespace-nowrap bg-[#d9e8d9]">
+                          {displayHeader || ''}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayImportData.sheets[mainViewTab].rows.map((row, rowIdx) => (
+                    <tr 
+                      key={rowIdx} 
+                      className={`border-b border-[#d4d4d4] hover:bg-[#cce5ff] ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-[#f9f9f9]'}`}
+                    >
+                      {/* Row number */}
+                      <td className="w-10 min-w-[40px] px-1 py-0.5 text-center text-[10px] text-gray-500 border-r border-[#d4d4d4] bg-[#f0f0f0] font-normal">
+                        {rowIdx + 2}
+                      </td>
+                      {row.map((cell: any, cellIdx: number) => {
+                        const cellValue = cell !== null && cell !== undefined ? String(cell) : '';
+                        const isNumber = !isNaN(Number(cellValue)) && cellValue !== '';
+                        return (
+                          <td 
+                            key={cellIdx} 
+                            className={`min-w-[80px] px-2 py-1 border-r border-[#e0e0e0] text-[11px] text-gray-800 whitespace-nowrap ${isNumber ? 'text-right' : 'text-left'}`}
+                          >
+                            {cellValue}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Excel-like status bar */}
+            <div className="flex items-center justify-between px-3 py-1 bg-[#217346] text-white text-[10px] border-t border-[#185c37]">
+              <span>Ready</span>
+              <div className="flex items-center space-x-4">
+                <span>Rows: {displayImportData.sheets[mainViewTab].rowCount}</span>
+                <span>Columns: {displayImportData.sheets[mainViewTab].headers.length}</span>
+              </div>
+            </div>
+          </div>
+        ) : mainViewTab === 'individual' ? (
+          renderIndividualPayroll()
+        ) : mainViewTab === 'payroll' ? (
+          <>
+      {/* Imported Payroll Files List */}
+      {importedPayrolls.length === 0 ? (
+        <div className="px-4 py-5 sm:p-6">
+          <div className="text-center text-gray-500">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No payroll files</h3>
+            <p className="mt-1 text-sm text-gray-500">Import an Excel file and save it to see it here.</p>
           </div>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Employee
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cutoff Period
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Gross Pay
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Net Pay
-                  </th>
-
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+        <div className="overflow-x-auto bg-white">
+          {/* Excel-like toolbar for imported payroll files */}
+          <div className="flex items-center justify-between px-2 py-1 bg-[#217346] text-white text-xs border-b border-[#185c37]">
+            <div className="flex items-center">
+              <span className="font-semibold mr-4"><i className="bi bi-file-earmark-spreadsheet me-2"></i>Saved Payroll Files</span>
+              <span className="text-green-200">{importedPayrolls.length} files</span>
+            </div>
+          </div>
+          {/* Excel-like spreadsheet for imported payroll files */}
+          <div className="overflow-auto max-h-[600px]">
+            <table className="w-full border-collapse text-xs font-['Calibri',_'Segoe_UI',_sans-serif]">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#d9e8d9] border-b-2 border-[#217346]">
+                  <th className="w-10 min-w-[40px] px-1 py-1.5 text-center text-[10px] text-gray-600 border-r border-[#a8d08d] bg-[#f0f0f0] font-normal">#</th>
+                  <th className="min-w-[250px] px-2 py-1.5 text-left text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d] bg-[#d9e8d9]">File Name</th>
+                  <th className="min-w-[160px] px-2 py-1.5 text-left text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d] bg-[#d9e8d9]">Cutoff Period</th>
+                  <th className="min-w-[100px] px-2 py-1.5 text-center text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d] bg-[#d9e8d9]">Employees</th>
+                  <th className="min-w-[100px] px-2 py-1.5 text-center text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d] bg-[#d9e8d9]">Sheets</th>
+                  <th className="min-w-[140px] px-2 py-1.5 text-left text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d] bg-[#d9e8d9]">Imported Date</th>
+                  <th className="min-w-[80px] px-2 py-1.5 text-center text-[11px] font-semibold text-[#1f4e3d] border-r border-[#a8d08d] bg-[#d9e8d9]">Status</th>
+                  <th className="min-w-[150px] px-2 py-1.5 text-center text-[11px] font-semibold text-[#1f4e3d] bg-[#d9e8d9]">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {payrolls.filter((payroll) => {
-                  if (!searchQuery) return true;
-                  const query = searchQuery.toLowerCase();
-                  return (
-                    payroll.employeeName?.toLowerCase().includes(query) ||
-                    payroll.employeeId?.toLowerCase().includes(query) ||
-                    (payroll.cutoffStart && new Date(payroll.cutoffStart).toLocaleDateString().toLowerCase().includes(query)) ||
-                    (payroll.cutoffEnd && new Date(payroll.cutoffEnd).toLocaleDateString().toLowerCase().includes(query))
-                  );
-                }).map((payroll) => (
-                  <tr key={payroll.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-black">
-                          {payroll.employeeName || 'Unknown Employee'}
-                          {!payroll.employeeName && (
-                            <span className="ml-2 px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
-                              Employee Deleted
-                            </span>
-                          )}
-                        </div>
-                       <div className="text-sm text-black">ID: {payroll.employeeId || 'N/A'}</div>
+              <tbody>
+                {importedPayrolls.map((importedPayroll, index) => (
+                  <tr key={importedPayroll.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-[#f5f9f5]'} hover:bg-[#e8f4e8] border-b border-[#d0e0d0]`}>
+                    {/* Row Number */}
+                    <td className="w-10 min-w-[40px] px-1 py-1.5 text-center text-[10px] text-gray-500 border-r border-[#d0e0d0] bg-[#f0f0f0]">{index + 1}</td>
+                    {/* File Name */}
+                    <td className="min-w-[250px] px-2 py-1.5 text-[11px] text-gray-800 border-r border-[#d0e0d0]">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="font-medium">{importedPayroll.fileName}</span>
                       </div>
                     </td>
-                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-black">
-                       {payroll.cutoffStart ? new Date(payroll.cutoffStart).toLocaleDateString() : 'N/A'} - {payroll.cutoffEnd ? new Date(payroll.cutoffEnd).toLocaleDateString() : 'N/A'}
-                     </td>
-                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-black">₱{(payroll.grossPay || 0).toLocaleString()}</td>
-                     <td className="px-6 py-4 whitespace-nowrap text-sm text-black">₱{(payroll.netPay || 0).toLocaleString()}</td>
-
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    {/* Cutoff Period */}
+                    <td className="min-w-[160px] px-2 py-1.5 text-[11px] text-gray-700 border-r border-[#d0e0d0]">
+                      {importedPayroll.cutoffStart} to {importedPayroll.cutoffEnd}
+                    </td>
+                    {/* Employees */}
+                    <td className="min-w-[100px] px-2 py-1.5 text-center text-[11px] text-gray-700 border-r border-[#d0e0d0]">
+                      {importedPayroll.employeeCount || 0}
+                    </td>
+                    {/* Sheets */}
+                    <td className="min-w-[100px] px-2 py-1.5 text-center text-[11px] text-gray-700 border-r border-[#d0e0d0]">
+                      {importedPayroll.sheetNames?.length || 0}
+                    </td>
+                    {/* Imported Date */}
+                    <td className="min-w-[140px] px-2 py-1.5 text-[11px] text-gray-700 border-r border-[#d0e0d0]">
+                      {importedPayroll.createdAt ? new Date(importedPayroll.createdAt).toLocaleString() : 'N/A'}
+                    </td>
+                    {/* Status */}
+                    <td className="min-w-[80px] px-2 py-1.5 text-center border-r border-[#d0e0d0]">
+                      <span className={`px-1.5 py-0.5 text-[9px] font-medium rounded ${
+                        importedPayroll.status === 'completed' ? 'bg-green-100 text-green-700' :
+                        importedPayroll.status === 'processed' ? 'bg-blue-100 text-blue-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {importedPayroll.status || 'imported'}
+                      </span>
+                    </td>
+                    {/* Actions */}
+                    <td className="min-w-[80px] px-2 py-1.5 text-center">
+                      <div className="relative group inline-block">
+                        <button className="px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
+                          <i className="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 hidden group-hover:block z-20">
                           <button
-                            onClick={() => handleEdit(payroll)}
-                            className="text-indigo-600 hover:text-indigo-900 mr-3"
-                            title={payroll.status === 'completed' ? 'Completed payrolls cannot be edited' : 'Edit payroll'}
-                            disabled={payroll.status === 'completed'}
+                            onClick={() => handleViewImportedPayroll(importedPayroll)}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center"
                           >
-                            Edit
+                            <i className="bi bi-eye me-2"></i>View
                           </button>
-                          {editingPayroll?.id === payroll.id && (
-                            <button
-                              onClick={() => setTimeout(() => setShowPayrollForm(true), 100)}
-                              className="text-green-600 hover:text-green-900 mr-3"
-                              title="Open edit form"
-                            >
-                              Open Form
-                            </button>
-                          )}
                           <button
-                            onClick={() => handleDelete(payroll.id)}
-                            className="text-red-600 hover:text-red-900"
-                        title="Delete payroll permanently"
+                            onClick={() => handleExportImportedPayroll(importedPayroll)}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 flex items-center"
                           >
-                            Delete
+                            <i className="bi bi-download me-2"></i>Export
                           </button>
+                          <button
+                            onClick={() => handleDeleteImportedPayroll(importedPayroll)}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center"
+                          >
+                            <i className="bi bi-trash me-2"></i>Delete
+                          </button>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {/* Excel-like status bar */}
+          <div className="flex items-center justify-between px-2 py-1 bg-[#f0f0f0] border-t border-[#c0c0c0] text-[10px] text-gray-600">
+            {/* <div className="flex items-center space-x-4">
+              <span>Total Files: {importedPayrolls.length}</span>
+              <span>|</span>
+              <span>Total Employees: {importedPayrolls.reduce((sum, p) => sum + (p.employeeCount || 0), 0)}</span>
+            </div> */}
+          </div>
         </div>
       )}
+
+      {/* Individual Payroll Records Table */}
+      <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+          <h3 className="text-lg font-semibold text-gray-900">Individual Payroll Records</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee Name</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutoff Period</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {payrolls.length > 0 ? payrolls.map((p, index) => (
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.employeeName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(p.cutoffStart).toLocaleDateString()} to {new Date(p.cutoffEnd).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                    ₱{p.netPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      p.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                      p.status === 'processed' ? 'bg-blue-100 text-blue-800' : 
+                      'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {p.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="relative group">
+                      <button className="px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
+                        <i className="bi bi-three-dots-vertical"></i>
+                      </button>
+                      <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 hidden group-hover:block z-10">
+                        <button
+                          onClick={() => handlePreviewPayroll(p)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center"
+                        >
+                          <i className="bi bi-eye me-2"></i>Preview
+                        </button>
+                        <button
+                          onClick={() => handleEdit(p)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 flex items-center"
+                        >
+                          <i className="bi bi-pencil me-2"></i>Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center"
+                        >
+                          <i className="bi bi-trash me-2"></i>Delete
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
+                    No individual payroll records found. Create a new payroll to get started.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-sm text-gray-600">
+          Total Records: <span className="font-semibold">{payrolls.length}</span>
+        </div>
+      </div>
+
+          </>
+        ) : null}
+      </div>
 
     </div>
     
@@ -2093,6 +2935,180 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         payrollName={deleteModal.payroll?.employeeName || 'Unknown Employee'}
         message={deleteModal.message}
       />
+
+      {/* Individual Payroll Preview Modal */}
+      {showIndividualModal && individualPayroll && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-[9999]">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <i className="bi bi-person-badge text-2xl text-indigo-600"></i>
+                </div>
+                <div>
+                  <h4 className="text-xl font-semibold text-gray-900">{individualPayroll.employeeName}</h4>
+                  <p className="text-sm text-gray-600">Payroll Details - {individualPayroll.cutoffStart} to {individualPayroll.cutoffEnd}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowIndividualModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <i className="bi bi-x-lg text-xl"></i>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Employee Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                    <i className="bi bi-person-circle me-2 text-indigo-600"></i>
+                    Employee Information
+                  </h5>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Employee ID:</span>
+                      <span className="font-medium text-gray-900">{individualPayroll.employeeId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Name:</span>
+                      <span className="font-medium text-gray-900">{individualPayroll.employeeName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cutoff Period:</span>
+                      <span className="font-medium text-gray-900">{individualPayroll.cutoffStart} to {individualPayroll.cutoffEnd}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Salary Information */}
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                    <i className="bi bi-cash-coin me-2 text-green-600"></i>
+                    Salary & Hours
+                  </h5>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Basic Salary:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.basicSalary?.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Worked Hours:</span>
+                      <span className="font-medium text-gray-900">{individualPayroll.workedHours || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Overtime Hours:</span>
+                      <span className="font-medium text-gray-900">{individualPayroll.overtimeHours || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Holiday Pay:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.holidayPay?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Night Differential:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.nightDifferential?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Salary Adjustment:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.salaryAdjustment?.toLocaleString() || 0}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Deductions */}
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                    <i className="bi bi-dash-circle me-2 text-red-600"></i>
+                    Deductions
+                  </h5>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Absences:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.absences?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Late Deductions:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.lateDeductions?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">SSS:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.sssContribution?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">PhilHealth:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.philhealthContribution?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Pag-IBIG:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.pagibigContribution?.toLocaleString() || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Withholding Tax:</span>
+                      <span className="font-medium text-gray-900">₱{individualPayroll.withholdingTax?.toLocaleString() || 0}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center">
+                    <i className="bi bi-calculator me-2 text-blue-600"></i>
+                    Summary
+                  </h5>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between pb-2 border-b border-blue-200">
+                      <span className="text-gray-600">Gross Pay:</span>
+                      <span className="font-semibold text-green-700 text-base">₱{individualPayroll.grossPay?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-blue-200">
+                      <span className="text-gray-600">Total Deductions:</span>
+                      <span className="font-semibold text-red-700 text-base">₱{individualPayroll.totalDeductions?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between pt-2">
+                      <span className="text-gray-900 font-semibold">Net Pay:</span>
+                      <span className="font-bold text-blue-700 text-xl">₱{individualPayroll.netPay?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between pt-2">
+                      <span className="text-gray-600">Status:</span>
+                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        individualPayroll.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                        individualPayroll.status === 'processed' ? 'bg-blue-100 text-blue-800' : 
+                        'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {individualPayroll.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowIndividualModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowIndividualModal(false);
+                  handleEdit(individualPayroll);
+                  setShowPayrollForm(true);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center"
+              >
+                <i className="bi bi-pencil me-2"></i>
+                Edit Payroll
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </>
   );

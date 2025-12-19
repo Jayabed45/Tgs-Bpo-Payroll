@@ -595,6 +595,101 @@ class ApiService {
     
     return response.blob();
   }
+
+  // Import API calls
+  async importTimekeepingPreview(fileData: string): Promise<{
+    success: boolean;
+    data: {
+      sheets: Record<string, { headers: string[]; rows: any[][]; rowCount: number }>;
+      sheetNames: string[];
+    };
+  }> {
+    const response = await fetch(`${API_BASE_URL}/export/import-preview`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ fileData }),
+    });
+    return this.handleResponse(response);
+  }
+
+  async importTimekeeping(fileData: string, cutoffStart: string, cutoffEnd: string): Promise<{
+    success: boolean;
+    message: string;
+    results: {
+      created: number;
+      updated: number;
+      errors: string[];
+      processed: any[];
+    };
+  }> {
+    const response = await fetch(`${API_BASE_URL}/export/import`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ fileData, cutoffStart, cutoffEnd }),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Imported Payroll Files API calls
+  async saveImportedPayroll(fileData: string, cutoffStart: string, cutoffEnd: string, fileName?: string): Promise<{
+    success: boolean;
+    message: string;
+    importedPayroll: any;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/export/imported-payrolls`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ fileData, cutoffStart, cutoffEnd, fileName }),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getImportedPayrolls(): Promise<{
+    success: boolean;
+    importedPayrolls: any[];
+  }> {
+    const response = await fetch(`${API_BASE_URL}/export/imported-payrolls`, {
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getImportedPayroll(id: string): Promise<{
+    success: boolean;
+    importedPayroll: any;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/export/imported-payrolls/${id}`, {
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async deleteImportedPayroll(id: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/export/imported-payrolls/${id}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async exportImportedPayroll(id: string): Promise<Blob> {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/export/imported-payrolls/${id}/export`, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+    
+    return response.blob();
+  }
 }
 
 export const apiService = new ApiService()
