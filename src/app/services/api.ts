@@ -575,6 +575,23 @@ class ApiService {
   }
 
   // Export API calls
+  async exportTemplate(): Promise<Blob> {
+    const token = localStorage.getItem('token');
+    const url = `${API_BASE_URL}/export/template`;
+    const response = await fetch(url, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+    
+    return response.blob();
+  }
+
   async exportTimekeeping(cutoffStart?: string, cutoffEnd?: string): Promise<Blob> {
     const token = localStorage.getItem('token');
     const params = new URLSearchParams();

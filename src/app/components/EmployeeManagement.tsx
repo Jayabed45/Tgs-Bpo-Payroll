@@ -15,6 +15,7 @@ interface Department {
 
 interface Employee {
   id: string;
+  employeeCode?: string; // Short readable code like EMP001
   name: string;
   position: string;
   salary: number;

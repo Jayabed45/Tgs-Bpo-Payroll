@@ -181,8 +181,17 @@ router.post('/', verifyAdminToken, async (req, res) => {
       return res.status(400).json({ error: 'Employee with this email already exists' });
     }
 
+    // Generate employee code if not provided
+    if (!employeeData.employeeCode) {
+      // Get the count of existing employees to generate the next code
+      const employeeCount = await employeesCollection.countDocuments({ isActive: true });
+      employeeData.employeeCode = String(employeeCount + 1).padStart(5, '0');
+    }
+
     // Insert employee
-    const result = await employeesCollection.insertOne(employee.toMongoDoc());
+    const employeeDoc = employee.toMongoDoc();
+    employeeDoc.employeeCode = employeeData.employeeCode;
+    const result = await employeesCollection.insertOne(employeeDoc);
 
     const createdEmployee = {
       id: result.insertedId.toString(),
@@ -310,6 +319,9 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
     const importedEmployees = [];
     let importedCount = 0;
 
+    // Get current employee count for code generation
+    const currentEmployeeCount = await employeesCollection.countDocuments({ isActive: true });
+
     // Process each employee
     for (let i = 0; i < employees.length; i++) {
       const employeeData = employees[i];
@@ -336,8 +348,15 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
           continue;
         }
 
+        // Generate employee code if not provided
+        if (!employeeData.employeeCode) {
+          employeeData.employeeCode = String(currentEmployeeCount + importedCount + 1).padStart(5, '0');
+        }
+
         // Insert employee
-        const result = await employeesCollection.insertOne(employee.toMongoDoc());
+        const employeeDoc = employee.toMongoDoc();
+        employeeDoc.employeeCode = employeeData.employeeCode;
+        const result = await employeesCollection.insertOne(employeeDoc);
         
         const createdEmployee = {
           id: result.insertedId.toString(),

@@ -100,6 +100,168 @@ function setColumnWidths(sheet, widths) {
   });
 }
 
+// Normalize employee codes to numeric 5-digit IDs
+function formatEmployeeCode(code, index) {
+  if (code !== undefined && code !== null) {
+    const str = String(code);
+    const match = str.match(/(\d+)/);
+    if (match) {
+      return String(parseInt(match[1], 10)).padStart(5, '0');
+    }
+    return str; // fallback to original if no digits at all
+  }
+  // fallback if no code provided: use sequential index
+  return String(index).padStart(5, '0');
+}
+
+// Export template with ALL employees (regardless of payroll records)
+router.get('/template', verifyAdminToken, async (req, res) => {
+  try {
+    const client = await clientPromise;
+    const db = client.db();
+    const employeesCollection = db.collection('employees');
+    const departmentsCollection = db.collection('departments');
+
+    // Get ALL active employees
+    const employees = await employeesCollection.find({ isActive: true }).toArray();
+    
+    if (employees.length === 0) {
+      return res.status(404).json({ error: 'No employees found' });
+    }
+
+    // Get all departments for site location lookup
+    const departments = await departmentsCollection.find({}).toArray();
+    const departmentMap = new Map(departments.map(d => [d._id.toString(), d]));
+
+    // Sort employees alphabetically
+    const sortedEmployees = employees.sort((a, b) => {
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    // Create employee code mapping
+    const employeeCodeMap = new Map();
+    sortedEmployees.forEach((emp, index) => {
+      const employeeCode = formatEmployeeCode(emp.employeeCode, index + 1);
+      employeeCodeMap.set(emp._id.toString(), employeeCode);
+    });
+
+    // Use current month as default date range
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const dates = getDatesBetween(startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]);
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    // Removed: SSS Contribution Table (per requirements)
+
+    // ========== Sheet 2: Total Hours - Summary ==========
+    const summaryHeader = ['Emp ID', 'Employee Name'];
+    dates.forEach(d => {
+      const day = d.getDate();
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = monthNames[d.getMonth()];
+      summaryHeader.push(`${day}-${month}-`);
+    });
+    summaryHeader.push('Grand Total');
+
+    const summaryData = [summaryHeader];
+    
+    sortedEmployees.forEach((emp) => {
+      const employeeCode = employeeCodeMap.get(emp._id.toString()) || '';
+      const row = [employeeCode, emp.name || ''];
+      
+      // Add empty cells for each date
+      dates.forEach(() => row.push(null));
+      
+      // Grand Total - empty for template
+      row.push(null);
+      summaryData.push(row);
+    });
+    
+    // Add Grand Total row
+    const grandTotalRow = ['', 'Grand Total'];
+    dates.forEach(() => grandTotalRow.push(null));
+    grandTotalRow.push(null);
+    summaryData.push(grandTotalRow);
+    
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+    const summaryWidths = [80, 180];
+    dates.forEach(() => summaryWidths.push(65));
+    summaryWidths.push(85);
+    setColumnWidths(summarySheet, summaryWidths);
+    XLSX.utils.book_append_sheet(wb, summarySheet, 'Total Hours - Summary');
+
+    // Removed: Hourly (Payroll Breakdown) sheet (per requirements)
+
+    // ========== Sheet 4: OT ==========
+    const otData = [['Emp ID', "Employee's Name", 'Overtime Hours', 'RD OT (within first 8hrs)', 'Regular OT', 'Special Non Working Holiday OT', 'Grand Total']];
+    
+    sortedEmployees.forEach((emp) => {
+      const employeeCode = employeeCodeMap.get(emp._id.toString()) || '';
+      otData.push([employeeCode, emp.name || '', null, null, null, null, null]);
+    });
+    
+    otData.push(['', 'Grand Total', null, null, null, null, null]);
+    
+    const otSheet = XLSX.utils.aoa_to_sheet(otData);
+    setColumnWidths(otSheet, [80, 180, 110, 170, 90, 220, 85]);
+    XLSX.utils.book_append_sheet(wb, otSheet, 'OT');
+
+    // ========== Sheet 5: Special Holiday ==========
+    const shHeader = ['Emp ID', "Employee's Name", 'Site Location', 'Total SH'];
+    const shData = [shHeader];
+    
+    sortedEmployees.forEach((emp) => {
+      const employeeCode = employeeCodeMap.get(emp._id.toString()) || '';
+      let siteLocation = '';
+      const deptId = emp.departmentId?.toString ? emp.departmentId.toString() : emp.departmentId;
+      if (deptId) {
+        const dept = departmentMap.get(deptId);
+        if (dept) {
+          siteLocation = dept.siteLocation || '';
+        }
+      }
+      shData.push([employeeCode, emp.name || '', siteLocation, null]);
+    });
+    
+    shData.push(['', 'Grand Total', '', null]);
+    
+    const shSheet = XLSX.utils.aoa_to_sheet(shData);
+    setColumnWidths(shSheet, [80, 180, 100, 80]);
+    XLSX.utils.book_append_sheet(wb, shSheet, 'Special Holiday');
+
+    // ========== Sheet 6: SIL_Offset ==========
+    const silData = [['Employee ID', 'Employee Name', 'Compensatory Time Off (CTO)', 'PH Holidays _ Not Working on a Regular holiday', 'SIL Credit (Additional based on Tenure)', 'SIL Credits', 'Grand Total']];
+    
+    sortedEmployees.forEach((emp) => {
+      const employeeCode = employeeCodeMap.get(emp._id.toString()) || '';
+      silData.push([employeeCode, emp.name || '', null, null, null, null, null]);
+    });
+    
+    silData.push([null, 'Grand Total', null, null, null, null, null]);
+    
+    const silSheet = XLSX.utils.aoa_to_sheet(silData);
+    setColumnWidths(silSheet, [90, 180, 180, 280, 240, 80, 85]);
+    XLSX.utils.book_append_sheet(wb, silSheet, 'SIL_Offset');
+
+    // Generate buffer
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    // Set response headers
+    const filename = `Payroll-Template_${now.toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+
+  } catch (error) {
+    console.error('Export template error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Export timekeeping data as Excel (matching the template format)
 router.get('/timekeeping', verifyAdminToken, async (req, res) => {
   try {
@@ -170,15 +332,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     // Create workbook
     const wb = XLSX.utils.book_new();
 
-    // ========== Sheet 1: SSS Contribution Table ==========
-    const sssData = [['Range of Compensation', '', 'EE Contribution', 'ER']];
-    SSS_TABLE.forEach(row => {
-      sssData.push([row.min, row.max, row.ee, row.er]);
-    });
-    const sssSheet = XLSX.utils.aoa_to_sheet(sssData);
-    // Set column widths for SSS sheet (in pixels)
-    setColumnWidths(sssSheet, [140, 100, 110, 80]);
-    XLSX.utils.book_append_sheet(wb, sssSheet, 'SSS Contribution Table');
+    // Removed: SSS Contribution Table (per requirements)
 
     // Helper function to get employee from map (handles both string and ObjectId)
     const getEmployee = (employeeId) => {
@@ -200,11 +354,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     const employeeCodeMap = new Map();
     sortedPayrolls.forEach((p, index) => {
       const emp = getEmployee(p.employeeId);
-      let employeeCode = p.employeeCode || emp.employeeCode || '';
-      if (!employeeCode) {
-        // Generate a code like "EMP001", "EMP002", etc. based on sorted order
-        employeeCode = `EMP${String(index + 1).padStart(3, '0')}`;
-      }
+      const employeeCode = formatEmployeeCode(p.employeeCode || emp.employeeCode, index + 1);
       const empId = p.employeeId?.toString ? p.employeeId.toString() : p.employeeId;
       employeeCodeMap.set(empId, employeeCode);
     });
@@ -289,134 +439,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     setColumnWidths(summarySheet, summaryWidths);
     XLSX.utils.book_append_sheet(wb, summarySheet, 'Total Hours - Summary');
 
-    // ========== Sheet 3: Hourly (Payroll Breakdown) ==========
-    // Build header row with employee names
-    const hourlyHeader = ['TGS BPO', ''];
-    payrolls.forEach(p => {
-      const emp = getEmployee(p.employeeId);
-      hourlyHeader.push(p.employeeName || emp.name || '');
-    });
-    
-    const hourlyData = [hourlyHeader];
-    
-    // Row 2: Position/Role
-    const roleRow = ['', 'Official Role:'];
-    payrolls.forEach(p => {
-      const emp = getEmployee(p.employeeId);
-      roleRow.push(emp.position || '');
-    });
-    hourlyData.push(roleRow);
-    
-    // Row 3: Site Location
-    const siteRow = ['', 'Site Location:'];
-    payrolls.forEach(p => {
-      const emp = getEmployee(p.employeeId);
-      // Get site location from department
-      let siteLocation = '';
-      const deptId = emp.departmentId?.toString ? emp.departmentId.toString() : emp.departmentId;
-      if (deptId) {
-        const dept = departmentMap.get(deptId);
-        if (dept) {
-          siteLocation = dept.siteLocation || '';
-        }
-      }
-      // Fallback to payroll or employee siteLocation if department lookup fails
-      if (!siteLocation) {
-        siteLocation = p.siteLocation || emp.siteLocation || '';
-      }
-      siteRow.push(siteLocation);
-    });
-    hourlyData.push(siteRow);
-    
-    // Row 4: Cutoff Period
-    const cutoffRow = ['', 'Cutoff Period:'];
-    payrolls.forEach(p => {
-      cutoffRow.push(`${p.cutoffStart || ''} to ${p.cutoffEnd || ''}`);
-    });
-    hourlyData.push(cutoffRow);
-    
-    // Empty row
-    hourlyData.push([]);
-    
-    // Payroll breakdown rows
-    const basicSalaryRow = ['Basic Salary', 'Php'];
-    payrolls.forEach(p => basicSalaryRow.push(p.basicSalary || 0));
-    hourlyData.push(basicSalaryRow);
-    
-    const workedHoursRow = ['Worked Hours', 'hrs'];
-    payrolls.forEach(p => workedHoursRow.push(p.workedHours || 0));
-    hourlyData.push(workedHoursRow);
-    
-    const overtimeRow = ['Overtime Hours', 'hrs'];
-    payrolls.forEach(p => overtimeRow.push(p.overtimeHours || 0));
-    hourlyData.push(overtimeRow);
-    
-    const holidayPayRow = ['Holiday Pay', 'Php'];
-    payrolls.forEach(p => holidayPayRow.push(p.holidayPay || 0));
-    hourlyData.push(holidayPayRow);
-    
-    const nightDiffRow = ['Night Differential', 'Php'];
-    payrolls.forEach(p => nightDiffRow.push(p.nightDifferential || 0));
-    hourlyData.push(nightDiffRow);
-    
-    const salaryAdjRow = ['Salary Adjustment', 'Php'];
-    payrolls.forEach(p => salaryAdjRow.push(p.salaryAdjustment || 0));
-    hourlyData.push(salaryAdjRow);
-    
-    // Empty row before deductions
-    hourlyData.push([]);
-    hourlyData.push(['DEDUCTIONS', '']);
-    
-    const absencesRow = ['Absences', 'Php'];
-    payrolls.forEach(p => absencesRow.push(p.absences || 0));
-    hourlyData.push(absencesRow);
-    
-    const lateRow = ['Late Deductions', 'Php'];
-    payrolls.forEach(p => lateRow.push(p.lateDeductions || 0));
-    hourlyData.push(lateRow);
-    
-    const sssRow = ['SSS Contribution', 'Php'];
-    payrolls.forEach(p => sssRow.push(p.sssContribution || 0));
-    hourlyData.push(sssRow);
-    
-    const philhealthRow = ['PhilHealth', 'Php'];
-    payrolls.forEach(p => philhealthRow.push(p.philhealthContribution || 0));
-    hourlyData.push(philhealthRow);
-    
-    const pagibigRow = ['Pag-IBIG', 'Php'];
-    payrolls.forEach(p => pagibigRow.push(p.pagibigContribution || 0));
-    hourlyData.push(pagibigRow);
-    
-    const taxRow = ['Withholding Tax', 'Php'];
-    payrolls.forEach(p => taxRow.push(p.withholdingTax || 0));
-    hourlyData.push(taxRow);
-    
-    // Empty row before totals
-    hourlyData.push([]);
-    hourlyData.push(['SUMMARY', '']);
-    
-    const grossPayRow = ['Gross Pay', 'Php'];
-    payrolls.forEach(p => grossPayRow.push(p.grossPay || 0));
-    hourlyData.push(grossPayRow);
-    
-    const totalDeductionsRow = ['Total Deductions', 'Php'];
-    payrolls.forEach(p => totalDeductionsRow.push(p.totalDeductions || 0));
-    hourlyData.push(totalDeductionsRow);
-    
-    const netPayRow = ['Net Pay', 'Php'];
-    payrolls.forEach(p => netPayRow.push(p.netPay || 0));
-    hourlyData.push(netPayRow);
-    
-    const statusRow = ['Status', ''];
-    payrolls.forEach(p => statusRow.push(p.status || 'pending'));
-    hourlyData.push(statusRow);
-    
-    const hourlySheet = XLSX.utils.aoa_to_sheet(hourlyData);
-    // Set column widths for Hourly sheet (in pixels)
-    const hourlyWidths = [140, 50]; // Row label, Unit
-    payrolls.forEach(() => hourlyWidths.push(120)); // Employee columns
-    setColumnWidths(hourlySheet, hourlyWidths);
-    XLSX.utils.book_append_sheet(wb, hourlySheet, 'Hourly');
+    // Removed: Hourly (Payroll Breakdown) sheet (per requirements)
 
     // ========== Sheet 4: OT ==========
     const otData = [['Emp ID', "Employee's Name", 'Overtime Hours', 'RD OT (within first 8hrs)', 'Regular OT', 'Special Non Working Holiday OT', 'Grand Total']];
@@ -1168,7 +1191,9 @@ router.get('/imported-payrolls/:id/export', verifyAdminToken, async (req, res) =
     // Create workbook from stored sheets
     const wb = XLSX.utils.book_new();
     
-    importedPayroll.sheetNames.forEach(sheetName => {
+    importedPayroll.sheetNames
+      .filter(name => name !== 'SSS Contribution Table' && name !== 'Hourly')
+      .forEach(sheetName => {
       const sheetData = importedPayroll.sheets[sheetName];
       if (sheetData) {
         // Combine headers and rows

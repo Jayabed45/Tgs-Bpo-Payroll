@@ -5,6 +5,7 @@ import { calculateSSS, calculatePhilHealth, calculatePagIBIG, calculateWithholdi
 
 interface Employee {
   id: string;
+  employeeCode?: string; // Short readable code like EMP001
   name: string;
   position: string;
   salary: number;
@@ -248,6 +249,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const [exportLoading, setExportLoading] = useState(false);
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
+  const [templateLoading, setTemplateLoading] = useState(false);
 
   // Import states
   const [showImportModal, setShowImportModal] = useState(false);
@@ -371,6 +373,40 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     }
   };
 
+  // Export template with ALL employees
+  const handleExportTemplate = async () => {
+    if (employees.length === 0) {
+      showModalMessage('warning', 'No Employees', 'No employees found to export. Please add employees first.');
+      return;
+    }
+
+    setTemplateLoading(true);
+    try {
+      const blob = await apiService.exportTemplate();
+      
+      // Generate filename
+      const today = new Date().toISOString().split('T')[0];
+      const filename = `Payroll-Template_${today}.xlsx`;
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      showModalMessage('success', 'Template Exported', `Successfully exported payroll template with all ${employees.length} employees!\n\nThis template includes all active employees from Employee Management, ready for you to fill in payroll data.`);
+    } catch (error: any) {
+      console.error('Export template error:', error);
+      showModalMessage('error', 'Export Failed', error.message || 'Failed to export template.');
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
   // Export timekeeping data to Excel
   const handleExportTimekeeping = async () => {
     if (payrolls.length === 0) {
@@ -380,6 +416,23 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
     setExportLoading(true);
     try {
+      // Count how many payrolls will be exported based on date filter
+      let exportCount = payrolls.length;
+      if (exportStartDate && exportEndDate) {
+        exportCount = payrolls.filter(p => {
+          const pStart = p.cutoffStart;
+          const pEnd = p.cutoffEnd;
+          // Check if payroll overlaps with export date range
+          return pStart <= exportEndDate && pEnd >= exportStartDate;
+        }).length;
+        
+        if (exportCount === 0) {
+          showModalMessage('warning', 'No Records in Date Range', `No payroll records found for the date range ${exportStartDate} to ${exportEndDate}.\n\nTip: Clear the date filters to export all ${payrolls.length} payroll records.`);
+          setExportLoading(false);
+          return;
+        }
+      }
+      
       // Export with date filter if provided
       const blob = await apiService.exportTimekeeping(
         exportStartDate || undefined,
@@ -406,9 +459,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       document.body.removeChild(a);
       
       const dateRangeMsg = exportStartDate && exportEndDate 
-        ? ` for ${exportStartDate} to ${exportEndDate}` 
-        : '';
-      showModalMessage('success', 'Export Complete', `Exported payroll records${dateRangeMsg} successfully!`);
+        ? ` (${exportCount} records for ${exportStartDate} to ${exportEndDate})` 
+        : ` (all ${exportCount} records)`;
+      showModalMessage('success', 'Export Complete', `Successfully exported payroll data${dateRangeMsg}!`);
     } catch (error: any) {
       console.error('Export error:', error);
       showModalMessage('error', 'Export Failed', error.message || 'Failed to export timekeeping data.');
@@ -629,6 +682,14 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   const convertPayrollsToSheets = (payrollList: any[]) => {
     if (!payrollList || payrollList.length === 0) return null;
 
+    // Normalize legacy codes like "EMP001" -> "00001"
+    const normalizeEmployeeCode = (code: string) => {
+      if (!code) return '';
+      const m = code.match(/^\s*EMP(\d+)\s*$/i);
+      if (m) return String(parseInt(m[1], 10)).padStart(5, '0');
+      return code;
+    };
+
     // Get unique cutoff dates to create date columns
     const allDates = new Set<string>();
     payrollList.forEach(p => {
@@ -647,7 +708,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     }), 'Grand Total'];
     
     const summaryRows = payrollList.map(p => {
-      const row = [p.employeeCode || '', p.employeeName || ''];
+      const row = [normalizeEmployeeCode(p.employeeCode || ''), p.employeeName || ''];
       sortedDates.forEach(date => {
         row.push(p.dailyHours?.[date] || '');
       });
@@ -658,7 +719,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     // Sheet 2: OT (Overtime)
     const otHeaders = ['Emp ID', "Employee's Name", 'Overtime Hours', 'RD OT', 'Regular OT', 'Special Holiday OT', 'Grand Total'];
     const otRows = payrollList.map(p => [
-      p.employeeCode || '',
+      normalizeEmployeeCode(p.employeeCode || ''),
       p.employeeName || '',
       p.overtimeHours || '',
       p.restDayOT || '',
@@ -684,7 +745,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     }), 'Total SH'];
     
     const shRows = payrollList.map(p => {
-      const row = [p.employeeCode || '', p.employeeName || '', p.siteLocation || ''];
+      const row = [normalizeEmployeeCode(p.employeeCode || ''), p.employeeName || '', p.siteLocation || ''];
       sortedSHDates.forEach(date => {
         row.push(p.specialHolidayDates?.[date] || '');
       });
@@ -695,7 +756,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     // Sheet 4: SIL_Offset
     const silHeaders = ['Employee ID', 'Employee Name', 'CTO', 'PH Holidays Not Working', 'SIL Credit (Tenure)', 'SIL Credits', 'Grand Total'];
     const silRows = payrollList.map(p => [
-      p.employeeCode || '',
+      normalizeEmployeeCode(p.employeeCode || ''),
       p.employeeName || '',
       p.ctoHours || '',
       p.phHolidayNotWorking || '',
@@ -957,6 +1018,12 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       return;
     }
 
+    // Warn if worked hours is not filled (important for export)
+    if (formData.employeeId !== 'all' && !formData.workedHours) {
+      showModalMessage('warning', 'Worked Hours Not Entered', 'You have not entered "Worked Hours". This employee will appear in the export but the hours columns will be empty. Do you want to continue?\n\nTip: Enter the total hours worked to see data in the exported Excel file.');
+      return;
+    }
+
     if (editingPayroll && editingPayroll.status === 'completed') {
       showModalMessage('warning', 'Cannot Process', 'Completed payrolls cannot be processed. Please contact an administrator if changes are needed.');
       return;
@@ -1059,7 +1126,8 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         showModalMessage('success', 'Success!', 'Payroll updated and processed successfully! Status changed to "Processed"');
       } else {
         await apiService.createPayroll(payrollData);
-        showModalMessage('success', 'Success!', 'Payroll processed successfully! Status changed to "Processed"');
+        const hoursInfo = formData.workedHours ? `\n\n✅ This employee will appear in your Excel export with ${formData.workedHours} hours in the Grand Total column.` : '';
+        showModalMessage('success', 'Success!', `Payroll processed successfully! Status changed to "Processed"${hoursInfo}`);
         }
       }
       
@@ -1554,6 +1622,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       Worked Hours
+                      <span className="ml-2 text-xs text-red-600 font-semibold">* Required for Export</span>
                     </label>
                 <input
                   type="number"
@@ -1562,9 +1631,14 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                   onChange={handleInputChange}
                   min="0"
                   step="0.5"
-                      placeholder="Hours"
+                      placeholder="Enter total hours worked (e.g., 160)"
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                 />
+                    {!formData.workedHours && (
+                      <div className="mt-1 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+                        💡 <strong>Tip:</strong> Enter the total hours worked for this payroll period. This will appear in the "Grand Total" column when you export to Excel.
+                      </div>
+                    )}
               </div>
                   
                   <div className="space-y-2">
@@ -2265,34 +2339,82 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
       {/* Export/Import Section */}
       <div className="bg-white shadow rounded-lg p-4">
+       
+        {(exportStartDate || exportEndDate) && (
+          <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded-md text-xs text-orange-800">
+            <strong>⚠️ Date Filter Active:</strong> Only payroll records with cutoff dates between {exportStartDate || '(not set)'} and {exportEndDate || '(not set)'} will be exported. 
+            <button 
+              onClick={() => { setExportStartDate(''); setExportEndDate(''); }}
+              className="ml-2 underline font-semibold hover:text-orange-900"
+            >
+              Clear filters to export all {payrolls.length} records
+            </button>
+          </div>
+        )}
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-[140px]">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Start Date
+              {exportStartDate && <span className="ml-1 text-orange-600">●</span>}
+            </label>
             <input
               type="date"
               value={exportStartDate}
               onChange={(e) => setExportStartDate(e.target.value)}
               className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-green-500"
+              placeholder="Optional"
             />
           </div>
           <div className="w-[140px]">
-            <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              End Date
+              {exportEndDate && <span className="ml-1 text-orange-600">●</span>}
+            </label>
             <input
               type="date"
               value={exportEndDate}
               onChange={(e) => setExportEndDate(e.target.value)}
               className="w-full px-2 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 focus:ring-2 focus:ring-green-500"
+              placeholder="Optional"
             />
           </div>
+          {(exportStartDate || exportEndDate) && (
+            <button
+              onClick={() => {
+                setExportStartDate('');
+                setExportEndDate('');
+              }}
+              className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300"
+              title="Clear date filters to export all payroll records"
+            >
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear Filters
+            </button>
+          )}
+          <button
+            onClick={handleExportTemplate}
+            disabled={templateLoading || employees.length === 0}
+            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+            title="Export template with ALL employees from Employee Management"
+          >
+            {templateLoading ? (
+              <><svg className="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Exporting...</>
+            ) : (
+              <><svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Export Template</>
+            )}
+          </button>
           <button
             onClick={handleExportTimekeeping}
             disabled={exportLoading || payrolls.length === 0}
             className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+            title="Export payroll data with processed records"
           >
             {exportLoading ? (
               <><svg className="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Exporting...</>
             ) : (
-              <><svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>Export</>
+              <><svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>Export Data</>
             )}
           </button>
           <label className="cursor-pointer">
