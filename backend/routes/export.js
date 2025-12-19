@@ -223,7 +223,8 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     summarySheet['!cols'] = autoFitColumns(summaryData);
     if (Array.isArray(summarySheet['!cols'])) {
       summarySheet['!cols'][0] = { ...(summarySheet['!cols'][0] || {}), wch: Math.max(12, summarySheet['!cols'][0]?.wch || 0), wpx: Math.max(90, summarySheet['!cols'][0]?.wpx || 0) };
-      summarySheet['!cols'][1] = { ...(summarySheet['!cols'][1] || {}), wch: Math.max(50, summarySheet['!cols'][1]?.wch || 0), wpx: Math.max(400, summarySheet['!cols'][1]?.wpx || 0) };
+      // Force Employee Name column to a compact width
+      summarySheet['!cols'][1] = { ...(summarySheet['!cols'][1] || {}), wch: 28, wpx: 220 };
     }
     summarySheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, summarySheet, 'Total Hours - Summary');
@@ -245,7 +246,7 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     otSheet['!cols'] = autoFitColumns(otData);
     if (Array.isArray(otSheet['!cols'])) {
       otSheet['!cols'][0] = { ...(otSheet['!cols'][0] || {}), wch: Math.max(12, otSheet['!cols'][0]?.wch || 0), wpx: Math.max(90, otSheet['!cols'][0]?.wpx || 0) };
-      otSheet['!cols'][1] = { ...(otSheet['!cols'][1] || {}), wch: Math.max(50, otSheet['!cols'][1]?.wch || 0), wpx: Math.max(400, otSheet['!cols'][1]?.wpx || 0) };
+      otSheet['!cols'][1] = { ...(otSheet['!cols'][1] || {}), wch: Math.max(28, otSheet['!cols'][1]?.wch || 0), wpx: Math.max(220, otSheet['!cols'][1]?.wpx || 0) };
     }
     otSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, otSheet, 'OT');
@@ -274,7 +275,7 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     shSheet['!cols'] = autoFitColumns(shData);
     if (Array.isArray(shSheet['!cols'])) {
       shSheet['!cols'][0] = { ...(shSheet['!cols'][0] || {}), wch: Math.max(12, shSheet['!cols'][0]?.wch || 0), wpx: Math.max(90, shSheet['!cols'][0]?.wpx || 0) };
-      shSheet['!cols'][1] = { ...(shSheet['!cols'][1] || {}), wch: Math.max(50, shSheet['!cols'][1]?.wch || 0), wpx: Math.max(400, shSheet['!cols'][1]?.wpx || 0) };
+      shSheet['!cols'][1] = { ...(shSheet['!cols'][1] || {}), wch: Math.max(28, shSheet['!cols'][1]?.wch || 0), wpx: Math.max(220, shSheet['!cols'][1]?.wpx || 0) };
     }
     shSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, shSheet, 'Special Holiday');
@@ -294,7 +295,7 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     silSheet['!cols'] = autoFitColumns(silData);
     if (Array.isArray(silSheet['!cols'])) {
       silSheet['!cols'][0] = { ...(silSheet['!cols'][0] || {}), wch: Math.max(12, silSheet['!cols'][0]?.wch || 0), wpx: Math.max(90, silSheet['!cols'][0]?.wpx || 0) };
-      silSheet['!cols'][1] = { ...(silSheet['!cols'][1] || {}), wch: Math.max(50, silSheet['!cols'][1]?.wch || 0), wpx: Math.max(400, silSheet['!cols'][1]?.wpx || 0) };
+      silSheet['!cols'][1] = { ...(silSheet['!cols'][1] || {}), wch: Math.max(28, silSheet['!cols'][1]?.wch || 0), wpx: Math.max(220, silSheet['!cols'][1]?.wpx || 0) };
     }
     silSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, silSheet, 'SIL_Offset');
@@ -493,7 +494,8 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     summarySheet['!cols'] = autoFitColumns(summaryData);
     if (Array.isArray(summarySheet['!cols'])) {
       summarySheet['!cols'][0] = { ...(summarySheet['!cols'][0] || {}), wch: Math.max(12, summarySheet['!cols'][0]?.wch || 0), wpx: Math.max(84, summarySheet['!cols'][0]?.wpx || 0) };
-      summarySheet['!cols'][1] = { ...(summarySheet['!cols'][1] || {}), wch: Math.max(40, summarySheet['!cols'][1]?.wch || 0), wpx: Math.max(300, summarySheet['!cols'][1]?.wpx || 0) };
+      // Force Employee Name column to a compact width
+      summarySheet['!cols'][1] = { ...(summarySheet['!cols'][1] || {}), wch: 28, wpx: 220 };
     }
     summarySheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, summarySheet, 'Total Hours - Summary');
@@ -555,7 +557,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     otSheet['!cols'] = autoFitColumns(otData);
     if (Array.isArray(otSheet['!cols'])) {
       otSheet['!cols'][0] = { ...(otSheet['!cols'][0] || {}), wch: Math.max(12, otSheet['!cols'][0]?.wch || 0), wpx: Math.max(84, otSheet['!cols'][0]?.wpx || 0) };
-      otSheet['!cols'][1] = { ...(otSheet['!cols'][1] || {}), wch: Math.max(40, otSheet['!cols'][1]?.wch || 0), wpx: Math.max(300, otSheet['!cols'][1]?.wpx || 0) };
+      otSheet['!cols'][1] = { ...(otSheet['!cols'][1] || {}), wch: Math.max(28, otSheet['!cols'][1]?.wch || 0), wpx: Math.max(220, otSheet['!cols'][1]?.wpx || 0) };
     }
     otSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, otSheet, 'OT');
@@ -657,7 +659,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     shSheet['!cols'] = autoFitColumns(shData);
     if (Array.isArray(shSheet['!cols'])) {
       shSheet['!cols'][0] = { ...(shSheet['!cols'][0] || {}), wch: Math.max(12, shSheet['!cols'][0]?.wch || 0), wpx: Math.max(84, shSheet['!cols'][0]?.wpx || 0) };
-      shSheet['!cols'][1] = { ...(shSheet['!cols'][1] || {}), wch: Math.max(40, shSheet['!cols'][1]?.wch || 0), wpx: Math.max(300, shSheet['!cols'][1]?.wpx || 0) };
+      shSheet['!cols'][1] = { ...(shSheet['!cols'][1] || {}), wch: Math.max(28, shSheet['!cols'][1]?.wch || 0), wpx: Math.max(220, shSheet['!cols'][1]?.wpx || 0) };
     }
     shSheet['!rows'] = [{ hpx: 36 }];
     
@@ -728,7 +730,7 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     silSheet['!cols'] = autoFitColumns(silData);
     if (Array.isArray(silSheet['!cols'])) {
       silSheet['!cols'][0] = { ...(silSheet['!cols'][0] || {}), wch: Math.max(12, silSheet['!cols'][0]?.wch || 0), wpx: Math.max(84, silSheet['!cols'][0]?.wpx || 0) };
-      silSheet['!cols'][1] = { ...(silSheet['!cols'][1] || {}), wch: Math.max(40, silSheet['!cols'][1]?.wch || 0), wpx: Math.max(300, silSheet['!cols'][1]?.wpx || 0) };
+      silSheet['!cols'][1] = { ...(silSheet['!cols'][1] || {}), wch: Math.max(28, silSheet['!cols'][1]?.wch || 0), wpx: Math.max(220, silSheet['!cols'][1]?.wpx || 0) };
     }
     silSheet['!rows'] = [{ hpx: 36 }];
     XLSX.utils.book_append_sheet(wb, silSheet, 'SIL_Offset');
@@ -1310,8 +1312,9 @@ router.get('/imported-payrolls/:id/export', verifyAdminToken, async (req, res) =
         ws['!cols'] = autoFitFromData(data);
         // Ensure first two columns have reasonable minimums (Emp ID, Employee Name)
         if (Array.isArray(ws['!cols'])) {
-          ws['!cols'][0] = { ...(ws['!cols'][0] || {}), wch: Math.max(10, ws['!cols'][0]?.wch || 0), wpx: Math.max(70, ws['!cols'][0]?.wpx || 0) };
-          ws['!cols'][1] = { ...(ws['!cols'][1] || {}), wch: Math.max(25, ws['!cols'][1]?.wch || 0), wpx: Math.max(180, ws['!cols'][1]?.wpx || 0) };
+          ws['!cols'][0] = { ...(ws['!cols'][0] || {}), wch: Math.max(12, ws['!cols'][0]?.wch || 0), wpx: Math.max(90, ws['!cols'][0]?.wpx || 0) };
+          // Force Employee Name column to a compact width like other exports
+          ws['!cols'][1] = { ...(ws['!cols'][1] || {}), wch: 28, wpx: 220 };
         }
         ws['!rows'] = [{ hpx: 36 }];
         // If Special Holiday sheet, format header date columns as dates
