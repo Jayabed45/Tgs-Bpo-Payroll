@@ -175,7 +175,7 @@ class ApiService {
     
     // Provide a more user-friendly error message
     const errorMessage = lastError.message.includes('fetch') 
-      ? 'Cannot connect to backend server. Please ensure the backend is running on http://localhost:5000'
+      ? 'Cannot connect to backend server. Please ensure the backend is running'
       : `Network error: ${lastError.message}`;
     
     throw new Error(errorMessage);
@@ -207,7 +207,7 @@ class ApiService {
       } else if (response.status === 500) {
         errorMessage = 'Server error. Please try again or contact support.';
       } else if (response.status === 0 || !response.status) {
-        errorMessage = 'Network error. Please check if the backend server is running on http://localhost:5000';
+        errorMessage = 'Network error. Please check if the backend server is running';
       }
       
       throw new Error(errorMessage);
