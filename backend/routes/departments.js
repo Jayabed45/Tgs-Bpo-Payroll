@@ -4,6 +4,31 @@ const Department = require('../models/Department');
 
 const router = express.Router();
 
+// Test endpoint to check departments (no auth required)
+router.get('/test', async (req, res) => {
+  try {
+    if (!global.db) {
+      return res.status(500).json({ error: 'Database connection not available' });
+    }
+    
+    const departmentsCollection = global.db.collection('departments');
+    const count = await departmentsCollection.countDocuments();
+    const departments = await departmentsCollection.find({}).limit(5).toArray();
+    
+    res.json({ 
+      count,
+      departments: departments.map(d => ({
+        id: d._id,
+        name: d.name,
+        code: d.code
+      }))
+    });
+  } catch (error) {
+    console.error('Error in test endpoint:', error);
+    res.status(500).json({ error: 'Failed to fetch departments' });
+  }
+});
+
 // Middleware to verify admin token
 const verifyAdminToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
