@@ -152,7 +152,7 @@
 
 // export const apiService = new ApiService();
 
-const API_BASE_URL = "https://tgs-bpo-payroll.onrender.com/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://tgs-bpo-payroll.onrender.com/api"
 const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000"
 const NODE_ENV = process.env.NODE_ENV || "development"
 
