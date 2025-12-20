@@ -153,6 +153,7 @@
 // export const apiService = new ApiService();
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+console.log('API_BASE_URL:', API_BASE_URL)
 
 class ApiService {
   private async retryFetch(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
@@ -183,10 +184,13 @@ class ApiService {
 
   private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem("token")
-    return {
+    console.log('Token from localStorage:', token ? 'exists' : 'not found')
+    const headers = {
       "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
     }
+    console.log('Auth headers:', headers)
+    return headers
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
