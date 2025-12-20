@@ -1,10 +1,7 @@
 const { MongoClient } = require('mongodb');
-const path = require('path');
 
-// Load env from repo root so scripts and routes get the shared .env
-const envPath = path.resolve(__dirname, '../../.env');
-
-require('dotenv').config({ path: envPath });
+// Load env from backend directory
+require('dotenv').config();
 
 const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/tgs-payroll';
 

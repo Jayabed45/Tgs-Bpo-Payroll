@@ -5,14 +5,13 @@ const rateLimit = require('express-rate-limit');
 const { MongoClient } = require('mongodb');
 const path = require('path');
 
-// Load env from repo root (one shared .env for frontend + backend)
-const envPath = path.resolve(__dirname, '../.env');
-require('dotenv').config({ path: envPath });
+// Load env from backend directory
+require('dotenv').config();
 
 // Require MongoDB URI from env (avoid falling back to local silently)
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-  console.error(`❌ MONGODB_URI is missing. Expected in ${envPath}`);
+  console.error(`❌ MONGODB_URI is missing. Expected in ${__dirname}/.env`);
   process.exit(1);
 }
 const maskedMongoUri = MONGODB_URI.replace(/:\/\/([^@]*)@/, '://***@');
@@ -126,9 +125,14 @@ const corsOptions = {
     
     // Check if origin is in allowed list
     const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').split(',');
-    if (allowedOrigins.includes(origin) || NODE_ENV === 'development') {
+    // In development, allow localhost origins
+    if (NODE_ENV === 'development' && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.log(`CORS blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
