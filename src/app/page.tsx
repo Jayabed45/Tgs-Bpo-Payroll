@@ -31,9 +31,11 @@ export default function Home() {
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      // Ensure baseUrl ends with /api
+      const apiBaseUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
       console.log('Environment variable NEXT_PUBLIC_API_URL:', process.env.NEXT_PUBLIC_API_URL);
-      console.log('Using base URL:', baseUrl);
-      const endpoint = isCreatingAdmin ? `${baseUrl}/auth/create-admin` : `${baseUrl}/auth/login`;
+      console.log('Using base URL:', apiBaseUrl);
+      const endpoint = isCreatingAdmin ? `${apiBaseUrl}/auth/create-admin` : `${apiBaseUrl}/auth/login`;
       const body = isCreatingAdmin 
         ? { email, password, name }
         : { email, password };
