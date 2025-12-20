@@ -6,11 +6,9 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const router = useRouter();
 
@@ -33,10 +31,8 @@ export default function Home() {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
       // Ensure baseUrl ends with /api
       const apiBaseUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-      const endpoint = isCreatingAdmin ? `${apiBaseUrl}/auth/create-admin` : `${apiBaseUrl}/auth/login`;
-      const body = isCreatingAdmin 
-        ? { email, password, name }
-        : { email, password };
+      const endpoint = `${apiBaseUrl}/auth/login`;
+      const body = { email, password };
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -49,21 +45,13 @@ export default function Home() {
       const data = await response.json();
 
       if (response.ok) {
-        if (isCreatingAdmin) {
-          setSuccess(" Admin created successfully! You can now login.");
-          setIsCreatingAdmin(false);
-          setEmail("");
-          setPassword("");
-          setName("");
-        } else {
-          // Store user data and token in localStorage
-          localStorage.setItem('user', JSON.stringify(data.user));
-          localStorage.setItem('token', data.token);
-          // Redirect to admin page
-          router.push('/admin');
-        }
+        // Store user data and token in localStorage
+        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('token', data.token);
+        // Redirect to admin page
+        router.push('/admin');
       } else {
-        setError(data.error || (isCreatingAdmin ? 'Admin creation failed' : 'Login failed'));
+        setError(data.error || 'Login failed');
       }
     } catch (error) {
       setError('Network error. Please try again.');
@@ -92,29 +80,11 @@ export default function Home() {
             TGS
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            {isCreatingAdmin ? 'Create admin account' : 'Enter your credentials to access your account'}
+            Enter your credentials to access your account
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
-            {isCreatingAdmin && (
-              <div>
-                <label htmlFor="name" className="sr-only">
-                  Full Name
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  autoComplete="name"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                  placeholder="Full Name"
-                />
-              </div>
-            )}
             <div className="my-3">
               <label htmlFor="email-address" className="sr-only">
                 Email address
@@ -127,7 +97,7 @@ export default function Home() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm ${isCreatingAdmin ? '' : 'rounded-t-md'}`}
+                className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
               />
             </div>
@@ -203,27 +173,10 @@ export default function Home() {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (isCreatingAdmin ? 'Creating admin...' : 'Signing in...') : (isCreatingAdmin ? 'Create Admin' : 'Sign in')}
+              {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
         </form>
-
-        {/* Toggle between login and admin creation */}
-        <div className="mt-6 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsCreatingAdmin(!isCreatingAdmin);
-              setError("");
-              setEmail("");
-              setPassword("");
-              setName("");
-            }}
-            className="text-sm text-indigo-600 hover:text-indigo-500"
-          >
-            {isCreatingAdmin ? 'Already have an account? Sign in' : 'Create admin account'}
-          </button>
-        </div>
       </div>
     </div>
   );
