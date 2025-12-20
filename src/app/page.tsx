@@ -30,9 +30,7 @@ export default function Home() {
     setSuccess("");
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      console.log('API URL being used:', apiUrl);
-      const endpoint = isCreatingAdmin ? `${apiUrl}/auth/create-admin` : `${apiUrl}/auth/login`;
+      const endpoint = isCreatingAdmin ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/auth/create-admin` : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/auth/login`;
       const body = isCreatingAdmin 
         ? { email, password, name }
         : { email, password };
