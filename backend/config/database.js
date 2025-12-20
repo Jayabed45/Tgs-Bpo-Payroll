@@ -1,9 +1,12 @@
 const { MongoClient } = require('mongodb');
+const path = require('path');
+
+// Load env from repo root so scripts and routes get the shared .env
+const envPath = path.resolve(__dirname, '../../.env');
+
+require('dotenv').config({ path: envPath });
 
 const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/tgs-payroll';
-
-let client;
-let clientPromise;
 
 if (process.env.NODE_ENV === 'development') {
   // In development mode, use a global variable so that the value

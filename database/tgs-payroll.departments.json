@@ -1,0 +1,146 @@
+[{
+  "_id": {
+    "$oid": "68fa0048828a03885b3b78d7"
+  },
+  "name": "BPO",
+  "code": "HR",
+  "description": "this sample department in BPO",
+  "manager": "",
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-10-23T20:41:51.625Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-16T23:22:40.867Z"
+  },
+  "siteLocation": "Cebu"
+},
+{
+  "_id": {
+    "$oid": "68fa0298828a03885b3b78e2"
+  },
+  "name": "IT",
+  "code": "IT",
+  "description": "IT department  devs",
+  "manager": "",
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-12-16T23:23:14.249Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-16T23:23:14.249Z"
+  },
+  "siteLocation": "Tuburan"
+},
+{
+  "_id": {
+    "$oid": "68fa06f2828a03885b3b7934"
+  },
+  "name": "sample",
+  "code": "SAMPLE",
+  "description": "sample",
+  "manager": "",
+  "isActive": false,
+  "createdAt": {
+    "$date": "2025-10-23T10:44:02.587Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-23T11:12:02.695Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fa0f13710b977018106a70"
+  },
+  "name": "sample",
+  "code": "SAMPLE",
+  "description": "another sample",
+  "manager": "ok",
+  "isActive": false,
+  "createdAt": {
+    "$date": "2025-10-23T11:18:43.745Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-23T11:20:40.271Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fa0f54710b977018106a71"
+  },
+  "name": "sdf",
+  "code": "ASDF",
+  "description": "asdf",
+  "manager": "",
+  "isActive": false,
+  "createdAt": {
+    "$date": "2025-10-23T11:19:48.933Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-23T11:20:30.696Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fa0f63710b977018106a72"
+  },
+  "name": "Nikki Sixx Acosta",
+  "code": "2545",
+  "description": "asdfasdf",
+  "manager": "",
+  "isActive": false,
+  "createdAt": {
+    "$date": "2025-10-23T11:20:03.928Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-23T11:26:52.819Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fa11549f71613466cb3b01"
+  },
+  "name": "sample",
+  "code": "SAMPLE",
+  "description": "sampole",
+  "manager": "",
+  "isActive": false,
+  "createdAt": {
+    "$date": "2025-10-23T11:28:20.614Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-23T11:28:27.026Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fa931c6dfd02f18c3b2ddc"
+  },
+  "name": "sample",
+  "code": "SAMPLE",
+  "description": "sample",
+  "manager": "",
+  "isActive": false,
+  "createdAt": {
+    "$date": "2025-10-23T20:42:04.796Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-23T20:42:13.056Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fd7ccd60d96e668a9bc1b1"
+  },
+  "name": "sample",
+  "code": "SAMPLE",
+  "description": "",
+  "manager": "",
+  "isActive": false,
+  "createdAt": {
+    "$date": "2025-10-26T01:43:41.637Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-26T01:44:02.111Z"
+  }
+}]

@@ -3,7 +3,19 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { MongoClient } = require('mongodb');
-require('dotenv').config();
+const path = require('path');
+
+// Load env from repo root (one shared .env for frontend + backend)
+const envPath = path.resolve(__dirname, '../.env');
+require('dotenv').config({ path: envPath });
+
+// Require MongoDB URI from env (avoid falling back to local silently)
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error(`❌ MONGODB_URI is missing. Expected in ${envPath}`);
+  process.exit(1);
+}
+const maskedMongoUri = MONGODB_URI.replace(/:\/\/([^@]*)@/, '://***@');
 
 const { router: authRoutes } = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
@@ -14,8 +26,8 @@ const settingsRoutes = require('./routes/settings');
 const exportRoutes = require('./routes/export');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tgs-payroll';
+const PORT = process.env.API_PORT || process.env.PORT || 5000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Global variables for database connection
 let db;
@@ -29,7 +41,9 @@ async function connectToDatabase() {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
+    console.log(`Using Mongo URI: ${maskedMongoUri}`);
     await client.connect();
+
     db = client.db();
     
     // Test the connection
@@ -77,19 +91,54 @@ process.on('SIGTERM', async () => {
 
 // Security middleware
 
-// Rate limiting - more lenient for development
+// Helmet security headers - configurable
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
+
+// Rate limiting - configurable via environment variables
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Higher limit in development
-  message: { error: 'Too many requests, please try again later.' }
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes default
+  max: parseInt(process.env.RATE_LIMIT_MAX) || (NODE_ENV === 'production' ? 100 : 1000),
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use(limiter);
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
+// CORS configuration - secure and configurable
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000').split(',');
+    if (allowedOrigins.includes(origin) || NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['X-Total-Count'],
+  maxAge: 86400 // 24 hours
+};
+app.use(cors(corsOptions));
 
 // Body parsing middleware - increased limit for file uploads
 app.use(express.json({ limit: '50mb' }));
@@ -149,7 +198,7 @@ async function startServer() {
     app.listen(PORT, () => {
       console.log(`TGS Payroll Backend running on port ${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/api/health`);
-      console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+      console.log(`Frontend URL: ${process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}`);
       console.log(`Database: ${MONGODB_URI}`);
     });
   } catch (error) {

@@ -153,6 +153,8 @@
 // export const apiService = new ApiService();
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000"
+const NODE_ENV = process.env.NODE_ENV || "development"
 
 class ApiService {
   private async retryFetch(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
@@ -173,10 +175,15 @@ class ApiService {
       }
     }
     
-    // Provide a more user-friendly error message
+    // Provide a more user-friendly error message with environment awareness
+    const backendUrl = NODE_ENV === 'development' ? API_BASE_URL : 'backend server';
     const errorMessage = lastError.message.includes('fetch') 
-      ? 'Cannot connect to backend server. Please ensure the backend is running on http://localhost:5000'
+      ? `Cannot connect to backend server. Please ensure the backend is running on ${backendUrl}`
       : `Network error: ${lastError.message}`;
+    
+    if (NODE_ENV === 'development') {
+      console.error(`API Service Error:`, { url, error: lastError, environment: NODE_ENV });
+    }
     
     throw new Error(errorMessage);
   }
