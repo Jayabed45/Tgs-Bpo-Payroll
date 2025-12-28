@@ -344,10 +344,14 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    if (!ObjectId.isValid(id)) {
+    // Convert string ID back to ObjectId
+    let objectId;
+    try {
+      objectId = new ObjectId(id);
+    } catch (error) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Invalid department ID' 
+        error: 'Invalid department ID format' 
       });
     }
 
@@ -360,7 +364,7 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
 
     // Check if department has active employees
     const employeeCount = await employeesCollection.countDocuments({
-      departmentId: new ObjectId(id),
+      departmentId: objectId,
       isActive: true
     });
 
@@ -373,7 +377,7 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
     }
 
     const result = await departmentsCollection.updateOne(
-      { _id: new ObjectId(id) },
+      { _id: objectId },
       { 
         $set: { 
           isActive: false, 
