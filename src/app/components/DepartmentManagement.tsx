@@ -98,12 +98,12 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
       const departmentList = Array.isArray(response.departments) ? response.departments : [];
       console.log("📋 Department list:", departmentList);
       
-      if (departmentList.length > 0) {
-        console.log("🔍 First department structure:", JSON.stringify(departmentList[0], null, 2));
-        console.log("🔍 Department keys:", Object.keys(departmentList[0]));
-        console.log("🔍 Department id:", departmentList[0].id);
-        console.log("🔍 Department _id:", departmentList[0]._id);
-      }
+      // if (departmentList.length > 0) {
+      //   console.log("🔍 First department structure:", JSON.stringify(departmentList[0], null, 2));
+      //   console.log("🔍 Department keys:", Object.keys(departmentList[0]));
+      //   console.log("🔍 Department id:", departmentList[0].id);
+      //   console.log("🔍 Department _id:", departmentList[0]._id);
+      // }
       
       // Ensure all departments have proper id field
       const mappedDepartments = departmentList.map(dept => {
