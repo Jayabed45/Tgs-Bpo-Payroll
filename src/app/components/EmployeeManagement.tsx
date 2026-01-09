@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { apiService } from "../services/api";
-import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 
 interface Department {
@@ -12,6 +12,146 @@ interface Department {
   manager?: string;
   isActive: boolean;
 }
+
+const EMPLOYEE_HEADER_MAP: Record<string, string> = {
+  "Employee's Name": "name",
+  "Employee Name": "name",
+  "Bank Account Number": "bankAccountNumber",
+  "Site Location": "siteLocation",
+  "Official Role": "officialRole",
+  "Position": "position",
+  "Salary Type": "salaryType",
+  Department: "departmentName",
+  "Sub Department": "subDepartment",
+  Class: "employeeClass",
+  "L1 Head": "l1Head",
+  "L2 Head": "l2Head",
+  "Ave. # Days in a year": "averageDaysPerYear",
+  "Average # Days in a year": "averageDaysPerYear",
+  "Basic Monthly Rate": "basicMonthlyRate",
+  "Hourly Rate": "hourlyRate",
+  "Worked Days": "workingDays",
+  Absence: "absenceDays",
+  "Bi-Monthly": "biMonthlyRate",
+  "Bi Monthly": "biMonthlyRate",
+  "Complexity Allowance": "complexityAllowance",
+  "Observational Allowance": "observationalAllowance",
+  Allowance: "allowance",
+  "KPI/OT Incentive": "kpiOtIncentive",
+  "KPI OT Incentive": "kpiOtIncentive",
+  "Salary Adjustment": "salaryAdjustmentDefault",
+  "Employee ID": "employeeCode",
+  "Employee Code": "employeeCode",
+  Email: "email",
+  "Employee Email": "email",
+  "Contact Number": "contactNumber",
+  "Hire Date": "hireDate",
+};
+
+const REQUIRED_HEADERS = [
+  "Employee's Name",
+  "Bank Account Number",
+  "Site Location",
+  "Official Role",
+  "Salary Type",
+  "Department",
+  "Sub Department",
+  "Class",
+  "L1 Head",
+  "L2 Head",
+  "Basic Monthly Rate",
+];
+
+const GREEN_MANDATORY_HEADERS = [
+  "Employee's Name",
+  "Bank Account Number",
+  "Site Location",
+  "Official Role",
+  "Salary Type",
+  "Department",
+  "Sub Department",
+  "Class",
+  "L1 Head",
+  "L2 Head",
+  "Basic Monthly Rate",
+];
+
+const NUMERIC_FIELDS = new Set([
+  "averageDaysPerYear",
+  "basicMonthlyRate",
+  "hourlyRate",
+  "workingDays",
+  "absenceDays",
+  "biMonthlyRate",
+  "complexityAllowance",
+  "observationalAllowance",
+  "allowance",
+  "kpiOtIncentive",
+  "salaryAdjustmentDefault",
+]);
+
+const MAX_PREVIEW_ROWS = 10;
+
+const EMPLOYEE_TEMPLATE_HEADERS = [
+  "Employee's Name",
+  "Bank Account Number",
+  "Site Location",
+  "Official Role",
+  "Salary Type",
+  "Department",
+  "Sub Department",
+  "Class",
+  "L1 Head",
+  "L2 Head",
+  "Ave. # Days in a year",
+  "Basic Monthly Rate",
+  "Hourly Rate",
+  "Worked Days",
+  "Absence",
+  "Bi-Monthly",
+  "Complexity Allowance",
+  "Observational Allowance",
+  "Allowance",
+  "KPI/OT Incentive",
+  "Salary Adjustment",
+  "Employee ID",
+  "Email",
+  "Contact Number",
+  "Hire Date",
+];
+
+const normalizeText = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const parseNumericField = (value: unknown): number => {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+
+  const cleaned = String(value).replace(/[\s,]/g, "");
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const normalizeHireDate = (value: unknown): string => {
+  if (value === null || value === undefined || value === "") return "";
+
+  if (typeof value === "number") {
+    const dateCode = XLSX.SSF.parse_date_code(value);
+    if (dateCode) {
+      const date = new Date(Date.UTC(dateCode.y, dateCode.m - 1, dateCode.d));
+      return date.toISOString().split("T")[0];
+    }
+  }
+
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed.toISOString().split("T")[0];
+};
 
 interface Employee {
   id: string;
@@ -353,97 +493,169 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 //old deletetion method was here before add lang ug e balik 
 
   // File import functions
+  const parseEmployeeWorkbook = (file: File) => {
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      try {
+        const buffer = event.target?.result;
+        if (!buffer) {
+          setImportErrors(['Failed to read file data.']);
+          return;
+        }
+
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        if (!worksheet) {
+          setImportErrors(['The uploaded file does not contain any sheets.']);
+          return;
+        }
+
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+        if (!rows.length) {
+          setImportErrors(['The uploaded sheet is empty.']);
+          return;
+        }
+
+        const headerSet = new Set<string>();
+        rows.forEach((row) => {
+          Object.keys(row).forEach((header) => headerSet.add(header));
+        });
+        const missingHeaders = REQUIRED_HEADERS.filter((required) => !headerSet.has(required));
+        if (missingHeaders.length > 0) {
+          setImportErrors([
+            `The uploaded sheet is missing required columns: ${missingHeaders.join(', ')}`,
+          ]);
+          return;
+        }
+
+        const normalizedRows = rows
+          .map((row) => {
+            const normalized: Record<string, unknown> = {};
+
+            headerSet.forEach((header) => {
+              const key = EMPLOYEE_HEADER_MAP[header] || header;
+              const rawValue = row[header];
+
+              if (NUMERIC_FIELDS.has(key)) {
+                normalized[key] = parseNumericField(rawValue);
+              } else if (key === 'hireDate') {
+                normalized[key] = normalizeHireDate(rawValue);
+              } else {
+                normalized[key] = normalizeText(rawValue);
+              }
+            });
+
+            // Ensure department reference is preserved even if only code/name supplied
+            if (!normalized.departmentName && row['Department']) {
+              normalized.departmentName = normalizeText(row['Department']);
+            }
+
+            return normalized;
+          })
+          .filter((row) => Object.keys(row).length > 0);
+
+        if (!normalizedRows.length) {
+          setImportErrors(['No recognizable employee rows were found in the uploaded sheet.']);
+          return;
+        }
+
+        setImportPreview(normalizedRows);
+        setImportErrors([]);
+      } catch (error: any) {
+        console.error('Excel parse error:', error);
+        setImportErrors([error?.message || 'Failed to parse the uploaded file.']);
+      }
+    };
+
+    reader.onerror = () => {
+      setImportErrors(['Failed to read the selected file.']);
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file type
     const fileType = file.name.toLowerCase();
-    if (!fileType.endsWith('.csv') && !fileType.endsWith('.xlsx') && !fileType.endsWith('.xls')) {
-      setErrorModal({ open: true, message: 'Please upload a CSV or Excel file (.csv, .xlsx, .xls)' });
+    if (!fileType.endsWith('.xlsx') && !fileType.endsWith('.xls')) {
+      setErrorModal({ open: true, message: 'Please upload an Excel file (.xlsx or .xls)' });
       return;
     }
 
-    // For now, we'll handle CSV files. Excel files would need additional libraries
-    if (fileType.endsWith('.csv')) {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          if (results.errors.length > 0) {
-            setImportErrors(results.errors.map(err => `Row ${err.row}: ${err.message}`));
-          } else {
-            setImportPreview(results.data);
-            setImportErrors([]);
-          }
-        },
-        error: (error) => {
-          setImportErrors([`File parsing error: ${error.message}`]);
-        }
-      });
-    } else {
-      setErrorModal({ open: true, message: 'Excel file support coming soon. Please convert to CSV format.' });
-    }
+    parseEmployeeWorkbook(file);
+    event.target.value = '';
   };
 
-  const validateImportData = (data: any[]): { valid: any[], errors: string[] } => {
+  const validateImportData = (data: Record<string, unknown>[]): { valid: any[]; errors: string[] } => {
     const valid: any[] = [];
     const errors: string[] = [];
 
     data.forEach((row, index) => {
-      const rowNum = index + 2; // +2 because of 0-based index and header row
-      
-      // Required fields validation
-      if (!row.name || !row.position || !row.salary || !row.email) {
-        errors.push(`Row ${rowNum}: Missing required fields (name, position, salary, email)`);
+      const rowNumber = index + 2; // account for header row
+
+      const missingGreen = GREEN_MANDATORY_HEADERS.filter((header) => {
+        const key = EMPLOYEE_HEADER_MAP[header] || header;
+        const value = row[key];
+        if (NUMERIC_FIELDS.has(key)) {
+          return parseNumericField(value) <= 0;
+        }
+        return value === undefined || value === null || value === '';
+      });
+
+      if (missingGreen.length) {
+        errors.push(`Row ${rowNumber}: Missing mandatory values for ${missingGreen.join(', ')}`);
         return;
       }
 
-      // Email validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(row.email)) {
-        errors.push(`Row ${rowNum}: Invalid email format`);
-        return;
-      }
+      const departmentKey = normalizeText(row.departmentName || row.department);
+      let departmentId: string | undefined;
+      if (departmentKey) {
+        const departmentMatch = departments.find(
+          (dept) =>
+            dept.code?.toLowerCase() === departmentKey.toLowerCase() ||
+            dept.name?.toLowerCase() === departmentKey.toLowerCase()
+        );
 
-      // Salary validation
-      const salary = parseFloat(row.salary);
-      if (isNaN(salary) || salary < 0) {
-        errors.push(`Row ${rowNum}: Invalid salary amount`);
-        return;
-      }
-
-      // Working days validation
-      if (row.workingDays) {
-        const workingDays = parseInt(row.workingDays);
-        if (isNaN(workingDays) || workingDays < 0 || workingDays > 31) {
-          errors.push(`Row ${rowNum}: Invalid working days (must be 0-31)`);
+        if (departmentMatch) {
+          departmentId = departmentMatch.id;
+        } else {
+          errors.push(`Row ${rowNumber}: Department "${departmentKey}" does not match any active department`);
           return;
         }
       }
 
-      // Department validation
-      if (row.departmentId) {
-        const dept = departments.find(d => d.id === row.departmentId || d.code === row.departmentId);
-        if (!dept) {
-          errors.push(`Row ${rowNum}: Invalid department ID or code '${row.departmentId}'`);
-          return;
-        }
-      }
-
-      // Transform data to match our format
       const employeeData = {
-        name: row.name.trim(),
-        position: row.position.trim(),
-        salary: salary,
-        workingDays: parseInt(row.workingDays) || 0,
-        sssNumber: row.sssNumber?.trim() || '',
-        philhealthNumber: row.philhealthNumber?.trim() || '',
-        pagibigNumber: row.pagibigNumber?.trim() || '',
-        email: row.email.trim(),
-        contactNumber: row.contactNumber?.trim() || '',
-        hireDate: row.hireDate || new Date().toISOString().split('T')[0],
-        departmentId: row.departmentId ? (departments.find(d => d.id === row.departmentId || d.code === row.departmentId)?.id || '') : ''
+        employeeCode: normalizeText(row.employeeCode),
+        name: normalizeText(row.name),
+        bankAccountNumber: normalizeText(row.bankAccountNumber),
+        siteLocation: normalizeText(row.siteLocation),
+        position: normalizeText(row.position || row.officialRole),
+        officialRole: normalizeText(row.officialRole),
+        salaryType: normalizeText(row.salaryType),
+        departmentName: departmentKey,
+        departmentId,
+        subDepartment: normalizeText(row.subDepartment),
+        employeeClass: normalizeText(row.employeeClass),
+        l1Head: normalizeText(row.l1Head),
+        l2Head: normalizeText(row.l2Head),
+        averageDaysPerYear: parseNumericField(row.averageDaysPerYear),
+        basicMonthlyRate: parseNumericField(row.basicMonthlyRate),
+        salary: parseNumericField(row.basicMonthlyRate) || parseNumericField(row.salary),
+        hourlyRate: parseNumericField(row.hourlyRate),
+        workingDays: parseNumericField(row.workingDays),
+        absenceDays: parseNumericField(row.absenceDays || row.absence),
+        biMonthlyRate: parseNumericField(row.biMonthlyRate),
+        complexityAllowance: parseNumericField(row.complexityAllowance),
+        observationalAllowance: parseNumericField(row.observationalAllowance),
+        allowance: parseNumericField(row.allowance),
+        kpiOtIncentive: parseNumericField(row.kpiOtIncentive),
+        salaryAdjustmentDefault: parseNumericField(row.salaryAdjustmentDefault),
+        email: normalizeText(row.email),
+        contactNumber: normalizeText(row.contactNumber),
+        hireDate: normalizeHireDate(row.hireDate),
       };
 
       valid.push(employeeData);
@@ -459,7 +671,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     }
 
     const { valid, errors } = validateImportData(importPreview);
-    
+
     if (errors.length > 0) {
       setImportErrors(errors);
       return;
@@ -472,8 +684,8 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       setShowImportModal(false);
       setImportPreview([]);
       setImportErrors([]);
-      fetchEmployees(); // Refresh the list
-      onEmployeeChange?.(); // Notify parent if provided
+      fetchEmployees();
+      onEmployeeChange?.();
     } catch (error: any) {
       setErrorModal({ open: true, message: error.message || 'Import failed' });
     } finally {
@@ -482,35 +694,87 @@ const confirmDelete = async (e?: React.MouseEvent) => {
   };
 
   const downloadTemplate = () => {
-    // Get department codes for the template
-    const deptCode = departments.length > 0 ? departments[0].code : 'DEPT001';
-    
-    const template = [
-      {
-        name: 'John Doe',
-        position: 'Software Developer',
-        salary: '50000',
-        workingDays: '22',
-        sssNumber: '1234567890',
-        philhealthNumber: 'PH1234567890',
-        pagibigNumber: 'PAG1234567890',
-        email: 'john.doe@example.com',
-        contactNumber: '+639123456789',
-        hireDate: '2024-01-15',
-        departmentId: deptCode
-      }
-    ];
+    const exampleRow: Record<string, unknown> = {};
 
-    const csv = Papa.unparse(template);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    EMPLOYEE_TEMPLATE_HEADERS.forEach((header) => {
+      switch (header) {
+        case "Employee's Name":
+          exampleRow[header] = 'John Jeffersons';
+          break;
+        case 'Bank Account Number':
+          exampleRow[header] = 'UNIONBANK-000000000000';
+          break;
+        case 'Site Location':
+          exampleRow[header] = 'Cebu';
+          break;
+        case 'Official Role':
+          exampleRow[header] = 'General Manager';
+          break;
+        case 'Salary Type':
+          exampleRow[header] = 'Salaried';
+          break;
+        case 'Department':
+          exampleRow[header] = departments[0]?.code || 'DEPT001';
+          break;
+        case 'Basic Monthly Rate':
+          exampleRow[header] = 67500;
+          break;
+        case 'Hourly Rate':
+          exampleRow[header] = 775.86;
+          break;
+        case 'Worked Days':
+          exampleRow[header] = 11;
+          break;
+        case 'Bi-Monthly':
+          exampleRow[header] = 67500;
+          break;
+        case 'Complexity Allowance':
+          exampleRow[header] = 15000;
+          break;
+        case 'Observational Allowance':
+          exampleRow[header] = 0;
+          break;
+        case 'Allowance':
+          exampleRow[header] = 0;
+          break;
+        case 'KPI/OT Incentive':
+          exampleRow[header] = 0;
+          break;
+        case 'Salary Adjustment':
+          exampleRow[header] = 0;
+          break;
+        case 'Employee ID':
+          exampleRow[header] = '00001';
+          break;
+        case 'Email':
+          exampleRow[header] = 'john.jeffersons@example.com';
+          break;
+        case 'Contact Number':
+          exampleRow[header] = '+639000000000';
+          break;
+        case 'Hire Date':
+          exampleRow[header] = '2025-01-01';
+          break;
+        default:
+          exampleRow[header] = '';
+      }
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet([exampleRow], { header: EMPLOYEE_TEMPLATE_HEADERS });
+    XLSX.utils.sheet_add_aoa(worksheet, [EMPLOYEE_TEMPLATE_HEADERS], { origin: 'A1' });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Employee Master Template');
+
+    const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'employee_import_template.csv');
-    link.style.visibility = 'hidden';
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'employee_master_template.xlsx';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Drag and drop handlers
@@ -533,30 +797,12 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       const file = e.dataTransfer.files[0];
       const fileType = file.name.toLowerCase();
       
-      if (!fileType.endsWith('.csv') && !fileType.endsWith('.xlsx') && !fileType.endsWith('.xls')) {
-        setErrorModal({ open: true, message: 'Please upload a CSV or Excel file (.csv, .xlsx, .xls)' });
+      if (!fileType.endsWith('.xlsx') && !fileType.endsWith('.xls')) {
+        setErrorModal({ open: true, message: 'Please upload an Excel file (.xlsx or .xls)' });
         return;
       }
 
-      if (fileType.endsWith('.csv')) {
-        Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            if (results.errors.length > 0) {
-              setImportErrors(results.errors.map(err => `Row ${err.row}: ${err.message}`));
-            } else {
-              setImportPreview(results.data);
-              setImportErrors([]);
-            }
-          },
-          error: (error) => {
-            setImportErrors([`File parsing error: ${error.message}`]);
-          }
-        });
-      } else {
-        setErrorModal({ open: true, message: 'Excel file support coming soon. Please convert to CSV format.' });
-      }
+      parseEmployeeWorkbook(file);
     }
   };
 
@@ -1114,8 +1360,8 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                   </svg>
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900">Import Employees</h4>
-                  <p className="text-sm text-gray-600">Upload CSV file to bulk import employees</p>
+                  <h4 className="text-lg font-semibold text-gray-900">Import Employees from Excel</h4>
+                  <p className="text-sm text-gray-600">Upload an Excel file (.xlsx / .xls) to bulk import employees</p>
                 </div>
               </div>
             <button 
@@ -1141,8 +1387,16 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div className="flex-1">
-                  <h6 className="text-sm font-semibold text-blue-900 mb-1">Department Codes Available</h6>
-                  <p className="text-xs text-blue-800 mb-2">Use these department codes in your CSV file:</p>
+                  <h6 className="text-sm font-semibold text-blue-900 mb-1">Required Columns & Department Codes</h6>
+                  <p className="text-xs text-blue-800 mb-2">Match the green-highlighted columns in <span className="font-semibold">Payfile-2025-Sample.xlsx</span> or our template before importing:</p>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {GREEN_MANDATORY_HEADERS.map((header) => (
+                      <span key={header} className="inline-flex items-center px-2 py-1 rounded-md bg-green-100 text-green-800 text-xs font-medium">
+                        {header}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-blue-800 mb-2">Use these department codes in your Excel file:</p>
                   <div className="flex flex-wrap gap-2">
                     {departments.length > 0 ? (
                       departments.map((dept) => (
@@ -1161,7 +1415,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
             {/* File Upload Section */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
-                <h5 className="text-sm font-semibold text-gray-700">Upload File</h5>
+                <h5 className="text-sm font-semibold text-gray-700">Upload Excel File</h5>
                 <button
                   onClick={downloadTemplate}
                   className="text-sm text-blue-600 hover:text-blue-800 flex items-center space-x-1"
@@ -1169,7 +1423,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <span>Download Template</span>
+                  <span>Download Excel Template</span>
                 </button>
               </div>
               
@@ -1187,7 +1441,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  accept=".xlsx,.xls"
                   onChange={handleFileUpload}
                   className="hidden"
                 />
@@ -1199,11 +1453,10 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                   </svg>
                   <span className="text-sm font-medium">
-                    {dragActive ? 'Drop your CSV file here' : 'Click to upload CSV file'}
+                    {dragActive ? 'Drop your Excel file here' : 'Click to upload Excel file'}
                   </span>
                   <span className="text-xs text-gray-500">
-                    {dragActive ? 'Release to upload' : 'or drag and drop'}
-                  </span>
+                    {dragActive ? 'Release to upload' : 'or drag and drop (.xlsx / .xls)'}</span>
                 </button>
               </div>
             </div>
@@ -1339,7 +1592,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                 closeDropdown();
               }}
               className="bg-green-600 text-white p-4 rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 hover:scale-110 mb-3 flex items-center justify-center"
-              title="Import Employees from CSV"
+              title="Import Employees from Excel"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
