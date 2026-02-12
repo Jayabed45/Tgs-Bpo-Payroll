@@ -1,0 +1,151 @@
+[{
+  "_id": {
+    "$oid": "68fbdc0f2ee2796ae58d3fc2"
+  },
+  "name": "Nikki Sixx Acosta ",
+  "position": "Web Dev",
+  "salary": "1500",
+  "workingDays": "80",
+  "sssNumber": "12312",
+  "philhealthNumber": "1231",
+  "pagibigNumber": "1123",
+  "email": "admin@gmail.com",
+  "contactNumber": "9632122448",
+  "hireDate": "2025-10-25",
+  "departmentId": "68fa0298828a03885b3b78e2",
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-10-24T20:05:35.427Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-24T21:46:36.466Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fbde3f2ee2796ae58d3fc4"
+  },
+  "name": "Evelyn  Magbanua ",
+  "position": "Web Dev",
+  "salary": "11111",
+  "workingDays": "111",
+  "sssNumber": "12312313",
+  "philhealthNumber": "1312312",
+  "pagibigNumber": "3123123",
+  "email": "belenda@gmail.com",
+  "contactNumber": "234234",
+  "hireDate": "2025-10-25",
+  "departmentId": {
+    "$oid": "68fa0298828a03885b3b78e2"
+  },
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-10-24T20:14:55.481Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-24T20:14:55.481Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fd7b8460d96e668a9bc1aa"
+  },
+  "name": "Jay Yhansey A. Del Rosario",
+  "position": "Software Developer",
+  "salary": 50000,
+  "workingDays": 22,
+  "sssNumber": "1234567890",
+  "philhealthNumber": "PH1234567890",
+  "pagibigNumber": "PAG1234567890",
+  "email": "john.doe@example.com",
+  "contactNumber": "+639123456789",
+  "hireDate": "2024-01-15",
+  "departmentId": {
+    "$oid": "68fa0298828a03885b3b78e2"
+  },
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-10-26T01:38:12.051Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-26T01:38:12.051Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fd7b8460d96e668a9bc1ab"
+  },
+  "name": "Nikki Sixx Acosta",
+  "position": "HR Manager",
+  "salary": 45000,
+  "workingDays": 22,
+  "sssNumber": "0987654321",
+  "philhealthNumber": "PH0987654321",
+  "pagibigNumber": "PAG0987654321",
+  "email": "jane.smith@example.com",
+  "contactNumber": "+639098765432",
+  "hireDate": "2024-02-01",
+  "departmentId": {
+    "$oid": "68fa0048828a03885b3b78d7"
+  },
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-10-26T01:38:12.093Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-26T01:38:12.093Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fd7b8460d96e668a9bc1ac"
+  },
+  "name": "Gemry Delle Taparan",
+  "position": "Cyber Security",
+  "salary": 40000,
+  "workingDays": 22,
+  "sssNumber": "1122334455",
+  "philhealthNumber": "PH1122334455",
+  "pagibigNumber": "PAG1122334455",
+  "email": "mike.johnson@example.com",
+  "contactNumber": "+639112233445",
+  "hireDate": "2024-01-20",
+  "departmentId": {
+    "$oid": "68fa0298828a03885b3b78e2"
+  },
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-10-26T01:38:12.096Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-26T01:38:12.096Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6944f6ec6f272c39fce13b96"
+  },
+  "employeeCode": "00010",
+  "name": "please work",
+  "position": "Web Dev",
+  "salary": "1000",
+  "hourlyRate": 0,
+  "siteLocation": "",
+  "workingDays": "89",
+  "sssNumber": "1231231",
+  "philhealthNumber": "5555",
+  "pagibigNumber": "1231312",
+  "email": "crzycute400@gmail.com",
+  "contactNumber": "099356671866",
+  "hireDate": "2025-12-19",
+  "departmentId": {
+    "$oid": "68fa0048828a03885b3b78d7"
+  },
+  "isActive": true,
+  "createdAt": {
+    "$date": "2025-12-19T06:55:40.462Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-19T06:55:40.462Z"
+  }
+}]

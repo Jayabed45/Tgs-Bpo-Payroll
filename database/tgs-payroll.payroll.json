@@ -1,0 +1,237 @@
+[{
+  "_id": {
+    "$oid": "68fbefd7f54c8de89a1856eb"
+  },
+  "employeeId": "68fbde3f2ee2796ae58d3fc4",
+  "employeeName": "Evelyn  Magbanua ",
+  "departmentId": null,
+  "cutoffStart": "2025-10-25",
+  "cutoffEnd": "2025-10-31",
+  "basicSalary": 11111,
+  "workedHours": 9,
+  "overtimeHours": 70,
+  "holidayPay": 70,
+  "nightDifferential": 90,
+  "salaryAdjustment": 90,
+  "absences": 90,
+  "lateDeductions": 90,
+  "sssContribution": 500,
+  "philhealthContribution": 222.22,
+  "pagibigContribution": 222.22,
+  "withholdingTax": 1666.65,
+  "grossPay": 11181,
+  "totalDeductions": 2611.09,
+  "netPay": 8569.91,
+  "status": "processed",
+  "createdAt": {
+    "$date": "2025-10-24T21:29:59.717Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-25T21:37:10.001Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fbf353f54c8de89a1856ed"
+  },
+  "employeeId": "68fbdc0f2ee2796ae58d3fc2",
+  "employeeName": "Nikki Sixx Acosta ",
+  "departmentId": null,
+  "cutoffStart": "2025-10-25",
+  "cutoffEnd": "2025-11-25",
+  "basicSalary": 100,
+  "workedHours": 8,
+  "overtimeHours": 99,
+  "holidayPay": 99,
+  "nightDifferential": 99,
+  "salaryAdjustment": 99,
+  "absences": 99,
+  "lateDeductions": 99,
+  "sssContribution": 180,
+  "philhealthContribution": 250,
+  "pagibigContribution": 1,
+  "withholdingTax": 0,
+  "grossPay": 199,
+  "totalDeductions": 431,
+  "netPay": -232,
+  "status": "processed",
+  "createdAt": {
+    "$date": "2025-10-24T21:44:51.890Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-24T21:44:51.890Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fd7b9d60d96e668a9bc1ad"
+  },
+  "employeeId": "68fd7b8460d96e668a9bc1ac",
+  "employeeName": "Gemry Delle Taparan",
+  "departmentId": null,
+  "cutoffStart": "2025-10-26",
+  "cutoffEnd": "2025-11-26",
+  "basicSalary": 40000,
+  "workedHours": 0,
+  "overtimeHours": 0,
+  "holidayPay": 0,
+  "nightDifferential": 0,
+  "salaryAdjustment": 0,
+  "absences": 0,
+  "lateDeductions": 0,
+  "sssContribution": 1350,
+  "philhealthContribution": 1000,
+  "pagibigContribution": 100,
+  "withholdingTax": 3208.33,
+  "grossPay": 40000,
+  "totalDeductions": 5658.33,
+  "netPay": 34341.67,
+  "status": "processed",
+  "createdAt": {
+    "$date": "2025-10-26T01:38:37.339Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-26T01:38:37.339Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "68fd7c2160d96e668a9bc1af"
+  },
+  "employeeId": "68fd7b8460d96e668a9bc1aa",
+  "employeeName": "Jay Yhansey A. Del Rosario",
+  "departmentId": null,
+  "cutoffStart": "2025-10-26",
+  "cutoffEnd": "2025-11-26",
+  "basicSalary": 50000,
+  "workedHours": 0,
+  "overtimeHours": 0,
+  "holidayPay": 0,
+  "nightDifferential": 0,
+  "salaryAdjustment": 0,
+  "absences": 0,
+  "lateDeductions": 0,
+  "sssContribution": 1350,
+  "philhealthContribution": 1250,
+  "pagibigContribution": 100,
+  "withholdingTax": 5208.33,
+  "grossPay": 50000,
+  "totalDeductions": 7908.33,
+  "netPay": 42091.67,
+  "status": "processed",
+  "createdAt": {
+    "$date": "2025-10-26T01:40:49.679Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-26T01:40:49.679Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "694088e3b84435a236ae98d2"
+  },
+  "employeeId": "68fd7b8460d96e668a9bc1aa",
+  "employeeName": "Jay Yhansey A. Del Rosario",
+  "employeeCode": "",
+  "siteLocation": "",
+  "departmentId": null,
+  "cutoffStart": "2025-12-01",
+  "cutoffEnd": "2025-12-16",
+  "dailyHours": {},
+  "totalWorkedHours": 0,
+  "basicSalary": 50000,
+  "hourlyRate": 0,
+  "workedHours": 0,
+  "regularOT": 0,
+  "restDayOT": 0,
+  "specialHolidayOT": 0,
+  "overtimeHours": 0,
+  "specialHolidayHours": 0,
+  "legalHolidayHours": 0,
+  "holidayPay": 0,
+  "silHours": 0,
+  "silCredits": 0,
+  "silTenureCredits": 0,
+  "ctoHours": 0,
+  "phHolidayNotWorking": 0,
+  "soloParentLeave": 0,
+  "otherLeaves": 0,
+  "nightDifferential": 0,
+  "nightDifferentialHours": 0,
+  "referralBonus": 0,
+  "complexityAllowance": 0,
+  "observationalAllowance": 0,
+  "allowance": 0,
+  "salaryAdjustment": 0,
+  "absences": 0,
+  "lateDeductions": 0,
+  "sssContribution": 1350,
+  "philhealthContribution": 1250,
+  "pagibigContribution": 100,
+  "withholdingTax": 5208.33,
+  "grossPay": 50000,
+  "totalDeductions": 7908.33,
+  "netPay": 42091.67,
+  "status": "processed",
+  "createdAt": {
+    "$date": "2025-12-15T22:17:07.740Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-15T22:17:07.740Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6944d7f6e1579333c21f345a"
+  },
+  "employeeId": "68fd7b8460d96e668a9bc1ac",
+  "employeeName": "Gemry Delle Taparan",
+  "employeeCode": "",
+  "siteLocation": "",
+  "departmentId": null,
+  "cutoffStart": "2025-12-19",
+  "cutoffEnd": "2026-01-19",
+  "dailyHours": {},
+  "totalWorkedHours": 0,
+  "basicSalary": 40000,
+  "hourlyRate": 0,
+  "workedHours": 0,
+  "regularOT": 0,
+  "restDayOT": 0,
+  "specialHolidayOT": 0,
+  "overtimeHours": 0,
+  "specialHolidayHours": 0,
+  "specialHolidayDates": {},
+  "legalHolidayHours": 0,
+  "holidayPay": 0,
+  "silHours": 0,
+  "silCredits": 0,
+  "silTenureCredits": 0,
+  "ctoHours": 0,
+  "phHolidayNotWorking": 0,
+  "soloParentLeave": 0,
+  "otherLeaves": 0,
+  "nightDifferential": 0,
+  "nightDifferentialHours": 0,
+  "referralBonus": 0,
+  "complexityAllowance": 0,
+  "observationalAllowance": 0,
+  "allowance": 0,
+  "salaryAdjustment": 0,
+  "absences": 0,
+  "lateDeductions": 0,
+  "sssContribution": 1350,
+  "philhealthContribution": 1000,
+  "pagibigContribution": 100,
+  "withholdingTax": 3208.33,
+  "grossPay": 40000,
+  "totalDeductions": 5658.33,
+  "netPay": 34341.67,
+  "status": "processed",
+  "createdAt": {
+    "$date": "2025-12-19T04:43:34.821Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-19T04:43:34.821Z"
+  }
+}]

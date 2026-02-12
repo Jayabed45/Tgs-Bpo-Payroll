@@ -136,7 +136,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -288,14 +288,17 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
     }
   };
 
-  // Filter departments based on search query
+  // Filter departments based on search query and active status
   const filteredDepartments = departments.filter((department) => {
     const query = searchQuery.toLowerCase();
     return (
-      department.name.toLowerCase().includes(query) ||
-      department.code.toLowerCase().includes(query) ||
-      department.description?.toLowerCase().includes(query) ||
-      department.manager?.toLowerCase().includes(query)
+      department.isActive !== false && // Exclude inactive (deleted) departments
+      (
+        department.name.toLowerCase().includes(query) ||
+        department.code.toLowerCase().includes(query) ||
+        department.description?.toLowerCase().includes(query) ||
+        department.manager?.toLowerCase().includes(query)
+      )
     );
   });
 

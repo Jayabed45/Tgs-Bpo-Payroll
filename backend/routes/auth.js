@@ -5,6 +5,11 @@ const { clientPromise } = require('../config/database');
 
 const router = express.Router();
 
+// Test endpoint to check auth
+router.get('/test', (req, res) => {
+  res.json({ message: 'Auth routes are working' });
+});
+
 // Login route
 router.post('/login', async (req, res) => {
   try {

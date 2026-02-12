@@ -3,6 +3,20 @@ const { ObjectId } = require('mongodb');
 const { clientPromise } = require('../config/database');
 const Employee = require('../models/Employee');
 
+const parseNumber = (value, defaultValue = 0) => {
+  if (value === null || value === undefined || value === '') {
+    return defaultValue;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  const cleaned = String(value).replace(/[\s,]/g, '');
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+};
+
 const router = express.Router();
 
 // Middleware to verify admin token
@@ -319,6 +333,19 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
     const importedEmployees = [];
     let importedCount = 0;
 
+    const departmentsCollection = db.collection('departments');
+    const departments = await departmentsCollection.find({ isActive: true }).toArray();
+    const departmentsByKey = new Map();
+    departments.forEach((dept) => {
+      if (!dept) return;
+      if (dept.code) {
+        departmentsByKey.set(String(dept.code).trim().toLowerCase(), dept);
+      }
+      if (dept.name) {
+        departmentsByKey.set(String(dept.name).trim().toLowerCase(), dept);
+      }
+    });
+
     // Get current employee count for code generation
     const currentEmployeeCount = await employeesCollection.countDocuments({ isActive: true });
 
@@ -327,9 +354,45 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
       const employeeData = employees[i];
       
       try {
-        // Create employee instance for validation
-        const employee = new Employee(employeeData);
-        
+        const normalizedEmployee = {
+          ...employeeData,
+          name: employeeData.name?.toString().trim(),
+          bankAccountNumber: employeeData.bankAccountNumber?.toString().trim() || '',
+          position: employeeData.position?.toString().trim() || employeeData.officialRole?.toString().trim() || '',
+          siteLocation: employeeData.siteLocation?.toString().trim() || '',
+          salaryType: employeeData.salaryType?.toString().trim() || '',
+          departmentName: employeeData.departmentName?.toString().trim() || employeeData.department?.toString().trim() || '',
+          subDepartment: employeeData.subDepartment?.toString().trim() || '',
+          employeeClass: employeeData.employeeClass?.toString().trim() || employeeData.class?.toString().trim() || '',
+          l1Head: employeeData.l1Head?.toString().trim() || '',
+          l2Head: employeeData.l2Head?.toString().trim() || '',
+          averageDaysPerYear: parseNumber(employeeData.averageDaysPerYear ?? employeeData['averageDaysPerYear']),
+          basicMonthlyRate: parseNumber(employeeData.basicMonthlyRate ?? employeeData.salary),
+          salary: parseNumber(employeeData.basicMonthlyRate ?? employeeData.salary),
+          hourlyRate: parseNumber(employeeData.hourlyRate),
+          biMonthlyRate: parseNumber(employeeData.biMonthlyRate ?? employeeData['biMonthly']),
+          workingDays: parseNumber(employeeData.workingDays),
+          absenceDays: parseNumber(employeeData.absenceDays ?? employeeData.absence),
+          complexityAllowance: parseNumber(employeeData.complexityAllowance),
+          observationalAllowance: parseNumber(employeeData.observationalAllowance),
+          allowance: parseNumber(employeeData.allowance),
+          kpiOtIncentive: parseNumber(employeeData.kpiOtIncentive ?? employeeData['kpiOtIncentive']),
+          salaryAdjustmentDefault: parseNumber(employeeData.salaryAdjustmentDefault ?? employeeData.salaryAdjustment),
+          email: employeeData.email?.toString().trim() || '',
+          contactNumber: employeeData.contactNumber?.toString().trim() || '',
+          hireDate: employeeData.hireDate || employeeData.employmentDate || null,
+        };
+
+        if (!normalizedEmployee.departmentId && normalizedEmployee.departmentName) {
+          const deptKey = normalizedEmployee.departmentName.toLowerCase();
+          const matchedDept = departmentsByKey.get(deptKey);
+          if (matchedDept) {
+            normalizedEmployee.departmentId = matchedDept._id;
+          }
+        }
+
+        const employee = new Employee(normalizedEmployee);
+
         // Validate employee data
         const validationErrors = employee.validate();
         if (validationErrors.length > 0) {
@@ -338,10 +401,13 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
         }
 
         // Check if email already exists
-        const existingEmployee = await employeesCollection.findOne({ 
-          email: employee.email,
-          isActive: true
-        });
+        let existingEmployee = null;
+        if (employee.email) {
+          existingEmployee = await employeesCollection.findOne({ 
+            email: employee.email,
+            isActive: true
+          });
+        }
 
         if (existingEmployee) {
           errors.push(`Row ${i + 1}: Employee with email ${employee.email} already exists`);
@@ -356,11 +422,16 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
         // Insert employee
         const employeeDoc = employee.toMongoDoc();
         employeeDoc.employeeCode = employeeData.employeeCode;
+        if (employeeDoc.departmentId && typeof employeeDoc.departmentId === 'object' && employeeDoc.departmentId._bsontype === 'ObjectID') {
+          // keep as ObjectId
+        } else if (employeeDoc.departmentId && ObjectId.isValid(employeeDoc.departmentId)) {
+          employeeDoc.departmentId = new ObjectId(employeeDoc.departmentId);
+        }
         const result = await employeesCollection.insertOne(employeeDoc);
         
         const createdEmployee = {
           id: result.insertedId.toString(),
-          ...employeeData,
+          ...employeeDoc,
           createdAt: employee.createdAt,
           updatedAt: employee.updatedAt
         };

@@ -1,9 +1,9 @@
 const { MongoClient } = require('mongodb');
 
-const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/tgs-payroll';
+// Load env from backend directory
+require('dotenv').config();
 
-let client;
-let clientPromise;
+const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/tgs-payroll';
 
 if (process.env.NODE_ENV === 'development') {
   // In development mode, use a global variable so that the value

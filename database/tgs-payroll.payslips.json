@@ -1,0 +1,132 @@
+[{
+  "_id": {
+    "$oid": "68b7d50644c02429ce8efcd5"
+  },
+  "payrollId": "68b7d25244c02429ce8efcd4",
+  "employeeId": "68b7d1e344c02429ce8efcd3",
+  "employeeName": "Nikki Sixx Acosta ",
+  "cutoffPeriod": "9/3/2025 - 9/29/2025",
+  "netPay": 61900,
+  "generatedAt": "2025-09-03T05:41:26.299Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68c3e28940babd64d307d0fc"
+  },
+  "payrollId": "68c3e26340babd64d307d0fb",
+  "employeeId": "68c3e1f40361a95a201e1a45",
+  "employeeName": "Nikki Sixx Acosta ",
+  "cutoffPeriod": "9/15/2025 - 9/30/2025",
+  "netPay": 890,
+  "generatedAt": "2025-09-12T09:06:17.865Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68d39e0e5d2379b240f56557"
+  },
+  "payrollId": "68d39ad54f473f94f032cae3",
+  "employeeId": "68d38cbc0f3b846f16f4ed81",
+  "employeeName": "Nikki Sixx Acosta ",
+  "cutoffPeriod": "9/24/2025 - 9/27/2025",
+  "netPay": 5000,
+  "generatedAt": "2025-09-24T07:30:22.057Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68fa8b8994d47139d2577560"
+  },
+  "payrollId": "68d39a3a4f473f94f032cae2",
+  "employeeId": "68d38cbc0f3b846f16f4ed81",
+  "employeeName": "Nikki Sixx Acosta ",
+  "cutoffPeriod": "9/24/2025 - 10/30/2025",
+  "netPay": 5000,
+  "generatedAt": "2025-10-23T20:09:45.791Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68fab939f313364764baaa6a"
+  },
+  "payrollId": "68fa8baa94d47139d2577561",
+  "employeeId": "68fa0458828a03885b3b7907",
+  "employeeName": "Evelyn  Magbanua ",
+  "cutoffPeriod": "10/24/2025 - 10/31/2025",
+  "netPay": 500,
+  "generatedAt": "2025-10-23T23:24:41.943Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68fad32315b58010e77a2afe"
+  },
+  "payrollId": "68d399165f724f558244d9a8",
+  "employeeId": "68d38cbc0f3b846f16f4ed81",
+  "employeeName": "Nikki Sixx Acosta ",
+  "cutoffPeriod": "9/24/2025 - 10/10/2025",
+  "netPay": 5000,
+  "generatedAt": "2025-10-24T01:15:15.529Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68fad4f30657c05d36c4478c"
+  },
+  "payrollId": "68d39a0a5f724f558244d9a9",
+  "employeeId": "68d38cbc0f3b846f16f4ed81",
+  "employeeName": "Nikki Sixx Acosta ",
+  "cutoffPeriod": "9/24/2025 - 9/30/2025",
+  "netPay": 5000,
+  "generatedAt": "2025-10-24T01:22:59.896Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68fbefeaf54c8de89a1856ec"
+  },
+  "payrollId": "68fbefd7f54c8de89a1856eb",
+  "employeeId": "68fbde3f2ee2796ae58d3fc4",
+  "employeeName": "Evelyn  Magbanua ",
+  "cutoffPeriod": "10/25/2025 - 10/31/2025",
+  "netPay": 8569.91,
+  "generatedAt": "2025-10-24T21:30:18.875Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68fbf359f54c8de89a1856ee"
+  },
+  "payrollId": "68fbf353f54c8de89a1856ed",
+  "employeeId": "68fbdc0f2ee2796ae58d3fc2",
+  "employeeName": "Nikki Sixx Acosta ",
+  "cutoffPeriod": "10/25/2025 - 11/25/2025",
+  "netPay": -232,
+  "generatedAt": "2025-10-24T21:44:57.402Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68fd7ba260d96e668a9bc1ae"
+  },
+  "payrollId": "68fd7b9d60d96e668a9bc1ad",
+  "employeeId": "68fd7b8460d96e668a9bc1ac",
+  "employeeName": "Gemry Delle Taparan",
+  "cutoffPeriod": "10/26/2025 - 11/26/2025",
+  "netPay": 34341.67,
+  "generatedAt": "2025-10-26T01:38:42.507Z",
+  "status": "generated"
+},
+{
+  "_id": {
+    "$oid": "68fd7c2760d96e668a9bc1b0"
+  },
+  "payrollId": "68fd7c2160d96e668a9bc1af",
+  "employeeId": "68fd7b8460d96e668a9bc1aa",
+  "employeeName": "Jay Yhansey A. Del Rosario",
+  "cutoffPeriod": "10/26/2025 - 11/26/2025",
+  "netPay": 42091.67,
+  "generatedAt": "2025-10-26T01:40:55.474Z",
+  "status": "generated"
+}]

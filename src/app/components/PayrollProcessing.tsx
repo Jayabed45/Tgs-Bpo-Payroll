@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
 import { apiService } from "../services/api";
 import { calculateSSS, calculatePhilHealth, calculatePagIBIG, calculateWithholdingTax } from "../utils/philippinePayroll";
 
@@ -9,6 +10,25 @@ interface Employee {
   name: string;
   position: string;
   salary: number;
+}
+
+interface TimekeepingEmployeeData {
+  employeeId: string;
+  employeeCode?: string;
+  employeeName: string;
+  dailyHours: Record<string, number>;
+  workedHours?: number;
+  overtimeHours?: number;
+  restDayOT?: number;
+  regularOT?: number;
+  specialHolidayOT?: number;
+  siteLocation?: string;
+  specialHolidayDates?: Record<string, number>;
+  specialHolidayHours?: number;
+  ctoHours?: number;
+  phHolidayNotWorking?: number;
+  silTenureCredits?: number;
+  silCredits?: number;
 }
 
 interface PayrollProcessingProps {

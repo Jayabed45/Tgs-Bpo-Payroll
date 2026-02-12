@@ -1,0 +1,13 @@
+[{
+  "_id": {
+    "$oid": "689d4323a2984f67971ae8bf"
+  },
+  "email": "admin@tgs.com",
+  "password": "$2a$10$9TOrszaaA7ZMrX6u2znMU.5Kwuu1rNCIakSZTJkjzcE6EW3UunmqK",
+  "name": "Admin TGS",
+  "role": "admin",
+  "createdAt": {
+    "$date": "2025-08-14T02:00:03.990Z"
+  },
+  "isActive": true
+}]
