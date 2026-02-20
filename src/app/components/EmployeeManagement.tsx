@@ -1821,8 +1821,8 @@ export function EmployeeViewModal({ isOpen, onClose, employee }: EmployeeViewMod
         try {
           setLoadingPayroll(true);
           const response = await apiService.getPayrolls();
-          console.log('📊 All payrolls:', response.payrolls);
-          console.log('🔍 Looking for employee:', { id: employee.id, name: employee.name });
+          console.log('All payrolls:', response.payrolls);
+          console.log('Looking for employee:', { id: employee.id, name: employee.name });
           
           // Filter payrolls for this employee and sort by date
           const employeePayrolls = response.payrolls

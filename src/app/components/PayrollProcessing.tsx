@@ -2498,7 +2498,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                📊 {sheetName}
+                {sheetName}
                 <span className="ml-2 px-2 py-0.5 text-xs bg-gray-200 rounded-full">
                   {displayImportData.sheets[sheetName]?.rowCount || 0}
                 </span>
@@ -2706,7 +2706,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                     Back
                   </button>
                 )}
-                <span className="font-semibold mr-4">📊 {mainViewTab}</span>
+                <span className="font-semibold mr-4">{mainViewTab}</span>
                 <span className="text-green-200">{displayImportData.sheets[mainViewTab]?.rowCount || 0} rows</span>
                 {viewingImportedPayroll && (
                   <span className="ml-4 text-green-200">| {viewingImportedPayroll.fileName} ({viewingImportedPayroll.cutoffStart} to {viewingImportedPayroll.cutoffEnd})</span>

@@ -79,7 +79,7 @@ class Department {
 
   // Static method to get department statistics
   static async getDepartmentStats(db, departmentId) {
-    console.log('📊 Getting stats for department ID:', departmentId);
+    console.log('Getting stats for department ID:', departmentId);
     
     // Try both ObjectId and string formats for departmentId
     const employeeCount = await db.collection('employees')
