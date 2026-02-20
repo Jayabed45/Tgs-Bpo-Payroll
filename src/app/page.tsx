@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
@@ -62,11 +63,24 @@ export default function Home() {
   
   if (isPageLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">TGS PAYROLL SYSTEM</h1>
-          <p className="text-gray-600">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-sm w-full space-y-8">
+          <div className="text-center">
+            <div className="h-7 w-16 bg-gray-200 rounded mx-auto mb-2 animate-pulse"></div>
+            <div className="h-4 w-56 bg-gray-100 rounded mx-auto animate-pulse"></div>
+          </div>
+          <div className="space-y-4 bg-white/0">
+            <div className="h-12 bg-gray-100 rounded-md animate-pulse"></div>
+            <div className="h-12 bg-gray-100 rounded-md animate-pulse"></div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
+              </div>
+              <div className="h-4 w-36 bg-gray-100 rounded animate-pulse"></div>
+            </div>
+            <div className="h-10 bg-gray-200 rounded-md animate-pulse"></div>
+          </div>
         </div>
       </div>
     );
@@ -161,9 +175,9 @@ export default function Home() {
             </div>
 
             <div className="text-sm">
-              <a href="#" className="font-medium text-indigo-600 hover:text-indigo-500">
+              <Link href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500">
                 Forgot your password?
-              </a>
+              </Link>
             </div>
           </div>
 

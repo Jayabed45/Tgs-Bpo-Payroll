@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { apiService } from "../services/api";
 import { calculateSSS, calculatePhilHealth, calculatePagIBIG, calculateWithholdingTax } from "../utils/philippinePayroll";
+import SkeletonPage from "./SkeletonPage";
 
 interface Employee {
   id: string;
@@ -1394,11 +1395,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <SkeletonPage />;
   }
 
   // Don't render forms if they shouldn't be shown

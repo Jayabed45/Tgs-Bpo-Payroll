@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { apiService } from "../services/api";
 import * as XLSX from "xlsx";
+import SkeletonPage from "./SkeletonPage";
 
 
 interface Department {
@@ -820,11 +821,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
   });
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <SkeletonPage />;
   }
 
   return (

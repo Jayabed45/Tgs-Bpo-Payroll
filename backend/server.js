@@ -104,8 +104,15 @@ app.use(helmet({
     maxAge: 31536000,
     includeSubDomains: true,
     preload: true
-  }
+  },
+  xssFilter: false // We will set X-XSS-Protection manually below to match requirements
 }));
+
+// Set X-XSS-Protection header explicitly
+app.use((req, res, next) => {
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
 
 // Rate limiting - configurable via environment variables
 const limiter = rateLimit({

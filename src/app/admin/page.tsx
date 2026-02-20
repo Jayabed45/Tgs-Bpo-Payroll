@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
 import Dashboard from "../components/Dashboard";
+import SkeletonDashboard from "../components/SkeletonDashboard";
 import EmployeeManagement from "../components/EmployeeManagement";
 import DepartmentManagement from "../components/DepartmentManagement";
 import PayrollProcessing from "../components/PayrollProcessing";
@@ -176,9 +177,8 @@ export default function AdminPage() {
 
 
   useEffect(() => {
-    // Check if user is logged in
-    const userData = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     
     if (!userData || !token) {
       router.push('/');
@@ -188,12 +188,10 @@ export default function AdminPage() {
     setUser(JSON.parse(userData));
     fetchDashboardData();
     
-    // Update clock every second
     const clockInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
     
-    // Cleanup interval on component unmount
     return () => {
       clearInterval(clockInterval);
     };
@@ -298,6 +296,8 @@ export default function AdminPage() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('token');
     router.push('/');
   };
 
@@ -330,13 +330,13 @@ export default function AdminPage() {
 
 
 
-	if (!user || loading) {
+	if (!user) {
 		return (
 			<div className="min-h-screen flex items-center justify-center bg-gray-50">
 				<div className="text-center">
 					<div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto mb-4"></div>
 					<h1 className="text-2xl font-bold text-gray-900 mb-2">TGS PAYROLL SYSTEM</h1>
-					<p className="text-gray-600">Loading dashboard data...</p>
+					<p className="text-gray-600">Loading...</p>
 				</div>
 			</div>
 		);
@@ -362,23 +362,27 @@ export default function AdminPage() {
           <main className="p-6">
             {/* Dashboard Tab */}
             {activeTab === 'dashboard' && (
-              <Dashboard
-                monthlyPayrollData={monthlyPayrollData}
-                employeeDistribution={employeeDistribution}
-                totalEmployees={totalEmployees}
-                totalPayroll={totalPayroll}
-                pendingReports={pendingReports}
-                processedCount={processedCount}
-                completedCount={completedCount}
-                activityTimestamps={activityTimestamps}
-                activeTimeFilter={activeTimeFilter}
-                setActiveTimeFilter={setActiveTimeFilter}
-                getRelativeTime={getRelativeTime}
-                getFilteredActivities={getFilteredActivities}
-                departments={departments}
-                payrolls={payrolls}
-                employees={employees}
-              />
+              loading ? (
+                <SkeletonDashboard />
+              ) : (
+                <Dashboard
+                  monthlyPayrollData={monthlyPayrollData}
+                  employeeDistribution={employeeDistribution}
+                  totalEmployees={totalEmployees}
+                  totalPayroll={totalPayroll}
+                  pendingReports={pendingReports}
+                  processedCount={processedCount}
+                  completedCount={completedCount}
+                  activityTimestamps={activityTimestamps}
+                  activeTimeFilter={activeTimeFilter}
+                  setActiveTimeFilter={setActiveTimeFilter}
+                  getRelativeTime={getRelativeTime}
+                  getFilteredActivities={getFilteredActivities}
+                  departments={departments}
+                  payrolls={payrolls}
+                  employees={employees}
+                />
+              )
             )}
 
             {/* Employee Management Tab */}
