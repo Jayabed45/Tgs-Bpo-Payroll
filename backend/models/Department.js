@@ -114,7 +114,7 @@ class Department {
         employeeId: { $in: employeeIds }
       });
     
-    console.log(`📈 Department ${departmentId}: ${employeeCount} employees, ${payrollCount} payrolls`);
+    console.log(`Department ${departmentId}: ${employeeCount} employees, ${payrollCount} payrolls`);
     
     return {
       employeeCount,
