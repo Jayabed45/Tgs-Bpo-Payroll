@@ -182,7 +182,7 @@ class ApiService {
   }
 
   private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem("token")
+    const token = (typeof window !== 'undefined' ? (localStorage.getItem("token") || sessionStorage.getItem("token")) : null)
     const headers = {
       "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
@@ -577,7 +577,7 @@ class ApiService {
 
   // Export API calls
   async exportTemplate(): Promise<Blob> {
-    const token = localStorage.getItem('token');
+    const token = (typeof window !== 'undefined' ? (localStorage.getItem('token') || sessionStorage.getItem('token')) : null);
     const url = `${API_BASE_URL}/export/template`;
     const response = await fetch(url, {
       headers: {
@@ -594,7 +594,7 @@ class ApiService {
   }
 
   async exportTimekeeping(cutoffStart?: string, cutoffEnd?: string): Promise<Blob> {
-    const token = localStorage.getItem('token');
+    const token = (typeof window !== 'undefined' ? (localStorage.getItem('token') || sessionStorage.getItem('token')) : null);
     const params = new URLSearchParams();
     if (cutoffStart) params.append('cutoffStart', cutoffStart);
     if (cutoffEnd) params.append('cutoffEnd', cutoffEnd);
@@ -694,7 +694,7 @@ class ApiService {
   }
 
   async exportImportedPayroll(id: string): Promise<Blob> {
-    const token = localStorage.getItem('token');
+    const token = (typeof window !== 'undefined' ? (localStorage.getItem('token') || sessionStorage.getItem('token')) : null);
     const response = await fetch(`${API_BASE_URL}/export/imported-payrolls/${id}/export`, {
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),

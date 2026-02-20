@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { apiService } from "../services/api";
+import SkeletonPage from "./SkeletonPage";
 
 interface Department {
   id: string;
@@ -303,11 +304,7 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
   });
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <SkeletonPage />;
   }
 
   return (

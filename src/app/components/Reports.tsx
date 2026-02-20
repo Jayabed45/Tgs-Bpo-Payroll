@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { apiService } from "../services/api";
+import SkeletonPage from "./SkeletonPage";
 
 interface Payroll {
   _id?: string;
@@ -278,11 +279,7 @@ export default function Reports() {
   console.log('Total payrolls:', payrolls.length, 'Filtered payrolls:', filteredPayrolls.length);
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <SkeletonPage />;
   }
 
   return (

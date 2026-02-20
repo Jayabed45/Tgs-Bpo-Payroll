@@ -1,9 +1,22 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+const rateLimit = require('express-rate-limit');
 const { clientPromise } = require('../config/database');
 
 const router = express.Router();
+
+// Strict rate limiter for auth routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  // In development/test, allow more requests to prevent blocking valid tests
+  max: process.env.NODE_ENV === 'development' ? 100 : 5, 
+  message: { error: 'Too many attempts, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Test endpoint to check auth
 router.get('/test', (req, res) => {
@@ -11,7 +24,7 @@ router.get('/test', (req, res) => {
 });
 
 // Login route
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -323,6 +336,134 @@ router.put('/update-profile', verifyAdminToken, async (req, res) => {
       message: 'Failed to update profile',
       error: error.message
     });
+  }
+});
+
+// Forgot Password route
+router.post('/forgot-password', authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const client = await clientPromise;
+    const db = client.db();
+    const usersCollection = db.collection('users');
+
+    const user = await usersCollection.findOne({ email });
+
+    if (!user) {
+      // Don't reveal if user exists
+      return res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpires = Date.now() + 3600000; // 1 hour
+
+    await usersCollection.updateOne(
+      { _id: user._id },
+      { 
+        $set: { 
+          resetPasswordToken: resetToken,
+          resetPasswordExpires: resetTokenExpires
+        } 
+      }
+    );
+
+    const resetLink = `http://localhost:3000/reset-password?token=${resetToken}`;
+
+    // Configure Email Transporter
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+
+    // Email Options
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || '"TGS Payroll" <noreply@tgs-payroll.com>',
+      to: email,
+      subject: 'Password Reset Request',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <h2>Password Reset Request</h2>
+          <p>You requested a password reset for your TGS Payroll account.</p>
+          <p>Click the button below to reset your password:</p>
+          <a href="${resetLink}" style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px;">Reset Password</a>
+          <p>If you didn't request this, please ignore this email.</p>
+          <p>This link will expire in 1 hour.</p>
+        </div>
+      `
+    };
+
+    // Try to send email, but don't fail if SMTP is not configured
+    try {
+      if (process.env.SMTP_USER && process.env.SMTP_USER !== 'your-email@gmail.com') {
+        await transporter.sendMail(mailOptions);
+        console.log(`Password reset email sent to ${email}`);
+      } else {
+        console.log('SMTP not configured or using default values. Skipping email send.');
+        console.log(`[DEV ONLY] Reset Link: ${resetLink}`);
+      }
+    } catch (emailError) {
+      console.error('Error sending email:', emailError);
+      // Fallback for dev environment if email fails
+      console.log(`[DEV ONLY] Reset Link: ${resetLink}`);
+    }
+    
+    res.json({ success: true, message: 'If an account exists, a reset link has been sent.' });
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reset Password route
+router.post('/reset-password', authLimiter, async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+
+    const client = await clientPromise;
+    const db = client.db();
+    const usersCollection = db.collection('users');
+
+    const user = await usersCollection.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired password reset token' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await usersCollection.updateOne(
+      { _id: user._id },
+      { 
+        $set: { password: hashedPassword },
+        $unset: { resetPasswordToken: "", resetPasswordExpires: "" }
+      }
+    );
+
+    res.json({ success: true, message: 'Password has been reset successfully' });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
