@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { apiService } from "../services/api";
 import Papa from "papaparse";
+import SkeletonPage from "./SkeletonPage";
+import * as XLSX from "xlsx";
 
 
 interface Department {
@@ -518,7 +520,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         }
 
         const headerSet = new Set<string>();
-        rows.forEach((row) => {
+        rows.forEach((row: Record<string, unknown>) => {
           Object.keys(row).forEach((header) => headerSet.add(header));
         });
         const missingHeaders = REQUIRED_HEADERS.filter((required) => !headerSet.has(required));
@@ -530,12 +532,12 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         }
 
         const normalizedRows = rows
-          .map((row) => {
+          .map((row: Record<string, unknown>) => {
             const normalized: Record<string, unknown> = {};
 
             headerSet.forEach((header) => {
               const key = EMPLOYEE_HEADER_MAP[header] || header;
-              const rawValue = row[header];
+              const rawValue = (row as Record<string, unknown>)[header];
 
               if (NUMERIC_FIELDS.has(key)) {
                 normalized[key] = parseNumericField(rawValue);
@@ -553,7 +555,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 
             return normalized;
           })
-          .filter((row) => Object.keys(row).length > 0);
+          .filter((row: Record<string, unknown>) => Object.keys(row).length > 0);
 
         if (!normalizedRows.length) {
           setImportErrors(['No recognizable employee rows were found in the uploaded sheet.']);
