@@ -221,10 +221,10 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
     try {
       setLoading(true);
       const response = await apiService.getDepartmentHierarchy();
-      console.log("📊 Fetched departments response:", response);
+      console.log("Fetched departments response:", response);
       
       const departmentList = Array.isArray(response.departments) ? response.departments : [];
-      console.log("📋 Department list:", departmentList);
+      console.log("Department list:", departmentList);
       
       if (departmentList.length > 0) {
         console.log("🔍 First department structure:", JSON.stringify(departmentList[0], null, 2));
