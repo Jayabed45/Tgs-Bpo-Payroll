@@ -396,7 +396,6 @@ export default function Reports() {
                 <tr key={payroll._id || payroll.id || `payroll-${index}`} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{payroll.employeeName}</div>
-                    <div className="text-sm text-gray-500">ID: {payroll.employeeId}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {new Date(payroll.cutoffStart).toLocaleDateString()} - {new Date(payroll.cutoffEnd).toLocaleDateString()}

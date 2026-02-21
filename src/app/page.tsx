@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -10,17 +10,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [isPageLoading, setIsPageLoading] = useState(true);
   const router = useRouter();
-
-  useEffect(() => {
-    // Simulate page loading
-    const timer = setTimeout(() => {
-      setIsPageLoading(false);
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,36 +51,11 @@ export default function Home() {
     }
   };
   
-  if (isPageLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-sm w-full space-y-8">
-          <div className="text-center">
-            <div className="h-7 w-16 bg-gray-200 rounded mx-auto mb-2 animate-pulse"></div>
-            <div className="h-4 w-56 bg-gray-100 rounded mx-auto animate-pulse"></div>
-          </div>
-          <div className="space-y-4 bg-white/0">
-            <div className="h-12 bg-gray-100 rounded-md animate-pulse"></div>
-            <div className="h-12 bg-gray-100 rounded-md animate-pulse"></div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-24 bg-gray-100 rounded animate-pulse"></div>
-              </div>
-              <div className="h-4 w-36 bg-gray-100 rounded animate-pulse"></div>
-            </div>
-            <div className="h-10 bg-gray-200 rounded-md animate-pulse"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-sm w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-5xl sm:text-6xl font-extrabold text-gray-900 font-season">
             TGS
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">

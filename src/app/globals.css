@@ -24,3 +24,18 @@ body {
 html {
   color-scheme: light;
 }
+
+/* THE SEASON font wiring (expects files in /public/fonts) */
+@font-face {
+  font-family: "THE SEASON";
+  src:
+    url("/fonts/theseason.woff2") format("woff2"),
+    url("/fonts/theseason.woff") format("woff");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-season {
+  font-family: "THE SEASON", "Times New Roman", serif;
+}

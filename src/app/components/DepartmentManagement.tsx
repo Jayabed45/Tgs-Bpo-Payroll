@@ -29,6 +29,8 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
   const [formLoading, setFormLoading] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [deptTrends, setDeptTrends] = useState<Record<string, { emp: number[]; payroll: number[]; empChange: number; payrollChange: number; lastUpdatedISO?: string }>>({});
+  const [refreshing, setRefreshing] = useState<Record<string, boolean>>({});
   
   // Modal states
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; department?: Department }>({
@@ -89,6 +91,131 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
     return () => document.removeEventListener('click', handleClickOutside);
   }, [openDropdownId]);
 
+  const getLastSixMonths = () => {
+    const months: { key: string; label: string; year: number; month: number }[] = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleString(undefined, { month: "short" });
+      months.push({ key, label, year: d.getFullYear(), month: d.getMonth() });
+    }
+    return months;
+  };
+
+  const computeMonthlyCounts = (dates: string[]) => {
+    const months = getLastSixMonths();
+    const map: Record<string, number> = {};
+    months.forEach(m => (map[m.key] = 0));
+    dates.forEach(dateStr => {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (map[key] !== undefined) map[key] += 1;
+    });
+    const series = months.map(m => map[m.key] || 0);
+    const change = series.length > 1 ? series[series.length - 1] - series[series.length - 2] : 0;
+    return { series, change };
+  };
+
+  const fetchTrendsForDepartment = async (dept: Department) => {
+    try {
+      const deptId = dept.id;
+      const [empRes, payRes] = await Promise.all([
+        apiService.getDepartmentEmployees(deptId),
+        apiService.getDepartmentPayrolls(deptId),
+      ]);
+      const empDates = (empRes.employees || []).map((e: any) => e.hireDate).filter(Boolean);
+      const payDates = (payRes.payrolls || []).map((p: any) => p.createdAt || p.period?.split(" - ")?.[1]).filter(Boolean);
+      const empStats = computeMonthlyCounts(empDates);
+      const payStats = computeMonthlyCounts(payDates);
+      const candidateDates: number[] = [];
+      if (dept.updatedAt) {
+        const t = new Date(dept.updatedAt).getTime();
+        if (!isNaN(t)) candidateDates.push(t);
+      }
+      if (dept.createdAt) {
+        const t = new Date(dept.createdAt).getTime();
+        if (!isNaN(t)) candidateDates.push(t);
+      }
+      empDates.forEach(d => {
+        const t = new Date(d).getTime();
+        if (!isNaN(t)) candidateDates.push(t);
+      });
+      payDates.forEach(d => {
+        const t = new Date(d).getTime();
+        if (!isNaN(t)) candidateDates.push(t);
+      });
+      const latest = candidateDates.length ? new Date(Math.max(...candidateDates)).toISOString() : undefined;
+      setDeptTrends(prev => ({
+        ...prev,
+        [deptId]: { emp: empStats.series, payroll: payStats.series, empChange: empStats.change, payrollChange: payStats.change, lastUpdatedISO: latest },
+      }));
+    } catch {
+      // Leave trends empty on error
+    }
+  };
+
+  useEffect(() => {
+    if (departments.length === 0) return;
+    // Fetch trends for departments that don't have them yet
+    const missing = departments.filter(d => !deptTrends[d.id]);
+    if (missing.length === 0) return;
+    // Limit concurrency lightly
+    const queue = async () => {
+      for (const d of missing) {
+        // eslint-disable-next-line no-await-in-loop
+        await fetchTrendsForDepartment(d);
+      }
+    };
+    queue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departments]);
+
+  const formatRelativeTime = (iso?: string) => {
+    if (!iso) return "";
+    const now = Date.now();
+    const t = new Date(iso).getTime();
+    if (isNaN(t)) return "";
+    const diff = Math.max(0, now - t);
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const MiniSparkline = ({ data, color = "#4F46E5" }: { data: number[]; color?: string }) => {
+    const width = 120;
+    const height = 32;
+    const padding = 6;
+    const values = data && data.length ? data : [0];
+    const max = Math.max(...values, 1);
+    const min = Math.min(...values, 0);
+    const range = max - min || 1;
+    const step = values.length > 1 ? (width - padding * 2) / (values.length - 1) : 0;
+    const points = values.map((v, i) => {
+      const x = padding + i * step;
+      const y = height - padding - ((v - min) / range) * (height - padding * 2);
+      return `${x},${y}`;
+    }).join(" ");
+    return (
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-8">
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  };
+
+  const handleRefresh = async (dept: Department) => {
+    setRefreshing(prev => ({ ...prev, [dept.id]: true }));
+    try {
+      await fetchTrendsForDepartment(dept);
+    } finally {
+      setRefreshing(prev => ({ ...prev, [dept.id]: false }));
+    }
+  };
 
   const fetchDepartments = async () => {
     try {
@@ -366,41 +493,56 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
           </div>
         </div>
       ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredDepartments.map((department, index) => (
           <div 
             key={department.id || `department-${index}`} 
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer"
             onClick={() => setPreviewModal({ open: true, department })}
           >
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-indigo-100 rounded-lg">
-                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="flex justify-between items-start mb-2">
+              <div className="flex items-center space-x-2">
+                <div className="p-1.5 bg-indigo-50 rounded-md">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-gray-900">{department.name}</h4>
-                  <p className="text-sm text-gray-500 font-mono">{department.code}</p>
-                  {department.siteLocation && (
-                    <p className="text-xs text-indigo-600 flex items-center mt-1">
-                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      {department.siteLocation}
-                    </p>
-                  )}
+                  <h4 className="text-sm font-semibold text-gray-900">{department.name}</h4>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] text-gray-500 font-mono">{department.code}</span>
+                    {department.siteLocation && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700">
+                        {department.siteLocation}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <div className="relative flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={() => handleRefresh(department)}
+                  className="text-gray-500 hover:text-gray-800 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  title="Refresh"
+                  disabled={!!refreshing[department.id]}
+                >
+                  {refreshing[department.id] ? (
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V2"></path>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M20 8a8 8 0 10-6.906 7.937" />
+                    </svg>
+                  )}
+                </button>
                 <button
                   onClick={() => setOpenDropdownId(openDropdownId === department.id ? null : department.id)}
-                  className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  className="text-gray-500 hover:text-gray-800 p-1 hover:bg-gray-100 rounded-full transition-colors"
                   title="More options"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                   </svg>
                 </button>
@@ -437,24 +579,48 @@ export default function DepartmentManagement({ onDepartmentChange }: DepartmentM
             </div>
             
             {department.description && (
-              <p className="text-sm text-gray-600 mb-4">{department.description}</p>
+              <p className="text-xs text-gray-600 mb-3 line-clamp-2">{department.description}</p>
             )}
             
-            <div className="flex justify-between items-center text-sm text-gray-500">
-              <div className="flex items-center space-x-4">
-                <span className="flex items-center">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
-                  </svg>
-                  {department.employeeCount ?? 0} employees
-                </span>
-                <span className="flex items-center">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                  {department.payrollCount ?? 0} payrolls
-                </span>
+            {/* Mini KPI + Sparklines */}
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <div className="bg-gray-50 rounded-lg p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-gray-600">Employees</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${ (deptTrends[department.id]?.empChange ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {(deptTrends[department.id]?.empChange ?? 0) >= 0 ? '+' : ''}{deptTrends[department.id]?.empChange ?? 0}
+                  </span>
+                </div>
+                <div className="text-base font-semibold text-gray-900">{department.employeeCount ?? 0}</div>
+                <div className="mt-0.5">
+                  {deptTrends[department.id]?.emp ? (
+                    <MiniSparkline data={deptTrends[department.id].emp} color="#10B981" />
+                  ) : (
+                    <div className="h-8 bg-gray-100 rounded animate-pulse" />
+                  )}
+                </div>
               </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium text-gray-600">Payrolls</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${ (deptTrends[department.id]?.payrollChange ?? 0) >= 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {(deptTrends[department.id]?.payrollChange ?? 0) >= 0 ? '+' : ''}{deptTrends[department.id]?.payrollChange ?? 0}
+                  </span>
+                </div>
+                <div className="text-base font-semibold text-gray-900">{department.payrollCount ?? 0}</div>
+                <div className="mt-0.5">
+                  {deptTrends[department.id]?.payroll ? (
+                    <MiniSparkline data={deptTrends[department.id].payroll} color="#4F46E5" />
+                  ) : (
+                    <div className="h-8 bg-gray-100 rounded animate-pulse" />
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 text-[11px] text-gray-500">
+              {deptTrends[department.id]?.lastUpdatedISO
+                ? <>Updated {formatRelativeTime(deptTrends[department.id]?.lastUpdatedISO)}</>
+                : 'Updating…'}
             </div>
           </div>
         ))}
