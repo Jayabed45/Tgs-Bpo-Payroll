@@ -2,12 +2,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { apiService } from "../services/api";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
+import SkeletonPage from "./SkeletonPage";
 
 
 interface Department {
   id: string;
   name: string;
-  code: string;
+  code?: string;
   description?: string;
   manager?: string;
   isActive: boolean;
@@ -814,7 +816,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       employee.position.toLowerCase().includes(query) ||
       employee.email.toLowerCase().includes(query) ||
       employee.department?.name.toLowerCase().includes(query) ||
-      employee.department?.code.toLowerCase().includes(query) ||
+      employee.department?.code?.toLowerCase().includes(query) ||
       employee.contactNumber.includes(query)
     );
   });
