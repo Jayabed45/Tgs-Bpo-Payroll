@@ -10,7 +10,7 @@ interface SettingsProps {
 
 export default function Settings({ onClose }: SettingsProps) {
   const { refreshSettings } = useSettings();
-  const [activeTab, setActiveTab] = useState<"profile" | "system" | "payroll" | "locations">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "system" | "payroll" | "locations" | "allowances">("profile");
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   
@@ -52,6 +52,19 @@ export default function Settings({ onClose }: SettingsProps) {
     workingDaysPerWeek: "5",
   });
 
+  // Default Allowance Settings State
+  const [allowanceSettings, setAllowanceSettings] = useState({
+    foodAllowance: "0",
+    transportationAllowance: "0",
+    complexityAllowance: "0",
+    observationalAllowance: "0",
+    communicationsAllowance: "0",
+    internetAllowance: "0",
+    riceSubsidyAllowance: "0",
+    clothingAllowance: "0",
+    laundryAllowance: "0"
+  });
+
   // Site Locations State
   const [siteLocations, setSiteLocations] = useState<string[]>(["Cebu", "Dumaguete", "Tuburan"]);
   const [newLocation, setNewLocation] = useState("");
@@ -70,6 +83,11 @@ export default function Settings({ onClose }: SettingsProps) {
   const handlePayrollChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setPayrollSettings(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAllowanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setAllowanceSettings(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSaveProfile = async () => {
@@ -215,6 +233,33 @@ export default function Settings({ onClose }: SettingsProps) {
     } catch (error: any) {
       console.error("Error saving payroll settings:", error);
       setErrorModal({ open: true, message: error.message || "Failed to save payroll settings" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveAllowances = async () => {
+    setLoading(true);
+    try {
+      // Convert allowance settings to numbers
+      const defaultAllowances = {
+        foodAllowance: parseFloat(allowanceSettings.foodAllowance),
+        transportationAllowance: parseFloat(allowanceSettings.transportationAllowance),
+        complexityAllowance: parseFloat(allowanceSettings.complexityAllowance),
+        observationalAllowance: parseFloat(allowanceSettings.observationalAllowance),
+        communicationsAllowance: parseFloat(allowanceSettings.communicationsAllowance),
+        internetAllowance: parseFloat(allowanceSettings.internetAllowance),
+        riceSubsidyAllowance: parseFloat(allowanceSettings.riceSubsidyAllowance),
+        clothingAllowance: parseFloat(allowanceSettings.clothingAllowance),
+        laundryAllowance: parseFloat(allowanceSettings.laundryAllowance)
+      };
+      
+      await apiService.updateSettings({ defaultAllowances });
+      await refreshSettings();
+      setSuccessModal({ open: true, message: "Default allowances saved successfully!" });
+    } catch (error: any) {
+      console.error("Error saving allowance settings:", error);
+      setErrorModal({ open: true, message: error.message || "Failed to save allowance settings" });
     } finally {
       setLoading(false);
     }
@@ -374,6 +419,21 @@ export default function Settings({ onClose }: SettingsProps) {
           if (settings.siteLocations && Array.isArray(settings.siteLocations)) {
             setSiteLocations(settings.siteLocations);
           }
+
+          // Set default allowances
+          if (settings.defaultAllowances) {
+            setAllowanceSettings({
+              foodAllowance: String(settings.defaultAllowances.foodAllowance || 0),
+              transportationAllowance: String(settings.defaultAllowances.transportationAllowance || 0),
+              complexityAllowance: String(settings.defaultAllowances.complexityAllowance || 0),
+              observationalAllowance: String(settings.defaultAllowances.observationalAllowance || 0),
+              communicationsAllowance: String(settings.defaultAllowances.communicationsAllowance || 0),
+              internetAllowance: String(settings.defaultAllowances.internetAllowance || 0),
+              riceSubsidyAllowance: String(settings.defaultAllowances.riceSubsidyAllowance || 0),
+              clothingAllowance: String(settings.defaultAllowances.clothingAllowance || 0),
+              laundryAllowance: String(settings.defaultAllowances.laundryAllowance || 0),
+            });
+          }
         }
       } catch (error) {
         console.error("Error loading settings:", error);
@@ -427,6 +487,21 @@ export default function Settings({ onClose }: SettingsProps) {
               </div>
             </button>
             <button
+              onClick={() => setActiveTab("allowances")}
+              className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "allowances"
+                  ? "border-indigo-600 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Default Allowances</span>
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab("system")}
               className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === "system"
@@ -476,6 +551,14 @@ export default function Settings({ onClose }: SettingsProps) {
               data={payrollSettings}
               onChange={handlePayrollChange}
               onSave={handleSavePayroll}
+              loading={loading}
+            />
+          )}
+          {activeTab === "allowances" && (
+            <AllowanceConfigTab
+              data={allowanceSettings}
+              onChange={handleAllowanceChange}
+              onSave={handleSaveAllowances}
               loading={loading}
             />
           )}
@@ -945,6 +1028,91 @@ function PayrollConfigTab({ data, onChange, onSave, loading }: PayrollConfigTabP
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span>Save Payroll Configuration</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Allowance Configuration Component
+interface AllowanceConfigTabProps {
+  data: any;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSave: () => void;
+  loading: boolean;
+}
+
+function AllowanceConfigTab({ data, onChange, onSave, loading }: AllowanceConfigTabProps) {
+  const allowances = [
+    { name: "foodAllowance", label: "Food Allowance" },
+    { name: "transportationAllowance", label: "Transportation Allowance" },
+    { name: "complexityAllowance", label: "Complexity Allowance" },
+    { name: "observationalAllowance", label: "Observational Allowance" },
+    { name: "communicationsAllowance", label: "Communications Allowance" },
+    { name: "internetAllowance", label: "Internet Allowance" },
+    { name: "riceSubsidyAllowance", label: "Rice Subsidy Allowance" },
+    { name: "clothingAllowance", label: "Clothing Allowance" },
+    { name: "laundryAllowance", label: "Laundry Allowance" },
+  ];
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <div className="flex items-center space-x-2 mb-4">
+          <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
+          <h4 className="text-base font-semibold text-gray-900">Default Allowance Values</h4>
+        </div>
+        <p className="text-sm text-gray-600 mb-6">
+          Set the default monthly allowance values for all employees. These values will be used during payroll calculation if an employee does not have a specific allowance value set.
+        </p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {allowances.map((allowance) => (
+            <div key={allowance.name}>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {allowance.label} (₱)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-gray-500">₱</span>
+                <input
+                  type="number"
+                  name={allowance.name}
+                  value={data[allowance.name]}
+                  onChange={onChange}
+                  min="0"
+                  step="100"
+                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end pt-4 border-t border-gray-200">
+        <button
+          onClick={onSave}
+          disabled={loading}
+          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
+        >
+          {loading ? (
+            <>
+              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Saving...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Save Default Allowances</span>
             </>
           )}
         </button>

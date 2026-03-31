@@ -31,7 +31,18 @@ router.get('/', async (req, res) => {
           currency: 'PHP',
           dateFormat: 'MM/DD/YYYY',
           timezone: 'Asia/Manila',
-          siteLocations: ['Cebu', 'Dumaguete', 'Tuburan']
+          siteLocations: ['Cebu', 'Dumaguete', 'Tuburan'],
+          defaultAllowances: {
+            foodAllowance: 0,
+            transportationAllowance: 0,
+            complexityAllowance: 0,
+            observationalAllowance: 0,
+            communicationsAllowance: 0,
+            internetAllowance: 0,
+            riceSubsidyAllowance: 0,
+            clothingAllowance: 0,
+            laundryAllowance: 0
+          }
         }
       });
     }

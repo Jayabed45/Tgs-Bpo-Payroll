@@ -248,7 +248,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     sssContribution: "",
     philhealthContribution: "",
     pagibigContribution: "",
-    withholdingTax: ""
+    withholdingTax: "",
+    foodAllowance: "",
+    transportationAllowance: "",
+    complexityAllowance: "",
+    observationalAllowance: "",
+    communicationsAllowance: "",
+    internetAllowance: "",
+    riceSubsidyAllowance: "",
+    clothingAllowance: "",
+    laundryAllowance: "",
+    allowance: ""
   });
 
   // Select all state
@@ -270,6 +280,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     overtimeMultiplier: 1.25,
     nightDiffRate: 10.0,
     holidayRate: 200.0,
+    defaultAllowances: {
+      foodAllowance: 0,
+      transportationAllowance: 0,
+      complexityAllowance: 0,
+      observationalAllowance: 0,
+      communicationsAllowance: 0,
+      internetAllowance: 0,
+      riceSubsidyAllowance: 0,
+      clothingAllowance: 0,
+      laundryAllowance: 0
+    }
   });
 
   // Calculated values
@@ -325,6 +346,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
             overtimeMultiplier: response.settings.overtimeMultiplier || 1.25,
             nightDiffRate: response.settings.nightDiffRate || 10.0,
             holidayRate: response.settings.holidayRate || 200.0,
+            defaultAllowances: response.settings.defaultAllowances || {
+              foodAllowance: 0,
+              transportationAllowance: 0,
+              complexityAllowance: 0,
+              observationalAllowance: 0,
+              communicationsAllowance: 0,
+              internetAllowance: 0,
+              riceSubsidyAllowance: 0,
+              clothingAllowance: 0,
+              laundryAllowance: 0
+            }
           });
         }
       } catch (error) {
@@ -812,6 +844,18 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       ['Night Differential', ...payrollList.map(p => p.nightDifferential || 0)],
       ['Salary Adjustment', ...payrollList.map(p => p.salaryAdjustment || 0)],
       ['', ...payrollList.map(() => '')],
+      ['ALLOWANCES', ...payrollList.map(() => '')],
+      ['Food Allowance', ...payrollList.map(p => p.foodAllowance || 0)],
+      ['Transportation Allowance', ...payrollList.map(p => p.transportationAllowance || 0)],
+      ['Complexity Allowance', ...payrollList.map(p => p.complexityAllowance || 0)],
+      ['Observational Allowance', ...payrollList.map(p => p.observationalAllowance || 0)],
+      ['Communications Allowance', ...payrollList.map(p => p.communicationsAllowance || 0)],
+      ['Internet Allowance', ...payrollList.map(p => p.internetAllowance || 0)],
+      ['Rice Subsidy Allowance', ...payrollList.map(p => p.riceSubsidyAllowance || 0)],
+      ['Clothing Allowance', ...payrollList.map(p => p.clothingAllowance || 0)],
+      ['Laundry Allowance', ...payrollList.map(p => p.laundryAllowance || 0)],
+      ['Other Allowance', ...payrollList.map(p => p.allowance || 0)],
+      ['', ...payrollList.map(() => '')],
       ['DEDUCTIONS', ...payrollList.map(() => '')],
       ['Absences', ...payrollList.map(p => p.absences || 0)],
       ['Late Deductions', ...payrollList.map(p => p.lateDeductions || 0)],
@@ -994,6 +1038,18 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     const absences = parseFloat(formData.absences) || 0;
     const lateDeductions = parseFloat(formData.lateDeductions) || 0;
     
+    // Allowances
+    const foodAllowance = parseFloat(formData.foodAllowance) || 0;
+    const transportationAllowance = parseFloat(formData.transportationAllowance) || 0;
+    const complexityAllowance = parseFloat(formData.complexityAllowance) || 0;
+    const observationalAllowance = parseFloat(formData.observationalAllowance) || 0;
+    const communicationsAllowance = parseFloat(formData.communicationsAllowance) || 0;
+    const internetAllowance = parseFloat(formData.internetAllowance) || 0;
+    const riceSubsidyAllowance = parseFloat(formData.riceSubsidyAllowance) || 0;
+    const clothingAllowance = parseFloat(formData.clothingAllowance) || 0;
+    const laundryAllowance = parseFloat(formData.laundryAllowance) || 0;
+    const otherAllowance = parseFloat(formData.allowance) || 0;
+    
     const sssContribution = parseFloat(formData.sssContribution) || 0;
     const philhealthContribution = parseFloat(formData.philhealthContribution) || 0;
     const pagibigContribution = parseFloat(formData.pagibigContribution) || 0;
@@ -1004,7 +1060,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       roundToCents(basicSalary) + 
       roundToCents(holidayPay) + 
       roundToCents(nightDifferential) + 
-      roundToCents(salaryAdjustment)
+      roundToCents(salaryAdjustment) +
+      roundToCents(foodAllowance) +
+      roundToCents(transportationAllowance) +
+      roundToCents(complexityAllowance) +
+      roundToCents(observationalAllowance) +
+      roundToCents(communicationsAllowance) +
+      roundToCents(internetAllowance) +
+      roundToCents(riceSubsidyAllowance) +
+      roundToCents(clothingAllowance) +
+      roundToCents(laundryAllowance) +
+      roundToCents(otherAllowance)
     );
     
     const totalDeductions = roundToCents(
@@ -1091,6 +1157,16 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
               philhealthContribution: parseFloat(employeeData.philhealthContribution || formData.philhealthContribution) || 0,
               pagibigContribution: parseFloat(employeeData.pagibigContribution || formData.pagibigContribution) || 0,
               withholdingTax: parseFloat(employeeData.withholdingTax || formData.withholdingTax) || 0,
+              foodAllowance: parseFloat(employeeData.foodAllowance || formData.foodAllowance) || 0,
+              transportationAllowance: parseFloat(employeeData.transportationAllowance || formData.transportationAllowance) || 0,
+              complexityAllowance: parseFloat(employeeData.complexityAllowance || formData.complexityAllowance) || 0,
+              observationalAllowance: parseFloat(employeeData.observationalAllowance || formData.observationalAllowance) || 0,
+              communicationsAllowance: parseFloat(employeeData.communicationsAllowance || formData.communicationsAllowance) || 0,
+              internetAllowance: parseFloat(employeeData.internetAllowance || formData.internetAllowance) || 0,
+              riceSubsidyAllowance: parseFloat(employeeData.riceSubsidyAllowance || formData.riceSubsidyAllowance) || 0,
+              clothingAllowance: parseFloat(employeeData.clothingAllowance || formData.clothingAllowance) || 0,
+              laundryAllowance: parseFloat(employeeData.laundryAllowance || formData.laundryAllowance) || 0,
+              allowance: parseFloat(employeeData.allowance || formData.allowance) || 0,
               status: 'processed'
             };
 
@@ -1148,6 +1224,16 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         philhealthContribution: parseFloat(formData.philhealthContribution) || 0,
         pagibigContribution: parseFloat(formData.pagibigContribution) || 0,
         withholdingTax: parseFloat(formData.withholdingTax) || 0,
+        foodAllowance: parseFloat(formData.foodAllowance) || 0,
+        transportationAllowance: parseFloat(formData.transportationAllowance) || 0,
+        complexityAllowance: parseFloat(formData.complexityAllowance) || 0,
+        observationalAllowance: parseFloat(formData.observationalAllowance) || 0,
+        communicationsAllowance: parseFloat(formData.communicationsAllowance) || 0,
+        internetAllowance: parseFloat(formData.internetAllowance) || 0,
+        riceSubsidyAllowance: parseFloat(formData.riceSubsidyAllowance) || 0,
+        clothingAllowance: parseFloat(formData.clothingAllowance) || 0,
+        laundryAllowance: parseFloat(formData.laundryAllowance) || 0,
+        allowance: parseFloat(formData.allowance) || 0,
         grossPay: finalCalculations.grossPay,
         totalDeductions: finalCalculations.totalDeductions,
         netPay: finalCalculations.netPay,
@@ -1195,7 +1281,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       sssContribution: payroll.sssContribution?.toString() || "",
       philhealthContribution: payroll.philhealthContribution?.toString() || "",
       pagibigContribution: payroll.pagibigContribution?.toString() || "",
-      withholdingTax: payroll.withholdingTax?.toString() || ""
+      withholdingTax: payroll.withholdingTax?.toString() || "",
+      foodAllowance: payroll.foodAllowance?.toString() || "",
+      transportationAllowance: payroll.transportationAllowance?.toString() || "",
+      complexityAllowance: payroll.complexityAllowance?.toString() || "",
+      observationalAllowance: payroll.observationalAllowance?.toString() || "",
+      communicationsAllowance: payroll.communicationsAllowance?.toString() || "",
+      internetAllowance: payroll.internetAllowance?.toString() || "",
+      riceSubsidyAllowance: payroll.riceSubsidyAllowance?.toString() || "",
+      clothingAllowance: payroll.clothingAllowance?.toString() || "",
+      laundryAllowance: payroll.laundryAllowance?.toString() || "",
+      allowance: payroll.allowance?.toString() || ""
     });
     setCalculatedValues({
       grossPay: payroll.grossPay || 0,
@@ -1253,11 +1349,60 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         const salary = selectedEmployee.salary || 0;
         const contributions = autoCalculateContributions(salary);
 
+        // Use employee-specific allowances or fall back to system defaults
+        const foodAllowance = selectedEmployee.foodAllowance !== undefined && selectedEmployee.foodAllowance !== 0 
+          ? selectedEmployee.foodAllowance 
+          : (payrollSettings.defaultAllowances?.foodAllowance || 0);
+        
+        const transportationAllowance = selectedEmployee.transportationAllowance !== undefined && selectedEmployee.transportationAllowance !== 0
+          ? selectedEmployee.transportationAllowance
+          : (payrollSettings.defaultAllowances?.transportationAllowance || 0);
+
+        const complexityAllowance = selectedEmployee.complexityAllowance !== undefined && selectedEmployee.complexityAllowance !== 0
+          ? selectedEmployee.complexityAllowance
+          : (payrollSettings.defaultAllowances?.complexityAllowance || 0);
+
+        const observationalAllowance = selectedEmployee.observationalAllowance !== undefined && selectedEmployee.observationalAllowance !== 0
+          ? selectedEmployee.observationalAllowance
+          : (payrollSettings.defaultAllowances?.observationalAllowance || 0);
+
+        const communicationsAllowance = selectedEmployee.communicationsAllowance !== undefined && selectedEmployee.communicationsAllowance !== 0
+          ? selectedEmployee.communicationsAllowance
+          : (payrollSettings.defaultAllowances?.communicationsAllowance || 0);
+
+        const internetAllowance = selectedEmployee.internetAllowance !== undefined && selectedEmployee.internetAllowance !== 0
+          ? selectedEmployee.internetAllowance
+          : (payrollSettings.defaultAllowances?.internetAllowance || 0);
+
+        const riceSubsidyAllowance = selectedEmployee.riceSubsidyAllowance !== undefined && selectedEmployee.riceSubsidyAllowance !== 0
+          ? selectedEmployee.riceSubsidyAllowance
+          : (payrollSettings.defaultAllowances?.riceSubsidyAllowance || 0);
+
+        const clothingAllowance = selectedEmployee.clothingAllowance !== undefined && selectedEmployee.clothingAllowance !== 0
+          ? selectedEmployee.clothingAllowance
+          : (payrollSettings.defaultAllowances?.clothingAllowance || 0);
+
+        const laundryAllowance = selectedEmployee.laundryAllowance !== undefined && selectedEmployee.laundryAllowance !== 0
+          ? selectedEmployee.laundryAllowance
+          : (payrollSettings.defaultAllowances?.laundryAllowance || 0);
+
+        const otherAllowance = selectedEmployee.allowance || 0;
+
         setFormData(prev => ({
           ...prev,
           employeeId: employeeId,
           employeeName: selectedEmployee.name || '',
           basicSalary: salary.toString(),
+          foodAllowance: foodAllowance.toString(),
+          transportationAllowance: transportationAllowance.toString(),
+          complexityAllowance: complexityAllowance.toString(),
+          observationalAllowance: observationalAllowance.toString(),
+          communicationsAllowance: communicationsAllowance.toString(),
+          internetAllowance: internetAllowance.toString(),
+          riceSubsidyAllowance: riceSubsidyAllowance.toString(),
+          clothingAllowance: clothingAllowance.toString(),
+          laundryAllowance: laundryAllowance.toString(),
+          allowance: otherAllowance.toString(),
           ...contributions
         }));
       }
@@ -1283,7 +1428,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       sssContribution: "",
       philhealthContribution: "",
       pagibigContribution: "",
-      withholdingTax: ""
+      withholdingTax: "",
+      foodAllowance: "",
+      transportationAllowance: "",
+      complexityAllowance: "",
+      observationalAllowance: "",
+      communicationsAllowance: "",
+      internetAllowance: "",
+      riceSubsidyAllowance: "",
+      clothingAllowance: "",
+      laundryAllowance: "",
+      allowance: ""
     });
     setCalculatedValues({ grossPay: 0, totalDeductions: 0, netPay: 0 });
     setEditingPayroll(null);
@@ -1609,6 +1764,48 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white"
                 />
               </div>
+                </div>
+              </div>
+
+              {/* Allowances Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Allowances</h5>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[
+                    { name: "foodAllowance", label: "Food Allowance" },
+                    { name: "transportationAllowance", label: "Transportation Allowance" },
+                    { name: "complexityAllowance", label: "Complexity Allowance" },
+                    { name: "observationalAllowance", label: "Observational Allowance" },
+                    { name: "communicationsAllowance", label: "Communications Allowance" },
+                    { name: "internetAllowance", label: "Internet Allowance" },
+                    { name: "riceSubsidyAllowance", label: "Rice Subsidy Allowance" },
+                    { name: "clothingAllowance", label: "Clothing Allowance" },
+                    { name: "laundryAllowance", label: "Laundry Allowance" },
+                    { name: "allowance", label: "Other Allowance" },
+                  ].map((allowance) => (
+                    <div key={allowance.name} className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 flex items-center">
+                        <svg className="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                        </svg>
+                        {allowance.label}
+                      </label>
+                      <input
+                        type="number"
+                        name={allowance.name}
+                        value={formData[allowance.name as keyof typeof formData]}
+                        onChange={handleInputChange}
+                        min="0"
+                        step="0.01"
+                        placeholder={`₱${payrollSettings.defaultAllowances?.[allowance.name as keyof typeof payrollSettings.defaultAllowances]?.toFixed(2) || '0.00'}`}
+                        className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
 

@@ -6,6 +6,17 @@ interface SystemSettings {
   currency: string;
   dateFormat: string;
   timezone: string;
+  defaultAllowances?: {
+    foodAllowance: number;
+    transportationAllowance: number;
+    complexityAllowance: number;
+    observationalAllowance: number;
+    communicationsAllowance: number;
+    internetAllowance: number;
+    riceSubsidyAllowance: number;
+    clothingAllowance: number;
+    laundryAllowance: number;
+  };
 }
 
 interface SettingsContextType {
@@ -44,7 +55,8 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         setSettings({
           currency: response.settings.currency || 'PHP',
           dateFormat: response.settings.dateFormat || 'MM/DD/YYYY',
-          timezone: response.settings.timezone || 'Asia/Manila'
+          timezone: response.settings.timezone || 'Asia/Manila',
+          defaultAllowances: response.settings.defaultAllowances
         });
       }
     } catch (error) {
