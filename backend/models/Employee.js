@@ -42,6 +42,13 @@ class Employee {
     this.hireDate = data.hireDate;
     this.complexityAllowance = parseNumber(data.complexityAllowance);
     this.observationalAllowance = parseNumber(data.observationalAllowance);
+    this.foodAllowance = parseNumber(data.foodAllowance);
+    this.transportationAllowance = parseNumber(data.transportationAllowance);
+    this.communicationsAllowance = parseNumber(data.communicationsAllowance);
+    this.internetAllowance = parseNumber(data.internetAllowance);
+    this.riceSubsidyAllowance = parseNumber(data.riceSubsidyAllowance);
+    this.clothingAllowance = parseNumber(data.clothingAllowance);
+    this.laundryAllowance = parseNumber(data.laundryAllowance);
     this.allowance = parseNumber(data.allowance);
     this.kpiOtIncentive = parseNumber(data.kpiOtIncentive);
     this.salaryAdjustmentDefault = parseNumber(data.salaryAdjustmentDefault || data.salaryAdjustment);

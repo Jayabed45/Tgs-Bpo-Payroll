@@ -329,6 +329,17 @@ function generatePayslipPDF(doc, payroll, payslip) {
     { label: 'Basic Salary', value: payroll.basicSalary || 0 },
     { label: 'Holiday Pay', value: payroll.holidayPay || 0 },
     { label: 'Night Differential', value: payroll.nightDifferential || 0 },
+    { label: 'Food Allowance', value: payroll.foodAllowance || 0 },
+    { label: 'Transportation Allowance', value: payroll.transportationAllowance || 0 },
+    { label: 'Complexity Allowance', value: payroll.complexityAllowance || 0 },
+    { label: 'Observational Allowance', value: payroll.observationalAllowance || 0 },
+    { label: 'Communications Allowance', value: payroll.communicationsAllowance || 0 },
+    { label: 'Internet Allowance', value: payroll.internetAllowance || 0 },
+    { label: 'Rice Subsidy Allowance', value: payroll.riceSubsidyAllowance || 0 },
+    { label: 'Clothing Allowance', value: payroll.clothingAllowance || 0 },
+    { label: 'Laundry Allowance', value: payroll.laundryAllowance || 0 },
+    { label: 'Other Allowance', value: payroll.allowance || 0 },
+    { label: 'Referral Bonus', value: payroll.referralBonus || 0 },
     { label: 'Salary Adjustment', value: payroll.salaryAdjustment || 0 }
   ];
   

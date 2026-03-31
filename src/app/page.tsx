@@ -64,7 +64,7 @@ export default function Home() {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
-            <div className="my-3">
+            <div className="my-3" suppressHydrationWarning>
               <label htmlFor="email-address" className="sr-only">
                 Email address
               </label>
@@ -80,7 +80,7 @@ export default function Home() {
                 placeholder="Email address"
               />
             </div>
-            <div className="relative my-3">
+            <div className="relative my-3" suppressHydrationWarning>
               <label htmlFor="password" className="sr-only">
                 Password
               </label>

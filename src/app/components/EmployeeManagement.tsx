@@ -168,6 +168,18 @@ interface Employee {
   email: string;
   contactNumber: string;
   hireDate: string;
+  foodAllowance: number;
+  transportationAllowance: number;
+  complexityAllowance: number;
+  observationalAllowance: number;
+  communicationsAllowance: number;
+  internetAllowance: number;
+  riceSubsidyAllowance: number;
+  clothingAllowance: number;
+  laundryAllowance: number;
+  allowance: number;
+  kpiOtIncentive: number;
+  salaryAdjustmentDefault: number;
   departmentId: string;
   department?: Department; // Populated department info
   isActive: boolean;
@@ -366,18 +378,16 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 
   // Form state
   const [formData, setFormData] = useState({
-    name: "",
-    position: "",
-    salary: "",
-    workingDays: "",
-    sssNumber: "",
-    philhealthNumber: "",
-    pagibigNumber: "",
-    email: "",
-    contactNumber: "",
-    hireDate: "",
-    departmentId: ""
-  });
+    name: "", position: "", salary: "", workingDays: "",
+    sssNumber: "", philhealthNumber: "", pagibigNumber: "",
+     email: "", contactNumber: "", hireDate: "", departmentId: "",
+     foodAllowance: "0", transportationAllowance: "0",
+     complexityAllowance: "0", observationalAllowance: "0",
+     communicationsAllowance: "0", internetAllowance: "0",
+     riceSubsidyAllowance: "0", clothingAllowance: "0",
+     laundryAllowance: "0", allowance: "0",
+     kpiOtIncentive: "0", salaryAdjustmentDefault: "0"
+    });
 
   // Department state
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -442,7 +452,13 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     setFormData({
       name: "", position: "", salary: "", workingDays: "",
       sssNumber: "", philhealthNumber: "", pagibigNumber: "",
-      email: "", contactNumber: "", hireDate: "", departmentId: ""
+      email: "", contactNumber: "", hireDate: "", departmentId: "",
+      foodAllowance: "0", transportationAllowance: "0",
+      complexityAllowance: "0", observationalAllowance: "0",
+      communicationsAllowance: "0", internetAllowance: "0",
+      riceSubsidyAllowance: "0", clothingAllowance: "0",
+      laundryAllowance: "0", allowance: "0",
+      kpiOtIncentive: "0", salaryAdjustmentDefault: "0"
     });
     setEditingEmployee(null);
   };
@@ -487,6 +503,18 @@ const confirmDelete = async (e?: React.MouseEvent) => {
       email: employee.email,
       contactNumber: employee.contactNumber,
       hireDate: employee.hireDate,
+      foodAllowance: (employee.foodAllowance || 0).toString(),
+      transportationAllowance: (employee.transportationAllowance || 0).toString(),
+      complexityAllowance: (employee.complexityAllowance || 0).toString(),
+      observationalAllowance: (employee.observationalAllowance || 0).toString(),
+      communicationsAllowance: (employee.communicationsAllowance || 0).toString(),
+      internetAllowance: (employee.internetAllowance || 0).toString(),
+      riceSubsidyAllowance: (employee.riceSubsidyAllowance || 0).toString(),
+      clothingAllowance: (employee.clothingAllowance || 0).toString(),
+      laundryAllowance: (employee.laundryAllowance || 0).toString(),
+      allowance: (employee.allowance || 0).toString(),
+      kpiOtIncentive: (employee.kpiOtIncentive || 0).toString(),
+      salaryAdjustmentDefault: (employee.salaryAdjustmentDefault || 0).toString(),
       departmentId: employee.departmentId
     });
     setShowAddForm(true);
@@ -1018,6 +1046,172 @@ const confirmDelete = async (e?: React.MouseEvent) => {
                       className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Allowances Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-1 h-6 bg-yellow-500 rounded-full"></div>
+                  <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Allowances & Incentives</h5>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Food Allowance</label>
+                    <input
+                      type="number"
+                      name="foodAllowance"
+                      value={formData.foodAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Transportation Allowance</label>
+                    <input
+                      type="number"
+                      name="transportationAllowance"
+                      value={formData.transportationAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Complexity Allowance</label>
+                    <input
+                      type="number"
+                      name="complexityAllowance"
+                      value={formData.complexityAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Observational Allowance</label>
+                    <input
+                      type="number"
+                      name="observationalAllowance"
+                      value={formData.observationalAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Communications Allowance</label>
+                    <input
+                      type="number"
+                      name="communicationsAllowance"
+                      value={formData.communicationsAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Internet Allowance</label>
+                    <input
+                      type="number"
+                      name="internetAllowance"
+                      value={formData.internetAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Rice Subsidy Allowance</label>
+                    <input
+                      type="number"
+                      name="riceSubsidyAllowance"
+                      value={formData.riceSubsidyAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Clothing Allowance</label>
+                    <input
+                      type="number"
+                      name="clothingAllowance"
+                      value={formData.clothingAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Laundry Allowance</label>
+                    <input
+                      type="number"
+                      name="laundryAllowance"
+                      value={formData.laundryAllowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">Other Allowance</label>
+                    <input
+                      type="number"
+                      name="allowance"
+                      value={formData.allowance}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">KPI/OT Incentive</label>
+                    <input
+                      type="number"
+                      name="kpiOtIncentive"
+                      value={formData.kpiOtIncentive}
+                      onChange={handleInputChange}
+                      min="0"
+                      step="0.01"
+                      placeholder="₱0.00"
+                      className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Default Salary Adjustment</label>
+                  <input
+                    type="number"
+                    name="salaryAdjustmentDefault"
+                    value={formData.salaryAdjustmentDefault}
+                    onChange={handleInputChange}
+                    step="0.01"
+                    placeholder="₱0.00"
+                    className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all duration-200 bg-white"
+                  />
                 </div>
               </div>
 

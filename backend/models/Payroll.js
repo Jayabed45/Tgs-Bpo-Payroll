@@ -46,6 +46,13 @@ class Payroll {
     this.referralBonus = data.referralBonus || 0;
     this.complexityAllowance = data.complexityAllowance || 0;
     this.observationalAllowance = data.observationalAllowance || 0;
+    this.foodAllowance = data.foodAllowance || 0;
+    this.transportationAllowance = data.transportationAllowance || 0;
+    this.communicationsAllowance = data.communicationsAllowance || 0;
+    this.internetAllowance = data.internetAllowance || 0;
+    this.riceSubsidyAllowance = data.riceSubsidyAllowance || 0;
+    this.clothingAllowance = data.clothingAllowance || 0;
+    this.laundryAllowance = data.laundryAllowance || 0;
     this.allowance = data.allowance || 0;
     this.salaryAdjustment = data.salaryAdjustment || 0;
     
@@ -85,6 +92,17 @@ class Payroll {
     this.grossPay = this.basicSalary + 
                     this.holidayPay + 
                     this.nightDifferential + 
+                    this.complexityAllowance +
+                    this.observationalAllowance +
+                    this.foodAllowance +
+                    this.transportationAllowance +
+                    this.communicationsAllowance +
+                    this.internetAllowance +
+                    this.riceSubsidyAllowance +
+                    this.clothingAllowance +
+                    this.laundryAllowance +
+                    this.allowance +
+                    this.referralBonus +
                     this.salaryAdjustment - 
                     this.absences - 
                     this.lateDeductions;

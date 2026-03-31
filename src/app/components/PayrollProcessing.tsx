@@ -11,6 +11,18 @@ interface Employee {
   name: string;
   position: string;
   salary: number;
+  foodAllowance?: number;
+  transportationAllowance?: number;
+  complexityAllowance?: number;
+  observationalAllowance?: number;
+  communicationsAllowance?: number;
+  internetAllowance?: number;
+  riceSubsidyAllowance?: number;
+  clothingAllowance?: number;
+  laundryAllowance?: number;
+  allowance?: number;
+  kpiOtIncentive?: number;
+  salaryAdjustmentDefault?: number;
 }
 
 interface TimekeepingEmployeeData {

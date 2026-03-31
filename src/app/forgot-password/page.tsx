@@ -54,7 +54,7 @@ export default function ForgotPassword() {
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="rounded-md shadow-sm -space-y-px" suppressHydrationWarning>
             <div>
               <label htmlFor="email-address" className="sr-only">
                 Email address
