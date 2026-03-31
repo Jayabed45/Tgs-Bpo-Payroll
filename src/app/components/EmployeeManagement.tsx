@@ -36,8 +36,15 @@ const EMPLOYEE_HEADER_MAP: Record<string, string> = {
   Absence: "absenceDays",
   "Bi-Monthly": "biMonthlyRate",
   "Bi Monthly": "biMonthlyRate",
+  "Food Allowance": "foodAllowance",
+  "Transportation Allowance": "transportationAllowance",
   "Complexity Allowance": "complexityAllowance",
   "Observational Allowance": "observationalAllowance",
+  "Communications Allowance": "communicationsAllowance",
+  "Internet Allowance": "internetAllowance",
+  "Rice Subsidy Allowance": "riceSubsidyAllowance",
+  "Clothing Allowance": "clothingAllowance",
+  "Laundry Allowance": "laundryAllowance",
   Allowance: "allowance",
   "KPI/OT Incentive": "kpiOtIncentive",
   "KPI OT Incentive": "kpiOtIncentive",
@@ -85,8 +92,15 @@ const NUMERIC_FIELDS = new Set([
   "workingDays",
   "absenceDays",
   "biMonthlyRate",
+  "foodAllowance",
+  "transportationAllowance",
   "complexityAllowance",
   "observationalAllowance",
+  "communicationsAllowance",
+  "internetAllowance",
+  "riceSubsidyAllowance",
+  "clothingAllowance",
+  "laundryAllowance",
   "allowance",
   "kpiOtIncentive",
   "salaryAdjustmentDefault",
@@ -111,8 +125,15 @@ const EMPLOYEE_TEMPLATE_HEADERS = [
   "Worked Days",
   "Absence",
   "Bi-Monthly",
+  "Food Allowance",
+  "Transportation Allowance",
   "Complexity Allowance",
   "Observational Allowance",
+  "Communications Allowance",
+  "Internet Allowance",
+  "Rice Subsidy Allowance",
+  "Clothing Allowance",
+  "Laundry Allowance",
   "Allowance",
   "KPI/OT Incentive",
   "Salary Adjustment",
@@ -678,8 +699,15 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         workingDays: parseNumericField(row.workingDays),
         absenceDays: parseNumericField(row.absenceDays || row.absence),
         biMonthlyRate: parseNumericField(row.biMonthlyRate),
+        foodAllowance: parseNumericField(row.foodAllowance),
+        transportationAllowance: parseNumericField(row.transportationAllowance),
         complexityAllowance: parseNumericField(row.complexityAllowance),
         observationalAllowance: parseNumericField(row.observationalAllowance),
+        communicationsAllowance: parseNumericField(row.communicationsAllowance),
+        internetAllowance: parseNumericField(row.internetAllowance),
+        riceSubsidyAllowance: parseNumericField(row.riceSubsidyAllowance),
+        clothingAllowance: parseNumericField(row.clothingAllowance),
+        laundryAllowance: parseNumericField(row.laundryAllowance),
         allowance: parseNumericField(row.allowance),
         kpiOtIncentive: parseNumericField(row.kpiOtIncentive),
         salaryAdjustmentDefault: parseNumericField(row.salaryAdjustmentDefault),
@@ -758,10 +786,31 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         case 'Bi-Monthly':
           exampleRow[header] = 67500;
           break;
+        case 'Food Allowance':
+          exampleRow[header] = 0;
+          break;
+        case 'Transportation Allowance':
+          exampleRow[header] = 0;
+          break;
         case 'Complexity Allowance':
           exampleRow[header] = 15000;
           break;
         case 'Observational Allowance':
+          exampleRow[header] = 0;
+          break;
+        case 'Communications Allowance':
+          exampleRow[header] = 0;
+          break;
+        case 'Internet Allowance':
+          exampleRow[header] = 0;
+          break;
+        case 'Rice Subsidy Allowance':
+          exampleRow[header] = 0;
+          break;
+        case 'Clothing Allowance':
+          exampleRow[header] = 0;
+          break;
+        case 'Laundry Allowance':
           exampleRow[header] = 0;
           break;
         case 'Allowance':

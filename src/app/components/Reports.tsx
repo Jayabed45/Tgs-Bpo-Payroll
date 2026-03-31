@@ -16,6 +16,16 @@ interface Payroll {
   holidayPay: number;
   nightDifferential: number;
   salaryAdjustment: number;
+  foodAllowance?: number;
+  transportationAllowance?: number;
+  complexityAllowance?: number;
+  observationalAllowance?: number;
+  communicationsAllowance?: number;
+  internetAllowance?: number;
+  riceSubsidyAllowance?: number;
+  clothingAllowance?: number;
+  laundryAllowance?: number;
+  allowance?: number;
   absences: number;
   lateDeductions: number;
   sssContribution: number;
@@ -603,6 +613,66 @@ export default function Reports() {
                           <span className="font-bold text-black">SALARY ADJUSTMENT:</span>
                           <span className="text-black">₱{selectedPayroll.salaryAdjustment?.toLocaleString() || '0.00'}</span>
                         </div>
+                        {(selectedPayroll.foodAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">FOOD ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.foodAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.transportationAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">TRANSPORTATION ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.transportationAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.complexityAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">COMPLEXITY ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.complexityAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.observationalAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">OBSERVATIONAL ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.observationalAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.communicationsAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">COMMUNICATIONS ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.communicationsAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.internetAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">INTERNET ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.internetAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.riceSubsidyAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">RICE SUBSIDY ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.riceSubsidyAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.clothingAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">CLOTHING ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.clothingAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.laundryAllowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">LAUNDRY ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.laundryAllowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
+                        {(selectedPayroll.allowance || 0) > 0 && (
+                          <div className="flex justify-between border-b border-gray-200 pb-2">
+                            <span className="font-bold text-black">OTHER ALLOWANCE:</span>
+                            <span className="text-black">₱{selectedPayroll.allowance?.toLocaleString() || '0.00'}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between border-b-2 border-gray-300 pb-2 pt-2">
                           <span className="font-bold text-black text-lg">TOTAL ADDITIONS:</span>
                           <span className="font-bold text-black text-lg">₱{selectedPayroll.grossPay?.toLocaleString() || '0.00'}</span>
