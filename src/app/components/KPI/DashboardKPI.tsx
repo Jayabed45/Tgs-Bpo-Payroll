@@ -134,9 +134,16 @@ export default function DashboardKPI({
       return { x, y, value: v };
     });
 
-    const linePath = points.map((point, i) => 
-      `${i === 0 ? 'M' : 'L'} ${point.x},${point.y}`
-    ).join(' ');
+    const linePath = points.reduce((acc, point, i, a) => {
+      if (i === 0) return `M ${point.x},${point.y}`;
+      const prev = a[i - 1];
+      const cx = (prev.x + point.x) / 2;
+      return `${acc} C ${cx},${prev.y} ${cx},${point.y} ${point.x},${point.y}`;
+    }, '');
+
+    const areaPath = points.length > 0 
+      ? `${linePath} L ${points[points.length - 1].x},${height - padding} L ${points[0].x},${height - padding} Z`
+      : '';
 
     // Y-axis labels
     const yAxisLabels = [];
@@ -150,6 +157,7 @@ export default function DashboardKPI({
     return {
       months,
       path: linePath,
+      areaPath,
       points,
       width,
       height,
@@ -368,7 +376,15 @@ export default function DashboardKPI({
           </div>
           
           <div className="relative h-32">
-            <svg viewBox={`0 0 ${employeeGrowthTrend.width} ${employeeGrowthTrend.height}`} preserveAspectRatio="none" className="w-full h-full">
+            <svg viewBox={`0 0 ${employeeGrowthTrend.width} ${employeeGrowthTrend.height}`} preserveAspectRatio="none" className="w-full h-full overflow-visible">
+              {/* Definitions for gradients and shadows */}
+              <defs>
+                <linearGradient id="employeeGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10B981" stopOpacity="0.2" />
+                  <stop offset="100%" stopColor="#10B981" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              
               {/* Grid lines */}
               {employeeGrowthTrend.yAxisLabels.map((label, i) => (
                 <g key={i}>
@@ -377,67 +393,90 @@ export default function DashboardKPI({
                     y1={label.y} 
                     x2={employeeGrowthTrend.width - employeeGrowthTrend.padding} 
                     y2={label.y} 
-                    stroke="#E5E7EB" 
+                    stroke="#F3F4F6" 
                     strokeWidth="1" 
-                    strokeDasharray="2,2"
                   />
                 </g>
               ))}
               
-              {/* Line chart */}
+              {/* Area Fill */}
+              <path 
+                d={employeeGrowthTrend.areaPath} 
+                fill="url(#employeeGradient)"
+                className="transition-all duration-700 ease-in-out"
+              />
+
+              {/* Main Line */}
               <path 
                 d={employeeGrowthTrend.path} 
                 stroke="#10B981" 
-                strokeWidth="3" 
+                strokeWidth="3.5" 
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                className="transition-all duration-700 ease-in-out"
+              />
+              
+              {/* Subtle shadow path for depth */}
+              <path 
+                d={employeeGrowthTrend.path} 
+                stroke="#10B981" 
+                strokeWidth="3.5" 
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ opacity: 0.1, filter: 'blur(3px)', transform: 'translateY(2px)' }}
                 className="pointer-events-none"
               />
               
-              {/* Data points */}
-              {employeeGrowthTrend.points.map((point, i) => (
-                <g key={i}>
-                  <circle 
-                    cx={point.x} 
-                    cy={point.y} 
-                    r={hoveredPoint === i ? "6" : "4"}
-                    fill="#10B981" 
-                    stroke="white" 
-                    strokeWidth="2"
-                    className="cursor-pointer transition-all duration-200"
-                    style={{ 
-                      filter: hoveredPoint === i ? 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.5))' : 'none'
-                    }}
-                    onMouseEnter={() => setHoveredPoint(i)}
-                    onMouseLeave={() => setHoveredPoint(null)}
-                  />
-                </g>
-              ))}
             </svg>
+
+            {/* Data points overlay (keeps circles perfectly round while line stays full-width) */}
+            <div className="absolute inset-0">
+              {employeeGrowthTrend.points.map((point, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer bg-transparent border-0 p-0"
+                  style={{
+                    left: `${(point.x / employeeGrowthTrend.width) * 100}%`,
+                    top: `${(point.y / employeeGrowthTrend.height) * 100}%`,
+                  }}
+                  onMouseEnter={() => setHoveredPoint(i)}
+                  onMouseLeave={() => setHoveredPoint(null)}
+                >
+                  <span className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500 opacity-0 transition-all duration-300 group-hover:opacity-10" />
+                  <span
+                    className="block h-[9px] w-[9px] rounded-full bg-emerald-500 transition-all duration-200"
+                    style={{ filter: "drop-shadow(0 1px 2px rgba(16, 185, 129, 0.4))" }}
+                  />
+                  <span className="pointer-events-none absolute left-1/2 top-1/2 h-[3px] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white opacity-0 transition-all duration-200 group-hover:opacity-100" />
+                </button>
+              ))}
+            </div>
             
             {/* Tooltip for line chart */}
             {hoveredPoint !== null && employeeGrowthTrend.months[hoveredPoint] && (
               <div 
-                className="absolute bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap pointer-events-none"
+                className="absolute bg-gray-900 text-white text-[10px] rounded-lg px-2 py-1.5 shadow-xl z-10 whitespace-nowrap pointer-events-none"
                 style={{
                   left: `${(hoveredPoint / (employeeGrowthTrend.months.length - 1)) * 100}%`,
-                  top: '20%',
-                  transform: 'translate(-50%, -100%)'
+                  top: '0%',
+                  transform: 'translate(-50%, -100%) translateY(-10px)'
                 }}
               >
-                <div className="font-semibold">{employeeGrowthTrend.months[hoveredPoint].label}</div>
-                <div className="text-gray-300">
+                <div className="font-bold">{employeeGrowthTrend.months[hoveredPoint].label}</div>
+                <div className="text-emerald-300">
                   {employeeGrowthTrend.points[hoveredPoint].value} employees
                 </div>
                 <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
-                  <div className="border-4 border-transparent border-t-gray-900"></div>
+                  <div className="border-[5px] border-transparent border-t-gray-900"></div>
                 </div>
               </div>
             )}
             
             {/* X-axis labels */}
-            <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-500 px-8">
+            <div className="absolute -bottom-6 left-0 right-0 flex justify-between text-[11px] font-medium text-gray-400 px-8">
               {employeeGrowthTrend.months.map((m, i) => (
                 <span key={i}>{m.label}</span>
               ))}

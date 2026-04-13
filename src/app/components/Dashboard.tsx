@@ -76,9 +76,16 @@ export default function Dashboard({
       return { x, y, value: v };
     });
 
-    const linePath = points.map((point, i) => 
-      `${i === 0 ? 'M' : 'L'} ${point.x},${point.y}`
-    ).join(' ');
+    const linePath = points.reduce((acc, point, i, a) => {
+      if (i === 0) return `M ${point.x},${point.y}`;
+      const prev = a[i - 1];
+      const cx = (prev.x + point.x) / 2;
+      return `${acc} C ${cx},${prev.y} ${cx},${point.y} ${point.x},${point.y}`;
+    }, '');
+
+    const areaPath = points.length > 0 
+      ? `${linePath} L ${points[points.length - 1].x},${height - padding} L ${points[0].x},${height - padding} Z`
+      : '';
 
     // Generate Y-axis labels
     const yAxisLabels = [];
@@ -90,7 +97,8 @@ export default function Dashboard({
     }
 
     return { 
-      path: linePath, 
+      path: linePath,
+      areaPath,
       labels, 
       points, 
       width, 
@@ -172,7 +180,19 @@ export default function Dashboard({
               </div>
             </div>
             <div className="relative h-60">
-              <svg viewBox={`0 0 ${lineChart.width || 700} ${lineChart.height || 240}`} preserveAspectRatio="none" className="w-full h-full">
+              <svg viewBox={`0 0 ${lineChart.width || 700} ${lineChart.height || 240}`} preserveAspectRatio="none" className="w-full h-full overflow-visible">
+                {/* Definitions for gradients and shadows */}
+                <defs>
+                  <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.2" />
+                    <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+                  </linearGradient>
+                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+                
                 {/* Grid lines */}
                 {lineChart.yAxisLabels?.map((label, i) => (
                   <g key={i}>
@@ -181,60 +201,94 @@ export default function Dashboard({
                       y1={label.y} 
                       x2={lineChart.width - lineChart.padding} 
                       y2={label.y} 
-                      stroke="#E5E7EB" 
+                      stroke="#F3F4F6" 
                       strokeWidth="1" 
-                      strokeDasharray="2,2"
                     />
                     <text 
                       x={lineChart.padding - 8} 
                       y={label.y + 4} 
                       textAnchor="end" 
-                      className="text-xs fill-gray-500"
-                      fontSize="10"
+                      className="text-[10px] fill-gray-400 font-medium"
                     >
                       ₱{(label.value / 1000).toFixed(0)}k
                     </text>
                   </g>
                 ))}
                 
-                {/* Line chart */}
+                {/* Area Fill */}
+                <path 
+                  d={lineChart.areaPath} 
+                  fill="url(#lineGradient)"
+                  className="transition-all duration-700 ease-in-out"
+                />
+
+                {/* Main Line */}
                 <path 
                   d={lineChart.path} 
                   stroke="#3B82F6" 
-                  strokeWidth="3" 
+                  strokeWidth="3.5" 
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className="transition-all duration-700 ease-in-out"
+                />
+                
+                {/* Subtle shadow path for depth */}
+                <path 
+                  d={lineChart.path} 
+                  stroke="#3B82F6" 
+                  strokeWidth="3.5" 
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ opacity: 0.1, filter: 'blur(3px)', transform: 'translateY(2px)' }}
+                  className="pointer-events-none"
                 />
                 
                 {/* Data points */}
                 {lineChart.points?.map((point, i) => (
-                  <g key={i}>
-                    <circle 
-                      cx={point.x} 
-                      cy={point.y} 
-                      r="4" 
-                      fill="#3B82F6" 
-                      stroke="white" 
-                      strokeWidth="2"
-                    />
-                    {/* Tooltip on hover */}
+                  <g key={i} className="group cursor-pointer">
+                    {/* Pulsing glow on hover */}
                     <circle 
                       cx={point.x} 
                       cy={point.y} 
                       r="8" 
+                      fill="#3B82F6" 
+                      className="opacity-0 group-hover:opacity-10 transition-all duration-300"
+                    />
+                    {/* Main dot with solid color and subtle shadow */}
+                    <circle 
+                      cx={point.x} 
+                      cy={point.y} 
+                      r="4.5" 
+                      fill="#3B82F6" 
+                      className="transition-all duration-200"
+                      style={{ filter: 'drop-shadow(0 1px 2px rgba(59, 130, 246, 0.4))' }}
+                    />
+                    {/* Inner highlight dot for a "hollow" effect on hover */}
+                    <circle 
+                      cx={point.x} 
+                      cy={point.y} 
+                      r="1.5" 
+                      fill="white" 
+                      className="opacity-0 group-hover:opacity-100 transition-all duration-200"
+                    />
+                    {/* Larger interaction area */}
+                    <circle 
+                      cx={point.x} 
+                      cy={point.y} 
+                      r="12" 
                       fill="transparent" 
-                      className="cursor-pointer hover:fill-blue-100 hover:opacity-50"
                     />
                   </g>
                 ))}
               </svg>
               
               {/* X-axis labels */}
-              <div className="absolute bottom-0 left-0 right-0 px-2 flex justify-between text-xs text-gray-500">
+              <div className="absolute -bottom-6 left-0 right-0 px-2 flex justify-between text-[11px] font-medium text-gray-400">
                 {lineChart.labels?.map((label, i) => (
                   <span key={i} className="transform -translate-x-1/2" style={{ marginLeft: `${lineChart.padding}px` }}>
-                    {(label || '').slice(5)}
+                    {(label || '').split('-').pop()}
                   </span>
                 ))}
               </div>
