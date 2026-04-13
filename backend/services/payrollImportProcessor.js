@@ -40,6 +40,24 @@ function buildEmployeeCodeKeys(value) {
   return Array.from(keys);
 }
 
+function normalizeEmployeeName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+function isSameEmployeeRow(a, b) {
+  if (!a || !b) return false;
+  const codeA = normalizeEmployeeCode(a.employeeCode);
+  const codeB = normalizeEmployeeCode(b.employeeCode);
+  if (codeA && codeB && codeA === codeB) return true;
+
+  const nameA = normalizeEmployeeName(a.employeeName);
+  const nameB = normalizeEmployeeName(b.employeeName);
+  return Boolean(nameA && nameB && nameA === nameB);
+}
+
 function excelSerialToDate(serial) {
   const serialNum = parseNumber(serial, NaN);
   if (!Number.isFinite(serialNum)) return null;
@@ -204,16 +222,7 @@ function extractLegacyRows(workbook, requestedCutoffStart, requestedCutoffEnd) {
       if (!employeeCode && !employeeName) continue;
       if (normalizeHeader(employeeName) === 'grand total') continue;
 
-      const match = rows.find((item) => {
-        const sameCode =
-          normalizeEmployeeCode(item.employeeCode) &&
-          normalizeEmployeeCode(item.employeeCode) === normalizeEmployeeCode(employeeCode);
-        const sameName =
-          item.employeeName &&
-          employeeName &&
-          item.employeeName.toLowerCase() === employeeName.toLowerCase();
-        return sameCode || sameName;
-      });
+      const match = rows.find((item) => isSameEmployeeRow(item, { employeeCode, employeeName }));
 
       if (match) {
         match.overtimeHours = parseNumber(overtimeIdx >= 0 ? row[overtimeIdx] : row[2], 0);
@@ -247,16 +256,7 @@ function extractLegacyRows(workbook, requestedCutoffStart, requestedCutoffEnd) {
       if (!employeeCode && !employeeName) continue;
       if (normalizeHeader(employeeName) === 'grand total') continue;
 
-      const match = rows.find((item) => {
-        const sameCode =
-          normalizeEmployeeCode(item.employeeCode) &&
-          normalizeEmployeeCode(item.employeeCode) === normalizeEmployeeCode(employeeCode);
-        const sameName =
-          item.employeeName &&
-          employeeName &&
-          item.employeeName.toLowerCase() === employeeName.toLowerCase();
-        return sameCode || sameName;
-      });
+      const match = rows.find((item) => isSameEmployeeRow(item, { employeeCode, employeeName }));
 
       if (match) {
         match.siteLocation = row[2] || match.siteLocation || '';
@@ -292,16 +292,7 @@ function extractLegacyRows(workbook, requestedCutoffStart, requestedCutoffEnd) {
       if (!employeeCode && !employeeName) continue;
       if (normalizeHeader(employeeName) === 'grand total') continue;
 
-      const match = rows.find((item) => {
-        const sameCode =
-          normalizeEmployeeCode(item.employeeCode) &&
-          normalizeEmployeeCode(item.employeeCode) === normalizeEmployeeCode(employeeCode);
-        const sameName =
-          item.employeeName &&
-          employeeName &&
-          item.employeeName.toLowerCase() === employeeName.toLowerCase();
-        return sameCode || sameName;
-      });
+      const match = rows.find((item) => isSameEmployeeRow(item, { employeeCode, employeeName }));
 
       if (match) {
         match.ctoHours = parseNumber(row[2], 0);
@@ -329,16 +320,7 @@ function extractLegacyRows(workbook, requestedCutoffStart, requestedCutoffEnd) {
       if (!employeeCode && !employeeName) continue;
       if (normalizeHeader(employeeName) === 'grand total') continue;
 
-      const match = rows.find((item) => {
-        const sameCode =
-          normalizeEmployeeCode(item.employeeCode) &&
-          normalizeEmployeeCode(item.employeeCode) === normalizeEmployeeCode(employeeCode);
-        const sameName =
-          item.employeeName &&
-          employeeName &&
-          item.employeeName.toLowerCase() === employeeName.toLowerCase();
-        return sameCode || sameName;
-      });
+      const match = rows.find((item) => isSameEmployeeRow(item, { employeeCode, employeeName }));
 
       if (match) {
         const hRate = hourlyRateIdx >= 0 ? parseNumber(row[hourlyRateIdx], NaN) : parseNumber(row[2], NaN);
@@ -473,26 +455,36 @@ function extractFlexibleRows(workbook) {
 function mergeRecords(primaryRows, secondaryRows) {
   const merged = [];
   const keyIndex = new Map();
+  const getIdentityKeys = (row) => {
+    const keys = [];
+    const normalizedCode = normalizeEmployeeCode(row.employeeCode);
+    const normalizedName = normalizeEmployeeName(row.employeeName);
+    if (normalizedCode) keys.push(`code:${normalizedCode}`);
+    if (normalizedName) keys.push(`name:${normalizedName}`);
+    return keys;
+  };
 
   const upsert = (row) => {
-    const keyPartCode = normalizeEmployeeCode(row.employeeCode);
-    const keyPartName = String(row.employeeName || '').toLowerCase().trim();
-    const key = `${keyPartCode}::${keyPartName}`;
+    const identityKeys = getIdentityKeys(row);
+    const existingIndex = identityKeys.find((key) => keyIndex.has(key));
 
-    if (!keyIndex.has(key)) {
+    if (existingIndex === undefined) {
       merged.push({ ...row });
-      keyIndex.set(key, merged.length - 1);
+      const rowIndex = merged.length - 1;
+      identityKeys.forEach((key) => keyIndex.set(key, rowIndex));
       return;
     }
 
-    const existing = merged[keyIndex.get(key)];
+    const rowIndex = keyIndex.get(existingIndex);
+    const existing = merged[rowIndex];
     const combined = { ...existing };
     for (const [field, value] of Object.entries(row)) {
       if (value !== undefined && value !== null && value !== '' && !(typeof value === 'number' && Number.isNaN(value))) {
         combined[field] = value;
       }
     }
-    merged[keyIndex.get(key)] = combined;
+    merged[rowIndex] = combined;
+    getIdentityKeys(combined).forEach((key) => keyIndex.set(key, rowIndex));
   };
 
   primaryRows.forEach(upsert);
@@ -597,7 +589,7 @@ async function processImportedPayroll(input, deps) {
     employees.forEach((emp) => {
       const employeeId = emp._id.toString();
       employeeById.set(employeeId, emp);
-      if (emp.name) employeeByName.set(String(emp.name).toLowerCase().trim(), emp);
+      if (emp.name) employeeByName.set(normalizeEmployeeName(emp.name), emp);
       buildEmployeeCodeKeys(emp.employeeCode).forEach((key) => employeeByCode.set(key, emp));
     });
 
@@ -633,7 +625,7 @@ async function processImportedPayroll(input, deps) {
           }
         }
         if (!employee && row.employeeName) {
-          employee = employeeByName.get(String(row.employeeName).toLowerCase().trim()) || null;
+          employee = employeeByName.get(normalizeEmployeeName(row.employeeName)) || null;
         }
 
         if (!employee) {
@@ -654,7 +646,7 @@ async function processImportedPayroll(input, deps) {
           employee = { _id: insertedEmployee.insertedId, ...newEmployee };
           const employeeId = employee._id.toString();
           employeeById.set(employeeId, employee);
-          employeeByName.set(String(employee.name || '').toLowerCase().trim(), employee);
+          employeeByName.set(normalizeEmployeeName(employee.name), employee);
           buildEmployeeCodeKeys(employee.employeeCode).forEach((key) => employeeByCode.set(key, employee));
           results.employeesCreated++;
         }

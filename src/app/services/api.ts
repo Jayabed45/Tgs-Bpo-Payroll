@@ -449,6 +449,14 @@ class ApiService {
     return this.handleResponse<{ success: boolean; payslip: any }>(response);
   }
 
+  async deletePayslip(payslipId: string) {
+    const response = await this.retryFetch(`${API_BASE_URL}/payslips/${payslipId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+    return this.handleResponse<{ success: boolean; message: string }>(response);
+  }
+
   // Department API calls
   async getDepartments() {
     const response = await this.retryFetch(`${API_BASE_URL}/departments`, {

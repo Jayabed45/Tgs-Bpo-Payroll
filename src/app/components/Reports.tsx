@@ -158,6 +158,12 @@ export default function Reports() {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('payrollRecords');
+  const [payrollDateFrom, setPayrollDateFrom] = useState("");
+  const [payrollDateTo, setPayrollDateTo] = useState("");
+  const [payrollSortOrder, setPayrollSortOrder] = useState<"date_desc" | "date_asc">("date_desc");
+  const [payslipDateFrom, setPayslipDateFrom] = useState("");
+  const [payslipDateTo, setPayslipDateTo] = useState("");
+  const [payslipSortOrder, setPayslipSortOrder] = useState<"generated_desc" | "generated_asc">("generated_desc");
   
   // Modal states
   const [successModal, setSuccessModal] = useState<{ open: boolean; message?: string }>({
@@ -239,11 +245,15 @@ export default function Reports() {
 
     setGenerating(true);
     try {
-      const payslip = await apiService.generatePayslip(payroll._id || payroll.id || '');
+      await apiService.generatePayslip(payroll._id || payroll.id || '');
       setSuccessModal({ open: true, message: 'Payslip generated successfully!' });
       fetchData(); // Refresh the list
-    } catch (error: any) {
-      setErrorModal({ open: true, message: error.message || 'Failed to generate payslip' });
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : 'Failed to generate payslip';
+      setErrorModal({ open: true, message });
     } finally {
       setGenerating(false);
     }
@@ -273,9 +283,13 @@ export default function Reports() {
       }, 100);
       
       console.log('Download triggered successfully');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : 'Failed to download payslip';
       console.error('Download error:', error);
-      setErrorModal({ open: true, message: error.message || 'Failed to download payslip' });
+      setErrorModal({ open: true, message });
     }
   };
 
@@ -283,6 +297,19 @@ export default function Reports() {
     const byId = payrolls.find((p) => (p._id || p.id) === payslip.payrollId) || null;
     setSelectedPayroll(byId);
     setShowPayslipModal(true);
+  };
+
+  const toSafeTimestamp = (value: string | undefined) => {
+    if (!value) return 0;
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const toDateOnly = (value: string | undefined) => {
+    if (!value) return '';
+    const timestamp = toSafeTimestamp(value);
+    if (!timestamp) return '';
+    return new Date(timestamp).toISOString().slice(0, 10);
   };
 
   const filteredPayrolls = payrolls.filter(payroll => {
@@ -299,8 +326,17 @@ export default function Reports() {
       (payroll.cutoffEnd && new Date(payroll.cutoffEnd).toLocaleDateString().toLowerCase().includes(query)) ||
       payroll.status?.toLowerCase().includes(query)
     );
+
+    const cutoffStart = toDateOnly(payroll.cutoffStart);
+    const cutoffEnd = toDateOnly(payroll.cutoffEnd);
+    const fromDateMatch = !payrollDateFrom || (cutoffEnd !== '' && cutoffEnd >= payrollDateFrom);
+    const toDateMatch = !payrollDateTo || (cutoffStart !== '' && cutoffStart <= payrollDateTo);
     
-    return statusMatch && employeeMatch && searchMatch;
+    return statusMatch && employeeMatch && searchMatch && fromDateMatch && toDateMatch;
+  }).sort((a, b) => {
+    const dateA = toSafeTimestamp(a.cutoffEnd || a.cutoffStart);
+    const dateB = toSafeTimestamp(b.cutoffEnd || b.cutoffStart);
+    return payrollSortOrder === 'date_asc' ? dateA - dateB : dateB - dateA;
   });
 
   const filteredPayslips = payslips.filter(payslip => {
@@ -318,8 +354,16 @@ export default function Reports() {
       payslip.cutoffPeriod?.toLowerCase().includes(query) ||
       (payslip.generatedAt && new Date(payslip.generatedAt).toLocaleDateString().toLowerCase().includes(query))
     );
+
+    const generatedDate = toDateOnly(payslip.generatedAt);
+    const fromDateMatch = !payslipDateFrom || (generatedDate !== '' && generatedDate >= payslipDateFrom);
+    const toDateMatch = !payslipDateTo || (generatedDate !== '' && generatedDate <= payslipDateTo);
     
-    return statusMatch && employeeMatch && searchMatch;
+    return statusMatch && employeeMatch && searchMatch && fromDateMatch && toDateMatch;
+  }).sort((a, b) => {
+    const dateA = toSafeTimestamp(a.generatedAt);
+    const dateB = toSafeTimestamp(b.generatedAt);
+    return payslipSortOrder === 'generated_asc' ? dateA - dateB : dateB - dateA;
   });
 
   console.log('Current filters - Status:', filterStatus, 'Employee:', filterEmployee);
@@ -377,6 +421,14 @@ export default function Reports() {
               onClick={() => {
                 setFilterStatus('all');
                 setFilterEmployee('all');
+                setPayrollDateFrom('');
+                setPayrollDateTo('');
+                setPayrollSortOrder('date_desc');
+                setPayslipDateFrom('');
+                setPayslipDateTo('');
+                setPayslipSortOrder('generated_desc');
+                setSearchQuery('');
+                setPayslipSearchQuery('');
               }}
               className="w-full px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
             >
@@ -459,6 +511,49 @@ export default function Reports() {
                   </svg>
                 </button>
               )}
+            </div>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Cutoff From</label>
+                <input
+                  type="date"
+                  value={payrollDateFrom}
+                  onChange={(e) => setPayrollDateFrom(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Cutoff To</label>
+                <input
+                  type="date"
+                  value={payrollDateTo}
+                  onChange={(e) => setPayrollDateTo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Sort By Date</label>
+                <select
+                  value={payrollSortOrder}
+                  onChange={(e) => setPayrollSortOrder(e.target.value as "date_desc" | "date_asc")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="date_desc">Newest First</option>
+                  <option value="date_asc">Oldest First</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setPayrollDateFrom('');
+                    setPayrollDateTo('');
+                    setPayrollSortOrder('date_desc');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 text-sm"
+                >
+                  Reset Date Filter
+                </button>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -553,6 +648,49 @@ export default function Reports() {
                   </svg>
                 </button>
               )}
+            </div>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Generated From</label>
+                <input
+                  type="date"
+                  value={payslipDateFrom}
+                  onChange={(e) => setPayslipDateFrom(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Generated To</label>
+                <input
+                  type="date"
+                  value={payslipDateTo}
+                  onChange={(e) => setPayslipDateTo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Sort By Date</label>
+                <select
+                  value={payslipSortOrder}
+                  onChange={(e) => setPayslipSortOrder(e.target.value as "generated_desc" | "generated_asc")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="generated_desc">Newest First</option>
+                  <option value="generated_asc">Oldest First</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setPayslipDateFrom('');
+                    setPayslipDateTo('');
+                    setPayslipSortOrder('generated_desc');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 text-sm"
+                >
+                  Reset Date Filter
+                </button>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto">

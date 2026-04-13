@@ -192,3 +192,54 @@ test('returns partial success when some rows are invalid', async () => {
   assert.equal(state.payrollProcessingAudits[0].status, 'partial');
   assert.ok(result.payload.results.errors.length > 0);
 });
+
+test('matches employees across sheets using code-first and normalized-name fallback', async () => {
+  const base64 = buildBase64Workbook({
+    'Total Hours - Summary': [
+      ['Emp ID', "Employee's Name", '1-Feb', '2-Feb', 'Grand Total'],
+      ['EMP001', 'John A Doe', 8, 8, 16],
+      ['EMP002', 'Jane B Smith', 8, 8, 16],
+    ],
+    Hourly: [
+      ['Emp ID', "Employee's Name", 'Hourly Rate', 'Base Salary'],
+      ['EMP001', 'John A Doe', 150, 15000],
+      ['EMP002', 'Jane B Smith', 120, 12000],
+    ],
+    OT: [
+      ['Emp ID', "Employee's Name", 'Overtime Hours', 'Rest Day OT', 'Regular OT', 'Special Holiday OT', 'Bonus'],
+      ['EMP-001', 'john a. doe', 4, 0, 4, 0, 0],
+      ['EMP-002', 'JANE B SMITH', 1, 0, 1, 0, 0],
+    ],
+    'Special Holiday': [
+      ['Emp ID', "Employee's Name", 'Location', '14-Feb', 'Grand Total'],
+      ['EMP001', 'John A. Doe', 'Cebu', 8, 8],
+      ['EMP002', 'Jane B Smith', 'Cebu', 0, 0],
+    ],
+  });
+
+  const { db, state } = createMockDb([
+    { employeeCode: 'EMP-001', name: 'John A Doe', salary: 22000, hourlyRate: 125 },
+    { employeeCode: 'EMP-002', name: 'Jane B Smith', salary: 22000, hourlyRate: 125 },
+  ]);
+
+  const result = await processImportedPayroll(
+    { fileData: base64, cutoffStart: '2026-04-01', cutoffEnd: '2026-04-15', initiatedBy: 'tester' },
+    { db, ...contributionStubs(), logger: console }
+  );
+
+  assert.equal(result.httpStatus, 200);
+  assert.equal(result.payload.success, true);
+  assert.equal(result.payload.results.created, 2);
+  assert.equal(state.payroll.length, 2);
+
+  const john = state.payroll.find((p) => p.employeeCode === 'EMP001');
+  const jane = state.payroll.find((p) => p.employeeCode === 'EMP002');
+
+  assert.ok(john);
+  assert.ok(jane);
+  assert.equal(john.overtimeHours, 4);
+  assert.equal(jane.overtimeHours, 1);
+  assert.equal(john.specialHolidayHours, 8);
+  assert.equal(jane.specialHolidayHours, 0);
+  assert.notEqual(john.netPay, jane.netPay);
+});
