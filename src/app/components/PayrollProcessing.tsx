@@ -192,6 +192,14 @@ function PayrollDeleteModal({ isOpen, onClose, onConfirm, payrollName, message }
 }
 
 export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChange }: PayrollProcessingProps) {
+  const formatCurrency = (value: any) => {
+    const amount = Number.parseFloat(value);
+    return (Number.isFinite(amount) ? amount : 0).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrolls, setPayrolls] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -327,6 +335,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   // Imported payroll files state
   const [importedPayrolls, setImportedPayrolls] = useState<any[]>([]);
   const [viewingImportedPayroll, setViewingImportedPayroll] = useState<any>(null);
+  const [processingImportedId, setProcessingImportedId] = useState<string | null>(null);
 
   // State for the new individual payroll view
   const [individualPayroll, setIndividualPayroll] = useState<any>(null);
@@ -535,7 +544,114 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     }
   };
 
-  // Handle file selection for import - automatically save to database
+  const inferCutoffFromPreview = (previewData: {
+    sheets: Record<string, { headers: any[] }>;
+  }) => {
+    const headers = previewData?.sheets?.['Total Hours - Summary']?.headers || [];
+    const grandTotalIndex = headers.findIndex((h: any) => String(h).trim().toLowerCase() === 'grand total');
+    const dateValues: Date[] = [];
+
+    for (let i = 2; i < headers.length; i++) {
+      if (grandTotalIndex >= 0 && i >= grandTotalIndex) break;
+      const header = headers[i];
+      let parsedDate: Date | null = null;
+
+      if (typeof header === 'number' && Number.isFinite(header)) {
+        parsedDate = new Date(Math.round((header - 25569) * 86400 * 1000));
+      } else if (typeof header === 'string' && header.trim()) {
+        const text = header.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+          parsedDate = new Date(`${text}T00:00:00`);
+        } else {
+          const match = text.match(/^(\d{1,2})-([A-Za-z]{3,})-?$/);
+          if (match) {
+            const monthMap: Record<string, number> = {
+              jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+              jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+            };
+            const month = monthMap[match[2].slice(0, 3).toLowerCase()];
+            if (month !== undefined) {
+              const year = new Date().getFullYear();
+              parsedDate = new Date(year, month, parseInt(match[1], 10));
+            }
+          }
+        }
+      }
+
+      if (parsedDate && !Number.isNaN(parsedDate.getTime())) {
+        dateValues.push(parsedDate);
+      }
+    }
+
+    if (dateValues.length === 0) {
+      const today = new Date();
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      return {
+        cutoffStart: start.toISOString().split('T')[0],
+        cutoffEnd: end.toISOString().split('T')[0]
+      };
+    }
+
+    dateValues.sort((a, b) => a.getTime() - b.getTime());
+    return {
+      cutoffStart: dateValues[0].toISOString().split('T')[0],
+      cutoffEnd: dateValues[dateValues.length - 1].toISOString().split('T')[0]
+    };
+  };
+
+  // Process all employees from a saved imported payroll file in one click.
+  const handleProcessImportedPayroll = async (importedPayroll: any) => {
+    setProcessingImportedId(importedPayroll.id);
+    try {
+      const response = await apiService.getImportedPayroll(importedPayroll.id);
+      if (!response.success || !response.importedPayroll) {
+        throw new Error('Unable to load imported payroll file');
+      }
+
+      const fullImported = response.importedPayroll;
+      const sheetNames: string[] = fullImported.sheetNames || [];
+      const sheets: Record<string, { headers: any[]; rows: any[][] }> = fullImported.sheets || {};
+
+      if (sheetNames.length === 0) {
+        throw new Error('Imported file has no sheets to process');
+      }
+
+      const workbook = XLSX.utils.book_new();
+      sheetNames.forEach((sheetName) => {
+        const sheetData = sheets[sheetName];
+        if (!sheetData) return;
+        const aoa = [sheetData.headers || [], ...(sheetData.rows || [])];
+        const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      });
+
+      const base64 = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' });
+      const processResponse = await apiService.importTimekeeping(
+        base64,
+        fullImported.cutoffStart,
+        fullImported.cutoffEnd
+      );
+
+      const created = processResponse?.results?.created || 0;
+      const updated = processResponse?.results?.updated || 0;
+      const employeesCreated = processResponse?.results?.employeesCreated || 0;
+      const errorCount = processResponse?.results?.errors?.length || 0;
+      showModalMessage(
+        'success',
+        'Payroll Processed',
+        `Processed "${importedPayroll.fileName}": ${created} created, ${updated} updated, ${employeesCreated} employees auto-created, ${errorCount} errors.`
+      );
+      setMainViewTab('individualList');
+      fetchData();
+    } catch (error: any) {
+      showModalMessage('error', 'Process Failed', error.message || 'Failed to process imported payroll file');
+    } finally {
+      setProcessingImportedId(null);
+    }
+  };
+
+  // Handle file selection for import - automatically save to database and process payroll records
   const handleImportFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -556,24 +672,31 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           // Get preview data
           const response = await apiService.importTimekeepingPreview(base64);
           if (response.success && response.data) {
-            // Auto-generate cutoff dates from current date
-            const today = new Date();
-            const cutoffStart = new Date(today.getFullYear(), today.getMonth(), 1);
-            const cutoffEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            
-            const startDateStr = cutoffStart.toISOString().split('T')[0];
-            const endDateStr = cutoffEnd.toISOString().split('T')[0];
-            
-            // Automatically save to database
+            const { cutoffStart, cutoffEnd } = inferCutoffFromPreview(response.data);
+
+            // Save imported workbook copy
             const saveResponse = await apiService.saveImportedPayroll(
               base64,
-              startDateStr,
-              endDateStr,
+              cutoffStart,
+              cutoffEnd,
               file.name.replace(/\\.xlsx?$/i, '')
             );
-            
+
+            // Process file into payroll records
+            const importResponse = await apiService.importTimekeeping(
+              base64,
+              cutoffStart,
+              cutoffEnd
+            );
+
             if (saveResponse.success) {
-              showModalMessage('success', 'Import Successful', `File "${file.name}" has been imported and saved to the database.`);
+              const created = importResponse?.results?.created || 0;
+              const updated = importResponse?.results?.updated || 0;
+              showModalMessage(
+                'success',
+                'Import Successful',
+                `File "${file.name}" imported for cutoff ${cutoffStart} to ${cutoffEnd}. Payroll processed: ${created} created, ${updated} updated.`
+              );
               fetchData(); // Refresh the payroll list
               setMainViewTab('payroll'); // Switch to payroll tab to see the imported file
             }
@@ -908,9 +1031,9 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
             <p><strong>Basic Salary:</strong> ₱{individualPayroll.basicSalary.toLocaleString()}</p>
           </div>
           <div>
-            <p><strong>Gross Pay:</strong> ₱{individualPayroll.grossPay.toLocaleString()}</p>
-            <p><strong>Total Deductions:</strong> ₱{individualPayroll.totalDeductions.toLocaleString()}</p>
-            <p><strong>Net Pay:</strong> ₱{individualPayroll.netPay.toLocaleString()}</p>
+            <p><strong>Gross Pay:</strong> ₱{formatCurrency(individualPayroll.grossPay)}</p>
+            <p><strong>Total Deductions:</strong> ₱{formatCurrency(individualPayroll.totalDeductions)}</p>
+            <p><strong>Net Pay:</strong> ₱{formatCurrency(individualPayroll.netPay)}</p>
             <p><strong>Status:</strong> {individualPayroll.status}</p>
           </div>
         </div>
@@ -2768,6 +2891,21 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         {/* Actions */}
                         <td className="min-w-[80px] px-2 py-1.5 text-center">
                           <button
+                            className="px-2 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded mr-1 disabled:opacity-50"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleProcessImportedPayroll(importedPayroll);
+                            }}
+                            title="Process All Payroll"
+                            disabled={processingImportedId === importedPayroll.id}
+                          >
+                            {processingImportedId === importedPayroll.id ? (
+                              <i className="bi bi-hourglass-split"></i>
+                            ) : (
+                              <i className="bi bi-play-fill"></i>
+                            )}
+                          </button>
+                          <button
                             className="px-2 py-1 text-green-600 hover:text-green-900 hover:bg-green-50 rounded mr-1 disabled:opacity-50"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -2837,7 +2975,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         {new Date(p.cutoffStart).toLocaleDateString()} to {new Date(p.cutoffEnd).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                        ₱{p.netPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ₱{formatCurrency(p.netPay)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -2925,23 +3063,40 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                 )}
               </div>
               {viewingImportedPayroll && (
-                <button
-                  onClick={() => handleExportImportedPayroll(viewingImportedPayroll)}
-                  disabled={exportLoading}
-                  className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-white flex items-center"
-                >
-                  {exportLoading ? (
-                    <svg className="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                  )}
-                  Export Excel
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleProcessImportedPayroll(viewingImportedPayroll)}
+                    disabled={processingImportedId === viewingImportedPayroll.id}
+                    className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-white flex items-center disabled:opacity-60"
+                  >
+                    {processingImportedId === viewingImportedPayroll.id ? (
+                      <svg className="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <i className="bi bi-play-fill mr-1"></i>
+                    )}
+                    Process All
+                  </button>
+                  <button
+                    onClick={() => handleExportImportedPayroll(viewingImportedPayroll)}
+                    disabled={exportLoading}
+                    className="px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-white flex items-center"
+                  >
+                    {exportLoading ? (
+                      <svg className="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    )}
+                    Export Excel
+                  </button>
+                </div>
               )}
               {previewPayroll && !viewingImportedPayroll && (
                 <button
@@ -3119,6 +3274,13 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         </button>
                         <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 hidden group-hover:block z-20">
                           <button
+                            onClick={() => handleProcessImportedPayroll(importedPayroll)}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 flex items-center"
+                            disabled={processingImportedId === importedPayroll.id}
+                          >
+                            <i className="bi bi-play-fill me-2"></i>Process All
+                          </button>
+                          <button
                             onClick={() => handleViewImportedPayroll(importedPayroll)}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center"
                           >
@@ -3181,7 +3343,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                     {new Date(p.cutoffStart).toLocaleDateString()} to {new Date(p.cutoffEnd).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    ₱{p.netPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ₱{formatCurrency(p.netPay)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${

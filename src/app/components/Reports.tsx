@@ -152,10 +152,12 @@ export default function Reports() {
   const [payslipSearchQuery, setPayslipSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generatingAll, setGeneratingAll] = useState(false);
   const [selectedPayroll, setSelectedPayroll] = useState<Payroll | null>(null);
   const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterEmployee, setFilterEmployee] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>('payrollRecords');
   
   // Modal states
   const [successModal, setSuccessModal] = useState<{ open: boolean; message?: string }>({
@@ -193,6 +195,40 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const generateAllPayslips = async () => {
+    setGeneratingAll(true);
+    let successCount = 0;
+    let errorCount = 0;
+    let warningCount = 0;
+
+    for (const payroll of filteredPayrolls) {
+      if (payroll.status !== 'processed' && payroll.status !== 'completed') {
+        warningCount++;
+        continue;
+      }
+      try {
+        await apiService.generatePayslip(payroll._id || payroll.id || '');
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to generate payslip for ${payroll.employeeName}:`, error);
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      setSuccessModal({ open: true, message: `${successCount} payslip(s) generated successfully!` });
+    }
+    if (errorCount > 0) {
+      setErrorModal({ open: true, message: `${errorCount} payslip(s) failed to generate.` });
+    }
+    if (warningCount > 0) {
+      setWarningModal({ open: true, message: `${warningCount} payroll(s) skipped (not processed/completed).` });
+    }
+
+    fetchData(); // Refresh the list after all attempts
+    setGeneratingAll(false);
   };
 
   const generatePayslip = async (payroll: Payroll) => {
@@ -244,7 +280,8 @@ export default function Reports() {
   };
 
   const viewPayslip = (payslip: Payslip) => {
-    setSelectedPayroll(payrolls.find(p => p.id === payslip.payrollId) || null);
+    const byId = payrolls.find((p) => (p._id || p.id) === payslip.payrollId) || null;
+    setSelectedPayroll(byId);
     setShowPayslipModal(true);
   };
 
@@ -349,185 +386,222 @@ export default function Reports() {
         </div>
       </div>
 
-      {/* Payrolls Section */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h4 className="text-lg font-medium text-gray-900">Payroll Records</h4>
-              <p className="text-sm text-gray-500">
-                {filterEmployee !== 'all' || filterStatus !== 'all' || searchQuery
-                  ? `Showing ${filteredPayrolls.length} of ${payrolls.length} payrolls`
-                  : `Select a payroll to generate payslip`
-                }
-              </p>
-            </div>
-          </div>
-          
-          {/* Search Bar */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by employee name, ID, cutoff period, status..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-sm"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutoff Period</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredPayrolls.map((payroll, index) => (
-                <tr key={payroll._id || payroll.id || `payroll-${index}`} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{payroll.employeeName}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(payroll.cutoffStart).toLocaleDateString()} - {new Date(payroll.cutoffEnd).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ₱{payroll.netPay?.toLocaleString() || '0'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      payroll.status === 'completed' 
-                        ? 'bg-green-100 text-green-800'
-                        : payroll.status === 'processed'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {payroll.status?.charAt(0).toUpperCase() + payroll.status?.slice(1) || 'Pending'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => generatePayslip(payroll)}
-                      disabled={generating || (payroll.status !== 'processed' && payroll.status !== 'completed')}
-                      className="text-blue-600 hover:text-blue-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={payroll.status !== 'processed' && payroll.status !== 'completed' ? 'Only processed/completed payrolls can generate payslips' : 'Generate payslip'}
-                    >
-                      {generating ? 'Generating...' : 'Generate Payslip'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('payrollRecords')}
+            className={`${
+              activeTab === 'payrollRecords'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Payroll Records
+          </button>
+          <button
+            onClick={() => setActiveTab('generatedPayslips')}
+            className={`${
+              activeTab === 'generatedPayslips'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Generated Payslips
+          </button>
+        </nav>
       </div>
 
-      {/* Payslips Section */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h4 className="text-lg font-medium text-gray-900">Generated Payslips</h4>
-              <p className="text-sm text-gray-500">
-                {payslipSearchQuery
-                  ? `Showing ${filteredPayslips.length} of ${payslips.length} payslips`
-                  : 'View and download generated payslips'
-                }
-              </p>
-            </div>
-          </div>
-          
-          {/* Search Bar */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              value={payslipSearchQuery}
-              onChange={(e) => setPayslipSearchQuery(e.target.value)}
-              placeholder="Search by employee name, cutoff period, generated date..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
-            />
-            {payslipSearchQuery && (
+      {/* Payrolls Section */}
+      {activeTab === 'payrollRecords' && (
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">Payroll Records</h4>
+                <p className="text-sm text-gray-500">
+                  {filterEmployee !== 'all' || filterStatus !== 'all' || searchQuery
+                    ? `Showing ${filteredPayrolls.length} of ${payrolls.length} payrolls`
+                    : `Select a payroll to generate payslip`
+                  }
+                </p>
+              </div>
               <button
-                onClick={() => setPayslipSearchQuery("")}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                onClick={generateAllPayslips}
+                disabled={generatingAll || filteredPayrolls.length === 0}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                {generatingAll ? 'Generating All...' : 'Generate Payslip All'}
               </button>
-            )}
+            </div>
+            
+            {/* Search Bar */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by employee name, ID, cutoff period, status..."
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-sm"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutoff Period</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredPayrolls.map((payroll, index) => (
+                  <tr key={payroll._id || payroll.id || `payroll-${index}`} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{payroll.employeeName}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(payroll.cutoffStart).toLocaleDateString()} - {new Date(payroll.cutoffEnd).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ₱{payroll.netPay?.toLocaleString() || '0'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        payroll.status === 'completed' 
+                          ? 'bg-green-100 text-green-800'
+                          : payroll.status === 'processed'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {payroll.status?.charAt(0).toUpperCase() + payroll.status?.slice(1) || 'Pending'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={() => generatePayslip(payroll)}
+                        disabled={generating || (payroll.status !== 'processed' && payroll.status !== 'completed')}
+                        className="text-blue-600 hover:text-blue-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={payroll.status !== 'processed' && payroll.status !== 'completed' ? 'Only processed/completed payrolls can generate payslips' : 'Generate payslip'}
+                      >
+                        {generating ? 'Generating...' : 'Generate Payslip'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutoff Period</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Generated</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredPayslips.map((payslip, index) => (
-                <tr key={payslip._id || payslip.id || `payslip-${index}`} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{payslip.employeeName}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {payslip.cutoffPeriod}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    ₱{payslip.netPay?.toLocaleString() || '0'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(payslip.generatedAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button
-                      onClick={() => viewPayslip(payslip)}
-                      className="text-indigo-600 hover:text-indigo-900"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => downloadPayslip(payslip._id || payslip.id || '')}
-                      className="text-green-600 hover:text-green-900"
-                    >
-                      Download
-                    </button>
-                  </td>
+      )}
+
+      {/* Payslips Section */}
+      {activeTab === 'generatedPayslips' && (
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h4 className="text-lg font-medium text-gray-900">Generated Payslips</h4>
+                <p className="text-sm text-gray-500">
+                  {payslipSearchQuery
+                    ? `Showing ${filteredPayslips.length} of ${payslips.length} payslips`
+                    : 'View and download generated payslips'
+                  }
+                </p>
+              </div>
+            </div>
+            
+            {/* Search Bar */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={payslipSearchQuery}
+                onChange={(e) => setPayslipSearchQuery(e.target.value)}
+                placeholder="Search by employee name, cutoff period, generated date..."
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+              />
+              {payslipSearchQuery && (
+                <button
+                  onClick={() => setPayslipSearchQuery("")}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cutoff Period</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Generated</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredPayslips.map((payslip, index) => (
+                  <tr key={payslip._id || payslip.id || `payslip-${index}`} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{payslip.employeeName}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {payslip.cutoffPeriod}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ₱{payslip.netPay?.toLocaleString() || '0'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(payslip.generatedAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                      <button
+                        onClick={() => viewPayslip(payslip)}
+                        className="text-indigo-600 hover:text-indigo-900"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => downloadPayslip(payslip._id || payslip.id || '')}
+                        className="text-green-600 hover:text-green-900"
+                      >
+                        Download
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
               {/* Payslip View Modal */}
         {showPayslipModal && selectedPayroll && (
@@ -613,66 +687,46 @@ export default function Reports() {
                           <span className="font-bold text-black">SALARY ADJUSTMENT:</span>
                           <span className="text-black">₱{selectedPayroll.salaryAdjustment?.toLocaleString() || '0.00'}</span>
                         </div>
-                        {(selectedPayroll.foodAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">FOOD ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.foodAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.transportationAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">TRANSPORTATION ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.transportationAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.complexityAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">COMPLEXITY ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.complexityAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.observationalAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">OBSERVATIONAL ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.observationalAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.communicationsAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">COMMUNICATIONS ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.communicationsAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.internetAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">INTERNET ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.internetAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.riceSubsidyAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">RICE SUBSIDY ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.riceSubsidyAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.clothingAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">CLOTHING ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.clothingAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.laundryAllowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">LAUNDRY ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.laundryAllowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
-                        {(selectedPayroll.allowance || 0) > 0 && (
-                          <div className="flex justify-between border-b border-gray-200 pb-2">
-                            <span className="font-bold text-black">OTHER ALLOWANCE:</span>
-                            <span className="text-black">₱{selectedPayroll.allowance?.toLocaleString() || '0.00'}</span>
-                          </div>
-                        )}
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">FOOD ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.foodAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">TRANSPORTATION ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.transportationAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">COMPLEXITY ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.complexityAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">OBSERVATIONAL ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.observationalAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">COMMUNICATIONS ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.communicationsAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">INTERNET ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.internetAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">RICE SUBSIDY ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.riceSubsidyAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">CLOTHING ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.clothingAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">LAUNDRY ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.laundryAllowance?.toLocaleString() || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-black">OTHER ALLOWANCE:</span>
+                          <span className="text-black">₱{selectedPayroll.allowance?.toLocaleString() || '0.00'}</span>
+                        </div>
                         <div className="flex justify-between border-b-2 border-gray-300 pb-2 pt-2">
                           <span className="font-bold text-black text-lg">TOTAL ADDITIONS:</span>
                           <span className="font-bold text-black text-lg">₱{selectedPayroll.grossPay?.toLocaleString() || '0.00'}</span>

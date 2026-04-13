@@ -647,6 +647,7 @@ class ApiService {
     results: {
       created: number;
       updated: number;
+      employeesCreated?: number;
       errors: string[];
       processed: any[];
     };

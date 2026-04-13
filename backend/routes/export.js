@@ -2,6 +2,7 @@ const express = require('express');
 const { ObjectId } = require('mongodb');
 const { clientPromise } = require('../config/database');
 const XLSX = require('xlsx');
+const { processImportedPayroll } = require('../services/payrollImportProcessor');
 
 const router = express.Router();
 
@@ -139,6 +140,122 @@ function formatEmployeeCode(code, index) {
   }
   // fallback if no code provided: use sequential index
   return String(index).padStart(5, '0');
+}
+
+function parseNumber(value, defaultValue = 0) {
+  if (value === null || value === undefined || value === '') {
+    return defaultValue;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  const cleaned = String(value).replace(/,/g, '').trim();
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
+function normalizeEmployeeCode(value) {
+  if (value === null || value === undefined) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (digits) {
+    const normalized = String(parseInt(digits, 10));
+    return normalized === 'NaN' ? raw.toLowerCase() : normalized;
+  }
+  return raw.toLowerCase();
+}
+
+function buildEmployeeCodeKeys(value) {
+  const keys = new Set();
+  const raw = value === null || value === undefined ? '' : String(value).trim();
+  if (raw) keys.add(raw.toLowerCase());
+  const normalized = normalizeEmployeeCode(value);
+  if (normalized) keys.add(normalized);
+  return Array.from(keys);
+}
+
+function excelSerialToDate(serial) {
+  const serialNum = parseNumber(serial, NaN);
+  if (!Number.isFinite(serialNum)) return null;
+  const epoch = Date.UTC(1899, 11, 30);
+  const ms = epoch + Math.round(serialNum * 24 * 60 * 60 * 1000);
+  return new Date(ms);
+}
+
+function toISODate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  return date.toISOString().split('T')[0];
+}
+
+function parseHeaderToISODate(headerValue, fallbackYear) {
+  if (typeof headerValue === 'number') {
+    return toISODate(excelSerialToDate(headerValue));
+  }
+
+  if (typeof headerValue !== 'string') return null;
+  const text = headerValue.trim();
+  if (!text) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  const dmyMatch = text.match(/^(\d{1,2})-([A-Za-z]{3,})-?$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const monthToken = dmyMatch[2].slice(0, 3).toLowerCase();
+    const monthMap = {
+      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+    };
+    const month = monthMap[monthToken];
+    if (!month) return null;
+    const year = fallbackYear || new Date().getFullYear();
+    return `${year}-${month}-${day}`;
+  }
+
+  const parsed = new Date(text);
+  return toISODate(parsed);
+}
+
+function inferCutoffFromSummaryHeaders(headers, fallbackYear) {
+  const dates = [];
+  for (let i = 2; i < headers.length; i++) {
+    const isoDate = parseHeaderToISODate(headers[i], fallbackYear);
+    if (isoDate) dates.push(isoDate);
+  }
+
+  if (dates.length === 0) {
+    return { cutoffStart: null, cutoffEnd: null };
+  }
+
+  dates.sort();
+  return {
+    cutoffStart: dates[0],
+    cutoffEnd: dates[dates.length - 1]
+  };
+}
+
+function calculateSSSContribution(monthlySalary) {
+  const salary = parseNumber(monthlySalary);
+  const bracket = SSS_TABLE.find(row => salary >= row.min && salary <= row.max);
+  return bracket ? parseNumber(bracket.ee) : 0;
+}
+
+function calculatePhilHealthContribution(monthlySalary) {
+  const salary = parseNumber(monthlySalary);
+  if (salary <= 10000) return 250;
+  if (salary <= 99999.99) return Math.min((salary * 0.05) / 2, 2500);
+  return 2500;
+}
+
+function calculatePagibigContribution(monthlySalary) {
+  const salary = parseNumber(monthlySalary);
+  if (salary <= 1500) return salary * 0.01;
+  return Math.min(salary * 0.02, 100);
 }
 
 // Export template with ALL employees (regardless of payroll records)
@@ -802,260 +919,30 @@ router.post('/import-preview', verifyAdminToken, async (req, res) => {
 router.post('/import', verifyAdminToken, async (req, res) => {
   try {
     const { fileData, cutoffStart, cutoffEnd } = req.body;
-    
+
     if (!fileData) {
       return res.status(400).json({ error: 'No file data provided' });
     }
 
     const client = await clientPromise;
     const db = client.db();
-    const payrollCollection = db.collection('payroll');
-    const employeesCollection = db.collection('employees');
-
-    // Decode base64 file data
-    const buffer = Buffer.from(fileData, 'base64');
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-
-    // Get all employees for matching
-    const employees = await employeesCollection.find({}).toArray();
-    const employeeByName = new Map();
-    const employeeByCode = new Map();
-    employees.forEach(emp => {
-      employeeByName.set(emp.name?.toLowerCase(), emp);
-      if (emp.employeeCode) {
-        employeeByCode.set(emp.employeeCode, emp);
+    const processing = await processImportedPayroll(
+      {
+        fileData,
+        cutoffStart,
+        cutoffEnd,
+        initiatedBy: req.user?.id || req.user?._id || req.user?.username || 'admin',
+      },
+      {
+        db,
+        logger: console,
+        calculateSSSContribution,
+        calculatePhilHealthContribution,
+        calculatePagibigContribution,
       }
-    });
+    );
 
-    const results = {
-      created: 0,
-      updated: 0,
-      errors: [],
-      processed: []
-    };
-
-    // Process "Total Hours - Summary" sheet for daily hours
-    const summarySheet = workbook.Sheets['Total Hours - Summary'];
-    if (summarySheet) {
-      const summaryData = XLSX.utils.sheet_to_json(summarySheet, { header: 1, defval: '' });
-      const headers = summaryData[0] || [];
-      
-      // Find date columns (columns between Employee Name and Grand Total)
-      const dateColumns = [];
-      for (let i = 2; i < headers.length - 1; i++) {
-        const header = headers[i];
-        if (header && typeof header === 'string' && header.match(/^\d+-[A-Za-z]+-?$/)) {
-          dateColumns.push({ index: i, header });
-        }
-      }
-
-      // Process each employee row
-      for (let rowIdx = 1; rowIdx < summaryData.length; rowIdx++) {
-        const row = summaryData[rowIdx];
-        if (!row || !row[1] || row[1] === 'Grand Total') continue;
-
-        const empCode = row[0];
-        const empName = row[1];
-        
-        // Find employee
-        let employee = employeeByCode.get(empCode) || employeeByName.get(empName?.toLowerCase());
-        
-        if (!employee) {
-          results.errors.push(`Employee not found: ${empName} (${empCode})`);
-          continue;
-        }
-
-        // Build daily hours object
-        const dailyHours = {};
-        let totalWorkedHours = 0;
-        dateColumns.forEach(col => {
-          const hours = parseFloat(row[col.index]) || 0;
-          if (hours > 0) {
-            // Parse date from header (e.g., "16-Oct-" -> "2025-10-16")
-            const dateMatch = col.header.match(/^(\d+)-([A-Za-z]+)/);
-            if (dateMatch) {
-              const day = dateMatch[1].padStart(2, '0');
-              const monthName = dateMatch[2];
-              const monthMap = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
-              const month = monthMap[monthName] || '01';
-              const year = cutoffStart ? cutoffStart.split('-')[0] : new Date().getFullYear();
-              const dateKey = `${year}-${month}-${day}`;
-              dailyHours[dateKey] = hours;
-              totalWorkedHours += hours;
-            }
-          }
-        });
-
-        // Grand Total from last column
-        const grandTotal = parseFloat(row[headers.length - 1]) || totalWorkedHours;
-
-        results.processed.push({
-          employeeId: employee._id.toString(),
-          employeeName: employee.name,
-          employeeCode: empCode,
-          dailyHours,
-          workedHours: grandTotal
-        });
-      }
-    }
-
-    // Process "OT" sheet for overtime data
-    const otSheet = workbook.Sheets['OT'];
-    if (otSheet) {
-      const otData = XLSX.utils.sheet_to_json(otSheet, { header: 1, defval: '' });
-      
-      for (let rowIdx = 1; rowIdx < otData.length; rowIdx++) {
-        const row = otData[rowIdx];
-        if (!row || !row[1] || row[1] === 'Grand Total') continue;
-
-        const empCode = row[0];
-        const empName = row[1];
-        
-        // Find in processed array
-        const processed = results.processed.find(p => 
-          p.employeeCode === empCode || p.employeeName?.toLowerCase() === empName?.toLowerCase()
-        );
-        
-        if (processed) {
-          processed.overtimeHours = parseFloat(row[2]) || 0;
-          processed.restDayOT = parseFloat(row[3]) || 0;
-          processed.regularOT = parseFloat(row[4]) || 0;
-          processed.specialHolidayOT = parseFloat(row[5]) || 0;
-        }
-      }
-    }
-
-    // Process "Special Holiday" sheet
-    const shSheet = workbook.Sheets['Special Holiday'];
-    if (shSheet) {
-      const shData = XLSX.utils.sheet_to_json(shSheet, { header: 1, defval: '' });
-      const headers = shData[0] || [];
-      
-      // Find date columns (after Site Location, before Total SH)
-      const dateColumns = [];
-      for (let i = 3; i < headers.length - 1; i++) {
-        const header = headers[i];
-        // Check if it's a date (could be Excel serial number or string)
-        if (header && (typeof header === 'number' || (typeof header === 'string' && header.match(/^\d/)))) {
-          dateColumns.push({ index: i, header });
-        }
-      }
-
-      for (let rowIdx = 1; rowIdx < shData.length; rowIdx++) {
-        const row = shData[rowIdx];
-        if (!row || !row[1] || row[1] === 'Grand Total') continue;
-
-        const empCode = row[0];
-        const empName = row[1];
-        
-        const processed = results.processed.find(p => 
-          p.employeeCode === empCode || p.employeeName?.toLowerCase() === empName?.toLowerCase()
-        );
-        
-        if (processed) {
-          processed.siteLocation = row[2] || '';
-          processed.specialHolidayDates = {};
-          
-          dateColumns.forEach(col => {
-            const hours = parseFloat(row[col.index]) || 0;
-            if (hours > 0) {
-              // Convert Excel serial to date if needed
-              let dateKey;
-              if (typeof col.header === 'number') {
-                const date = new Date((col.header - 25569) * 86400 * 1000);
-                dateKey = date.toISOString().split('T')[0];
-              } else {
-                dateKey = col.header;
-              }
-              processed.specialHolidayDates[dateKey] = hours;
-            }
-          });
-          
-          processed.specialHolidayHours = parseFloat(row[headers.length - 1]) || 0;
-        }
-      }
-    }
-
-    // Process "SIL_Offset" sheet
-    const silSheet = workbook.Sheets['SIL_Offset'];
-    if (silSheet) {
-      const silData = XLSX.utils.sheet_to_json(silSheet, { header: 1, defval: '' });
-      
-      for (let rowIdx = 1; rowIdx < silData.length; rowIdx++) {
-        const row = silData[rowIdx];
-        if (!row || !row[1] || row[1] === 'Grand Total') continue;
-
-        const empCode = row[0];
-        const empName = row[1];
-        
-        const processed = results.processed.find(p => 
-          p.employeeCode === empCode || p.employeeName?.toLowerCase() === empName?.toLowerCase()
-        );
-        
-        if (processed) {
-          processed.ctoHours = parseFloat(row[2]) || 0;
-          processed.phHolidayNotWorking = parseFloat(row[3]) || 0;
-          processed.silTenureCredits = parseFloat(row[4]) || 0;
-          processed.silCredits = parseFloat(row[5]) || 0;
-        }
-      }
-    }
-
-    // Create or update payroll records
-    for (const data of results.processed) {
-      try {
-        // Check if payroll exists for this employee and cutoff period
-        const existingPayroll = await payrollCollection.findOne({
-          employeeId: data.employeeId,
-          cutoffStart: cutoffStart,
-          cutoffEnd: cutoffEnd
-        });
-
-        const payrollData = {
-          employeeId: data.employeeId,
-          employeeName: data.employeeName,
-          employeeCode: data.employeeCode,
-          cutoffStart,
-          cutoffEnd,
-          dailyHours: data.dailyHours || {},
-          workedHours: data.workedHours || 0,
-          totalWorkedHours: data.workedHours || 0,
-          overtimeHours: data.overtimeHours || 0,
-          restDayOT: data.restDayOT || 0,
-          regularOT: data.regularOT || 0,
-          specialHolidayOT: data.specialHolidayOT || 0,
-          specialHolidayHours: data.specialHolidayHours || 0,
-          specialHolidayDates: data.specialHolidayDates || {},
-          siteLocation: data.siteLocation || '',
-          ctoHours: data.ctoHours || 0,
-          phHolidayNotWorking: data.phHolidayNotWorking || 0,
-          silTenureCredits: data.silTenureCredits || 0,
-          silCredits: data.silCredits || 0,
-          status: 'pending',
-          updatedAt: new Date()
-        };
-
-        if (existingPayroll) {
-          await payrollCollection.updateOne(
-            { _id: existingPayroll._id },
-            { $set: payrollData }
-          );
-          results.updated++;
-        } else {
-          payrollData.createdAt = new Date();
-          await payrollCollection.insertOne(payrollData);
-          results.created++;
-        }
-      } catch (err) {
-        results.errors.push(`Failed to save payroll for ${data.employeeName}: ${err.message}`);
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `Import completed: ${results.created} created, ${results.updated} updated`,
-      results
-    });
+    res.status(processing.httpStatus).json(processing.payload);
   } catch (error) {
     console.error('Import error:', error);
     res.status(500).json({ error: 'Failed to import data: ' + error.message });
@@ -1073,10 +960,6 @@ router.post('/imported-payrolls', verifyAdminToken, async (req, res) => {
       return res.status(400).json({ error: 'No file data provided' });
     }
     
-    if (!cutoffStart || !cutoffEnd) {
-      return res.status(400).json({ error: 'Cutoff dates are required' });
-    }
-
     const client = await clientPromise;
     const db = client.db();
     const importedPayrollsCollection = db.collection('importedPayrolls');
@@ -1109,11 +992,22 @@ router.post('/imported-payrolls', verifyAdminToken, async (req, res) => {
       }
     });
 
+    // Infer cutoff from the Summary sheet when available.
+    const summaryHeaders = sheets['Total Hours - Summary']?.headers || [];
+    const fallbackYear = cutoffStart ? parseInt(String(cutoffStart).split('-')[0], 10) : undefined;
+    const inferredCutoff = inferCutoffFromSummaryHeaders(summaryHeaders, fallbackYear);
+    const effectiveCutoffStart = inferredCutoff.cutoffStart || cutoffStart;
+    const effectiveCutoffEnd = inferredCutoff.cutoffEnd || cutoffEnd;
+
+    if (!effectiveCutoffStart || !effectiveCutoffEnd) {
+      return res.status(400).json({ error: 'Cutoff dates are required' });
+    }
+
     // Create the imported payroll record
     const importedPayroll = {
-      fileName: fileName || `Payroll_${cutoffStart}_to_${cutoffEnd}`,
-      cutoffStart,
-      cutoffEnd,
+      fileName: fileName || `Payroll_${effectiveCutoffStart}_to_${effectiveCutoffEnd}`,
+      cutoffStart: effectiveCutoffStart,
+      cutoffEnd: effectiveCutoffEnd,
       sheets,
       sheetNames,
       employeeCount,
