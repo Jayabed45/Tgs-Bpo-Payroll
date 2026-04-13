@@ -4,6 +4,23 @@ const { ObjectId } = require('mongodb');
 const { clientPromise } = require('../config/database');
 const { verifyAdminToken } = require('./auth');
 const PDFDocument = require('pdfkit');
+const Payroll = require('../models/Payroll');
+
+const parseNumber = (value, defaultValue = 0) => {
+  if (value === null || value === undefined || value === '') return defaultValue;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const cleaned = String(value).replace(/[,\s]/g, '').trim();
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+};
+
+const resolveAllowance = (payrollValue, employeeValue, defaultValue) => {
+  const fromPayroll = parseNumber(payrollValue, 0);
+  if (payrollValue !== undefined && payrollValue !== null && fromPayroll !== 0) return fromPayroll;
+  const fromEmployee = parseNumber(employeeValue, 0);
+  if (employeeValue !== undefined && employeeValue !== null && fromEmployee !== 0) return fromEmployee;
+  return parseNumber(defaultValue, 0);
+};
 
 // Apply admin authentication middleware to all routes
 router.use(verifyAdminToken);
@@ -137,6 +154,9 @@ router.get('/:id/download', async (req, res) => {
     const db = client.db();
     const payslipsCollection = db.collection('payslips');
     const payrollCollection = db.collection('payroll');
+    const employeesCollection = db.collection('employees');
+    const settingsDoc = await db.collection('settings').findOne({ type: 'system' });
+    const defaultAllowances = (settingsDoc && settingsDoc.data && settingsDoc.data.defaultAllowances) ? settingsDoc.data.defaultAllowances : {};
     
     // Get the payslip
     const payslip = await payslipsCollection.findOne({ _id: new ObjectId(id) });
@@ -157,6 +177,34 @@ router.get('/:id/download', async (req, res) => {
         error: 'Associated payroll not found'
       });
     }
+
+    let employee = null;
+    if (payroll.employeeId && ObjectId.isValid(payroll.employeeId)) {
+      employee = await employeesCollection.findOne({ _id: new ObjectId(payroll.employeeId) });
+    }
+
+    const resolvedAllowances = {
+      complexityAllowance: resolveAllowance(payroll.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+      observationalAllowance: resolveAllowance(payroll.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+      foodAllowance: resolveAllowance(payroll.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+      transportationAllowance: resolveAllowance(payroll.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+      communicationsAllowance: resolveAllowance(payroll.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+      internetAllowance: resolveAllowance(payroll.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+      riceSubsidyAllowance: resolveAllowance(payroll.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+      clothingAllowance: resolveAllowance(payroll.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+      laundryAllowance: resolveAllowance(payroll.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
+    };
+
+    const effectivePayroll = {
+      ...payroll,
+      ...resolvedAllowances,
+      employeeName: payroll.employeeName || employee?.name || payroll.employeeId,
+    };
+
+    const calculations = new Payroll(effectivePayroll).calculateAll();
+    effectivePayroll.grossPay = calculations.grossPay;
+    effectivePayroll.totalDeductions = calculations.totalDeductions;
+    effectivePayroll.netPay = calculations.netPay;
     
     // Generate PDF
     const doc = new PDFDocument({ margin: 50 });
@@ -170,7 +218,7 @@ router.get('/:id/download', async (req, res) => {
     doc.pipe(res);
     
     // Generate PDF content
-    generatePayslipPDF(doc, payroll, payslip);
+    generatePayslipPDF(doc, effectivePayroll, payslip);
     
     // Finalize PDF
     doc.end();

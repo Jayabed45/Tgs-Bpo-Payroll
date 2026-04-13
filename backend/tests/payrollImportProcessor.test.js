@@ -18,6 +18,25 @@ function createMockDb(initialEmployees = []) {
     employees: initialEmployees.map((emp, i) => ({ _id: `emp-${i + 1}`, ...emp })),
     payroll: [],
     payrollProcessingAudits: [],
+    settings: [
+      {
+        _id: 'settings-1',
+        type: 'system',
+        data: {
+          defaultAllowances: {
+            foodAllowance: 0,
+            transportationAllowance: 0,
+            complexityAllowance: 0,
+            observationalAllowance: 0,
+            communicationsAllowance: 0,
+            internetAllowance: 0,
+            riceSubsidyAllowance: 0,
+            clothingAllowance: 0,
+            laundryAllowance: 0,
+          },
+        },
+      },
+    ],
   };
   let idCounter = 1000;
 

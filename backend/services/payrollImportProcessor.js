@@ -593,6 +593,16 @@ async function processImportedPayroll(input, deps) {
       buildEmployeeCodeKeys(emp.employeeCode).forEach((key) => employeeByCode.set(key, emp));
     });
 
+    const settingsDoc = await db.collection('settings').findOne({ type: 'system' });
+    const defaultAllowances = (settingsDoc && settingsDoc.data && settingsDoc.data.defaultAllowances) ? settingsDoc.data.defaultAllowances : {};
+    const resolveAllowance = (rowValue, employeeValue, defaultValue) => {
+      const fromRow = parseNumber(rowValue, 0);
+      if (rowValue !== undefined && rowValue !== null && fromRow !== 0) return fromRow;
+      const fromEmployee = parseNumber(employeeValue, 0);
+      if (employeeValue !== undefined && employeeValue !== null && fromEmployee !== 0) return fromEmployee;
+      return parseNumber(defaultValue, 0);
+    };
+
     const results = {
       created: 0,
       updated: 0,
@@ -724,15 +734,15 @@ async function processImportedPayroll(input, deps) {
           silCredits: parseNumber(row.silCredits, 0),
           referralBonus: bonuses,
           allowance: allowances,
-          foodAllowance: parseNumber(row.foodAllowance, 0),
-          transportationAllowance: parseNumber(row.transportationAllowance, 0),
-          complexityAllowance: parseNumber(row.complexityAllowance, 0),
-          observationalAllowance: parseNumber(row.observationalAllowance, 0),
-          communicationsAllowance: parseNumber(row.communicationsAllowance, 0),
-          internetAllowance: parseNumber(row.internetAllowance, 0),
-          riceSubsidyAllowance: parseNumber(row.riceSubsidyAllowance, 0),
-          clothingAllowance: parseNumber(row.clothingAllowance, 0),
-          laundryAllowance: parseNumber(row.laundryAllowance, 0),
+          foodAllowance: resolveAllowance(row.foodAllowance, employee.foodAllowance, defaultAllowances.foodAllowance),
+          transportationAllowance: resolveAllowance(row.transportationAllowance, employee.transportationAllowance, defaultAllowances.transportationAllowance),
+          complexityAllowance: resolveAllowance(row.complexityAllowance, employee.complexityAllowance, defaultAllowances.complexityAllowance),
+          observationalAllowance: resolveAllowance(row.observationalAllowance, employee.observationalAllowance, defaultAllowances.observationalAllowance),
+          communicationsAllowance: resolveAllowance(row.communicationsAllowance, employee.communicationsAllowance, defaultAllowances.communicationsAllowance),
+          internetAllowance: resolveAllowance(row.internetAllowance, employee.internetAllowance, defaultAllowances.internetAllowance),
+          riceSubsidyAllowance: resolveAllowance(row.riceSubsidyAllowance, employee.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+          clothingAllowance: resolveAllowance(row.clothingAllowance, employee.clothingAllowance, defaultAllowances.clothingAllowance),
+          laundryAllowance: resolveAllowance(row.laundryAllowance, employee.laundryAllowance, defaultAllowances.laundryAllowance),
           salaryAdjustment: overtimePay,
           absences: deductions,
           lateDeductions: 0,

@@ -5,6 +5,22 @@ const Payroll = require('../models/Payroll');
 
 const router = express.Router();
 
+const parseNumber = (value, defaultValue = 0) => {
+  if (value === null || value === undefined || value === '') return defaultValue;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const cleaned = String(value).replace(/[,\s]/g, '').trim();
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+};
+
+const resolveAllowance = (payrollValue, employeeValue, defaultValue) => {
+  const fromPayroll = parseNumber(payrollValue, 0);
+  if (payrollValue !== undefined && payrollValue !== null && fromPayroll !== 0) return fromPayroll;
+  const fromEmployee = parseNumber(employeeValue, 0);
+  if (employeeValue !== undefined && employeeValue !== null && fromEmployee !== 0) return fromEmployee;
+  return parseNumber(defaultValue, 0);
+};
+
 // Middleware to verify admin token
 const verifyAdminToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -32,6 +48,8 @@ router.get('/', verifyAdminToken, async (req, res) => {
     const db = client.db();
     const payrollCollection = db.collection('payroll');
     const employeesCollection = db.collection('employees');
+    const settingsDoc = await db.collection('settings').findOne({ type: 'system' });
+    const defaultAllowances = (settingsDoc && settingsDoc.data && settingsDoc.data.defaultAllowances) ? settingsDoc.data.defaultAllowances : {};
 
     const payrolls = await payrollCollection
       .find({})
@@ -81,15 +99,15 @@ router.get('/', verifyAdminToken, async (req, res) => {
           phHolidayNotWorking: payroll.phHolidayNotWorking || 0,
           nightDifferential: payroll.nightDifferential,
           nightDifferentialHours: payroll.nightDifferentialHours || 0,
-          complexityAllowance: payroll.complexityAllowance || 0,
-          observationalAllowance: payroll.observationalAllowance || 0,
-          foodAllowance: payroll.foodAllowance || 0,
-          transportationAllowance: payroll.transportationAllowance || 0,
-          communicationsAllowance: payroll.communicationsAllowance || 0,
-          internetAllowance: payroll.internetAllowance || 0,
-          riceSubsidyAllowance: payroll.riceSubsidyAllowance || 0,
-          clothingAllowance: payroll.clothingAllowance || 0,
-          laundryAllowance: payroll.laundryAllowance || 0,
+          complexityAllowance: resolveAllowance(payroll.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+          observationalAllowance: resolveAllowance(payroll.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+          foodAllowance: resolveAllowance(payroll.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+          transportationAllowance: resolveAllowance(payroll.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+          communicationsAllowance: resolveAllowance(payroll.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+          internetAllowance: resolveAllowance(payroll.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+          riceSubsidyAllowance: resolveAllowance(payroll.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+          clothingAllowance: resolveAllowance(payroll.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+          laundryAllowance: resolveAllowance(payroll.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
           allowance: payroll.allowance || 0,
           salaryAdjustment: payroll.salaryAdjustment,
           absences: payroll.absences,
@@ -98,9 +116,54 @@ router.get('/', verifyAdminToken, async (req, res) => {
           philhealthContribution: payroll.philhealthContribution,
           pagibigContribution: payroll.pagibigContribution,
           withholdingTax: payroll.withholdingTax,
-          grossPay: payroll.grossPay || 0,
-          totalDeductions: payroll.totalDeductions || 0,
-          netPay: payroll.netPay || 0,
+          grossPay: (() => {
+            const calculated = new Payroll({
+              ...payroll,
+              employeeName: employee ? employee.name : (payroll.employeeName || 'Unknown Employee'),
+              complexityAllowance: resolveAllowance(payroll.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+              observationalAllowance: resolveAllowance(payroll.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+              foodAllowance: resolveAllowance(payroll.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+              transportationAllowance: resolveAllowance(payroll.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+              communicationsAllowance: resolveAllowance(payroll.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+              internetAllowance: resolveAllowance(payroll.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+              riceSubsidyAllowance: resolveAllowance(payroll.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+              clothingAllowance: resolveAllowance(payroll.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+              laundryAllowance: resolveAllowance(payroll.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
+            }).calculateAll();
+            return calculated.grossPay;
+          })(),
+          totalDeductions: (() => {
+            const calculated = new Payroll({
+              ...payroll,
+              employeeName: employee ? employee.name : (payroll.employeeName || 'Unknown Employee'),
+              complexityAllowance: resolveAllowance(payroll.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+              observationalAllowance: resolveAllowance(payroll.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+              foodAllowance: resolveAllowance(payroll.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+              transportationAllowance: resolveAllowance(payroll.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+              communicationsAllowance: resolveAllowance(payroll.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+              internetAllowance: resolveAllowance(payroll.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+              riceSubsidyAllowance: resolveAllowance(payroll.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+              clothingAllowance: resolveAllowance(payroll.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+              laundryAllowance: resolveAllowance(payroll.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
+            }).calculateAll();
+            return calculated.totalDeductions;
+          })(),
+          netPay: (() => {
+            const calculated = new Payroll({
+              ...payroll,
+              employeeName: employee ? employee.name : (payroll.employeeName || 'Unknown Employee'),
+              complexityAllowance: resolveAllowance(payroll.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+              observationalAllowance: resolveAllowance(payroll.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+              foodAllowance: resolveAllowance(payroll.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+              transportationAllowance: resolveAllowance(payroll.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+              communicationsAllowance: resolveAllowance(payroll.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+              internetAllowance: resolveAllowance(payroll.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+              riceSubsidyAllowance: resolveAllowance(payroll.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+              clothingAllowance: resolveAllowance(payroll.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+              laundryAllowance: resolveAllowance(payroll.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
+            }).calculateAll();
+            return calculated.netPay;
+          })(),
           status: payroll.status,
           createdAt: payroll.createdAt,
           updatedAt: payroll.updatedAt
@@ -132,12 +195,42 @@ router.get('/:id', verifyAdminToken, async (req, res) => {
     const client = await clientPromise;
     const db = client.db();
     const payrollCollection = db.collection('payroll');
+    const employeesCollection = db.collection('employees');
+    const settingsDoc = await db.collection('settings').findOne({ type: 'system' });
+    const defaultAllowances = (settingsDoc && settingsDoc.data && settingsDoc.data.defaultAllowances) ? settingsDoc.data.defaultAllowances : {};
 
     const payroll = await payrollCollection.findOne({ _id: new ObjectId(id) });
 
     if (!payroll) {
       return res.status(404).json({ error: 'Payroll not found' });
     }
+
+    let employee = null;
+    if (payroll.employeeId && ObjectId.isValid(payroll.employeeId)) {
+      try {
+        employee = await employeesCollection.findOne({ _id: new ObjectId(payroll.employeeId) });
+      } catch (error) {
+        console.error(`Error finding employee for payroll ${payroll._id}:`, error);
+      }
+    }
+
+    const resolvedAllowances = {
+      complexityAllowance: resolveAllowance(payroll.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+      observationalAllowance: resolveAllowance(payroll.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+      foodAllowance: resolveAllowance(payroll.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+      transportationAllowance: resolveAllowance(payroll.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+      communicationsAllowance: resolveAllowance(payroll.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+      internetAllowance: resolveAllowance(payroll.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+      riceSubsidyAllowance: resolveAllowance(payroll.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+      clothingAllowance: resolveAllowance(payroll.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+      laundryAllowance: resolveAllowance(payroll.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
+    };
+
+    const calculations = new Payroll({
+      ...payroll,
+      employeeName: payroll.employeeName || employee?.name,
+      ...resolvedAllowances,
+    }).calculateAll();
 
     const formattedPayroll = {
       id: payroll._id.toString(),
@@ -150,15 +243,15 @@ router.get('/:id', verifyAdminToken, async (req, res) => {
       overtimeHours: payroll.overtimeHours,
       holidayPay: payroll.holidayPay,
       nightDifferential: payroll.nightDifferential,
-      complexityAllowance: payroll.complexityAllowance || 0,
-      observationalAllowance: payroll.observationalAllowance || 0,
-      foodAllowance: payroll.foodAllowance || 0,
-      transportationAllowance: payroll.transportationAllowance || 0,
-      communicationsAllowance: payroll.communicationsAllowance || 0,
-      internetAllowance: payroll.internetAllowance || 0,
-      riceSubsidyAllowance: payroll.riceSubsidyAllowance || 0,
-      clothingAllowance: payroll.clothingAllowance || 0,
-      laundryAllowance: payroll.laundryAllowance || 0,
+      complexityAllowance: resolvedAllowances.complexityAllowance,
+      observationalAllowance: resolvedAllowances.observationalAllowance,
+      foodAllowance: resolvedAllowances.foodAllowance,
+      transportationAllowance: resolvedAllowances.transportationAllowance,
+      communicationsAllowance: resolvedAllowances.communicationsAllowance,
+      internetAllowance: resolvedAllowances.internetAllowance,
+      riceSubsidyAllowance: resolvedAllowances.riceSubsidyAllowance,
+      clothingAllowance: resolvedAllowances.clothingAllowance,
+      laundryAllowance: resolvedAllowances.laundryAllowance,
       allowance: payroll.allowance || 0,
       salaryAdjustment: payroll.salaryAdjustment,
       absences: payroll.absences,
@@ -167,9 +260,9 @@ router.get('/:id', verifyAdminToken, async (req, res) => {
       philhealthContribution: payroll.philhealthContribution,
       pagibigContribution: payroll.pagibigContribution,
       withholdingTax: payroll.withholdingTax,
-      grossPay: payroll.grossPay || 0,
-      totalDeductions: payroll.totalDeductions || 0,
-      netPay: payroll.netPay || 0,
+      grossPay: calculations.grossPay,
+      totalDeductions: calculations.totalDeductions,
+      netPay: calculations.netPay,
       status: payroll.status,
       createdAt: payroll.createdAt,
       updatedAt: payroll.updatedAt
@@ -187,9 +280,31 @@ router.get('/:id', verifyAdminToken, async (req, res) => {
 router.post('/', verifyAdminToken, async (req, res) => {
   try {
     const payrollData = req.body;
+    const client = await clientPromise;
+    const db = client.db();
+    const employeesCollection = db.collection('employees');
+    const settingsDoc = await db.collection('settings').findOne({ type: 'system' });
+    const defaultAllowances = (settingsDoc && settingsDoc.data && settingsDoc.data.defaultAllowances) ? settingsDoc.data.defaultAllowances : {};
+
+    let employee = null;
+    if (payrollData.employeeId && ObjectId.isValid(payrollData.employeeId)) {
+      employee = await employeesCollection.findOne({ _id: new ObjectId(payrollData.employeeId) });
+    }
+
+    const resolvedAllowances = {
+      complexityAllowance: resolveAllowance(payrollData.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+      observationalAllowance: resolveAllowance(payrollData.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+      foodAllowance: resolveAllowance(payrollData.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+      transportationAllowance: resolveAllowance(payrollData.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+      communicationsAllowance: resolveAllowance(payrollData.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+      internetAllowance: resolveAllowance(payrollData.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+      riceSubsidyAllowance: resolveAllowance(payrollData.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+      clothingAllowance: resolveAllowance(payrollData.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+      laundryAllowance: resolveAllowance(payrollData.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
+    };
     
     // Create payroll instance
-    const payroll = new Payroll(payrollData);
+    const payroll = new Payroll({ ...payrollData, ...resolvedAllowances });
     
     // Validate payroll data
     const validationErrors = payroll.validate();
@@ -203,8 +318,6 @@ router.post('/', verifyAdminToken, async (req, res) => {
     // Calculate all payroll values
     const calculations = payroll.calculateAll();
 
-    const client = await clientPromise;
-    const db = client.db();
     const payrollCollection = db.collection('payroll');
 
     // Insert payroll with calculated values
@@ -218,6 +331,7 @@ router.post('/', verifyAdminToken, async (req, res) => {
     const createdPayroll = {
       id: result.insertedId.toString(),
       ...payrollData,
+      ...resolvedAllowances,
       grossPay: calculations.grossPay,
       totalDeductions: calculations.totalDeductions,
       netPay: calculations.netPay,
@@ -252,6 +366,9 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
     const client = await clientPromise;
     const db = client.db();
     const payrollCollection = db.collection('payroll');
+    const employeesCollection = db.collection('employees');
+    const settingsDoc = await db.collection('settings').findOne({ type: 'system' });
+    const defaultAllowances = (settingsDoc && settingsDoc.data && settingsDoc.data.defaultAllowances) ? settingsDoc.data.defaultAllowances : {};
 
     // Check if payroll exists
     const existingPayroll = await payrollCollection.findOne({ _id: new ObjectId(id) });
@@ -259,10 +376,28 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
       return res.status(404).json({ error: 'Payroll not found' });
     }
 
+    let employee = null;
+    if (existingPayroll.employeeId && ObjectId.isValid(existingPayroll.employeeId)) {
+      employee = await employeesCollection.findOne({ _id: new ObjectId(existingPayroll.employeeId) });
+    }
+
+    const resolvedAllowances = {
+      complexityAllowance: resolveAllowance(updateData.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+      observationalAllowance: resolveAllowance(updateData.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+      foodAllowance: resolveAllowance(updateData.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+      transportationAllowance: resolveAllowance(updateData.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+      communicationsAllowance: resolveAllowance(updateData.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+      internetAllowance: resolveAllowance(updateData.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+      riceSubsidyAllowance: resolveAllowance(updateData.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+      clothingAllowance: resolveAllowance(updateData.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+      laundryAllowance: resolveAllowance(updateData.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
+    };
+
     // Create new payroll instance with updated data
     const updatedPayroll = new Payroll({
       ...existingPayroll,
-      ...updateData
+      ...updateData,
+      ...resolvedAllowances
     });
 
     // Recalculate all values
@@ -274,6 +409,7 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
       { 
         $set: {
           ...updateData,
+          ...resolvedAllowances,
           grossPay: calculations.grossPay,
           totalDeductions: calculations.totalDeductions,
           netPay: calculations.netPay,

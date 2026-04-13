@@ -153,6 +153,10 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [deletingAllPayrolls, setDeletingAllPayrolls] = useState(false);
+  const [deletingAllPayslips, setDeletingAllPayslips] = useState(false);
+  const [deletingPayrollId, setDeletingPayrollId] = useState<string | null>(null);
+  const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
   const [selectedPayroll, setSelectedPayroll] = useState<Payroll | null>(null);
   const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -297,6 +301,136 @@ export default function Reports() {
     const byId = payrolls.find((p) => (p._id || p.id) === payslip.payrollId) || null;
     setSelectedPayroll(byId);
     setShowPayslipModal(true);
+  };
+
+  const deletePayrollRecord = async (payroll: Payroll) => {
+    const payrollId = payroll._id || payroll.id || '';
+    if (!payrollId) {
+      setErrorModal({ open: true, message: 'Invalid payroll ID' });
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete payroll record for "${payroll.employeeName}"? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingPayrollId(payrollId);
+    try {
+      await apiService.deletePayroll(payrollId);
+      setSuccessModal({ open: true, message: 'Payroll deleted successfully.' });
+      fetchData();
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : 'Failed to delete payroll';
+      setErrorModal({ open: true, message });
+    } finally {
+      setDeletingPayrollId(null);
+    }
+  };
+
+  const deletePayslipRecord = async (payslip: Payslip) => {
+    const payslipId = payslip._id || payslip.id || '';
+    if (!payslipId) {
+      setErrorModal({ open: true, message: 'Invalid payslip ID' });
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete payslip for "${payslip.employeeName}"? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingPayslipId(payslipId);
+    try {
+      await apiService.deletePayslip(payslipId);
+      setSuccessModal({ open: true, message: 'Payslip deleted successfully.' });
+      fetchData();
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : 'Failed to delete payslip';
+      setErrorModal({ open: true, message });
+    } finally {
+      setDeletingPayslipId(null);
+    }
+  };
+
+  const deleteAllFilteredPayrollRecords = async () => {
+    if (filteredPayrolls.length === 0) {
+      setWarningModal({ open: true, message: 'No payroll records to delete.' });
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ALL ${filteredPayrolls.length} payroll record(s) currently shown? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingAllPayrolls(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const payroll of filteredPayrolls) {
+      const payrollId = payroll._id || payroll.id || '';
+      if (!payrollId) {
+        errorCount++;
+        continue;
+      }
+      try {
+        await apiService.deletePayroll(payrollId);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete payroll for ${payroll.employeeName}:`, error);
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      setSuccessModal({ open: true, message: `${successCount} payroll record(s) deleted successfully.` });
+    }
+    if (errorCount > 0) {
+      setErrorModal({ open: true, message: `${errorCount} payroll record(s) failed to delete.` });
+    }
+
+    fetchData();
+    setDeletingAllPayrolls(false);
+  };
+
+  const deleteAllFilteredPayslips = async () => {
+    if (filteredPayslips.length === 0) {
+      setWarningModal({ open: true, message: 'No payslips to delete.' });
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ALL ${filteredPayslips.length} payslip(s) currently shown? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingAllPayslips(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const payslip of filteredPayslips) {
+      const payslipId = payslip._id || payslip.id || '';
+      if (!payslipId) {
+        errorCount++;
+        continue;
+      }
+      try {
+        await apiService.deletePayslip(payslipId);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete payslip for ${payslip.employeeName}:`, error);
+        errorCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      setSuccessModal({ open: true, message: `${successCount} payslip(s) deleted successfully.` });
+    }
+    if (errorCount > 0) {
+      setErrorModal({ open: true, message: `${errorCount} payslip(s) failed to delete.` });
+    }
+
+    fetchData();
+    setDeletingAllPayslips(false);
   };
 
   const toSafeTimestamp = (value: string | undefined) => {
@@ -478,13 +612,22 @@ export default function Reports() {
                   }
                 </p>
               </div>
-              <button
-                onClick={generateAllPayslips}
-                disabled={generatingAll || filteredPayrolls.length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {generatingAll ? 'Generating All...' : 'Generate Payslip All'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={generateAllPayslips}
+                  disabled={generatingAll || deletingAllPayrolls || filteredPayrolls.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generatingAll ? 'Generating All...' : 'Generate Payslip All'}
+                </button>
+                <button
+                  onClick={deleteAllFilteredPayrollRecords}
+                  disabled={generatingAll || deletingAllPayrolls || filteredPayrolls.length === 0}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deletingAllPayrolls ? 'Deleting...' : 'Delete All'}
+                </button>
+              </div>
             </div>
             
             {/* Search Bar */}
@@ -590,14 +733,22 @@ export default function Reports() {
                         {payroll.status?.charAt(0).toUpperCase() + payroll.status?.slice(1) || 'Pending'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
                       <button
                         onClick={() => generatePayslip(payroll)}
-                        disabled={generating || (payroll.status !== 'processed' && payroll.status !== 'completed')}
+                        disabled={generating || deletingPayrollId === (payroll._id || payroll.id) || (payroll.status !== 'processed' && payroll.status !== 'completed')}
                         className="text-blue-600 hover:text-blue-900 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={payroll.status !== 'processed' && payroll.status !== 'completed' ? 'Only processed/completed payrolls can generate payslips' : 'Generate payslip'}
                       >
                         {generating ? 'Generating...' : 'Generate Payslip'}
+                      </button>
+                      <button
+                        onClick={() => deletePayrollRecord(payroll)}
+                        disabled={generating || deletingPayrollId === (payroll._id || payroll.id) || deletingAllPayrolls}
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Delete payroll record"
+                      >
+                        {deletingPayrollId === (payroll._id || payroll.id) ? 'Deleting...' : 'Delete'}
                       </button>
                     </td>
                   </tr>
@@ -622,6 +773,13 @@ export default function Reports() {
                   }
                 </p>
               </div>
+              <button
+                onClick={deleteAllFilteredPayslips}
+                disabled={deletingAllPayslips || filteredPayslips.length === 0}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingAllPayslips ? 'Deleting...' : 'Delete All'}
+              </button>
             </div>
             
             {/* Search Bar */}
@@ -731,6 +889,13 @@ export default function Reports() {
                         className="text-green-600 hover:text-green-900"
                       >
                         Download
+                      </button>
+                      <button
+                        onClick={() => deletePayslipRecord(payslip)}
+                        disabled={deletingPayslipId === (payslip._id || payslip.id) || deletingAllPayslips}
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {deletingPayslipId === (payslip._id || payslip.id) ? 'Deleting...' : 'Delete'}
                       </button>
                     </td>
                   </tr>
