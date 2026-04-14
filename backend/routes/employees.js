@@ -2,6 +2,7 @@
 const { ObjectId } = require('mongodb');
 const { clientPromise } = require('../config/database');
 const Employee = require('../models/Employee');
+const { verifyAdminToken } = require('./auth');
 
 const parseNumber = (value, defaultValue = 0) => {
   if (value === null || value === undefined || value === '') {
@@ -17,27 +18,129 @@ const parseNumber = (value, defaultValue = 0) => {
   return Number.isFinite(parsed) ? parsed : defaultValue;
 };
 
+const normalizeDepartmentCode = (value) =>
+  String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .trim()
+    .slice(0, 10);
+
+const normalizeDepartmentName = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const deriveDepartmentCode = (name, fallbackIndex = 1) => {
+  const cleaned = String(name || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (cleaned) {
+    const initials = cleaned
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word[0])
+      .join('')
+      .slice(0, 6);
+    if (initials.length >= 2) return initials;
+
+    const compact = cleaned.replace(/\s+/g, '').slice(0, 6);
+    if (compact.length >= 2) return compact;
+  }
+
+  return `DP${String(fallbackIndex).padStart(2, '0')}`;
+};
+
 const router = express.Router();
 
-// Middleware to verify admin token
-const verifyAdminToken = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
+// Delete multiple employees
+router.post('/delete-bulk', verifyAdminToken, async (req, res) => {
   try {
-    const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No employee IDs provided' });
     }
-    req.user = decoded;
-    next();
+
+    const client = await clientPromise;
+    const db = client.db();
+    const employeesCollection = db.collection('employees');
+    const payrollCollection = db.collection('payroll');
+
+    const objectIds = ids.map(id => new ObjectId(id));
+
+    // Delete associated payrolls for all these employees
+    const payrollDeleteResult = await payrollCollection.deleteMany({ 
+      employeeId: { $in: ids } 
+    });
+
+    // Delete the employees
+    const employeeDeleteResult = await employeesCollection.deleteMany({ 
+      _id: { $in: objectIds } 
+    });
+
+    console.log(
+      `Bulk deleted ${employeeDeleteResult.deletedCount} employees and ${payrollDeleteResult.deletedCount} associated payrolls`
+    );
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${employeeDeleteResult.deletedCount} employees and their associated payroll records`,
+      deletedCount: employeeDeleteResult.deletedCount
+    });
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid token' });
+    console.error('Bulk delete employees error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-};
+});
+
+// Delete employee (permanent delete with cascade)
+router.delete('/:id', verifyAdminToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid employee ID' });
+    }
+
+    const client = await clientPromise;
+    const db = client.db();
+    const employeesCollection = db.collection('employees');
+    const payrollCollection = db.collection('payroll');
+
+    // Check if employee exists
+    const employee = await employeesCollection.findOne({ _id: new ObjectId(id) });
+    if (!employee) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    // Delete payrolls first
+    const payrollDeleteResult = await payrollCollection.deleteMany({ employeeId: id });
+
+    // Delete employee
+    const employeeDeleteResult = await employeesCollection.deleteOne({ _id: new ObjectId(id) });
+
+    if (employeeDeleteResult.deletedCount === 0) {
+      return res.status(500).json({ error: 'Failed to delete employee' });
+    }
+
+    console.log(
+      `Deleted employee ${id} and ${payrollDeleteResult.deletedCount} associated payrolls`
+    );
+
+    res.json({
+      success: true,
+      message: 'Employee and all associated payrolls deleted permanently'
+    });
+  } catch (error) {
+    console.error('Delete employee error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Get all employees
 router.get('/', verifyAdminToken, async (req, res) => {
@@ -296,50 +399,6 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
   }
 });
 
-// Delete employee (permanent delete with cascade)
-router.delete('/:id', verifyAdminToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid employee ID' });
-    }
-
-    const client = await clientPromise;
-    const db = client.db();
-    const employeesCollection = db.collection('employees');
-    const payrollCollection = db.collection('payroll');
-
-    // Check if employee exists
-    const employee = await employeesCollection.findOne({ _id: new ObjectId(id) });
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee not found' });
-    }
-
-    // Delete payrolls first
-    const payrollDeleteResult = await payrollCollection.deleteMany({ employeeId: id });
-
-    // Delete employee
-    const employeeDeleteResult = await employeesCollection.deleteOne({ _id: new ObjectId(id) });
-
-    if (employeeDeleteResult.deletedCount === 0) {
-      return res.status(500).json({ error: 'Failed to delete employee' });
-    }
-
-    console.log(
-      `Deleted employee ${id} and ${payrollDeleteResult.deletedCount} associated payrolls`
-    );
-
-    res.json({
-      success: true,
-      message: 'Employee and all associated payrolls deleted permanently'
-    });
-  } catch (error) {
-    console.error('Delete employee error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Bulk import employees
 router.post('/bulk-import', verifyAdminToken, async (req, res) => {
   try {
@@ -358,15 +417,16 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
     let importedCount = 0;
 
     const departmentsCollection = db.collection('departments');
-    const departments = await departmentsCollection.find({ isActive: true }).toArray();
+    const departments = await departmentsCollection.find({}).toArray();
     const departmentsByKey = new Map();
+    let generatedDepartmentCodeCounter = 1;
     departments.forEach((dept) => {
       if (!dept) return;
       if (dept.code) {
-        departmentsByKey.set(String(dept.code).trim().toLowerCase(), dept);
+        departmentsByKey.set(normalizeDepartmentCode(dept.code), dept);
       }
       if (dept.name) {
-        departmentsByKey.set(String(dept.name).trim().toLowerCase(), dept);
+        departmentsByKey.set(normalizeDepartmentName(dept.name), dept);
       }
     });
 
@@ -386,6 +446,7 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
           siteLocation: employeeData.siteLocation?.toString().trim() || '',
           salaryType: employeeData.salaryType?.toString().trim() || '',
           departmentName: employeeData.departmentName?.toString().trim() || employeeData.department?.toString().trim() || '',
+          departmentCode: employeeData.departmentCode?.toString().trim() || '',
           subDepartment: employeeData.subDepartment?.toString().trim() || '',
           employeeClass: employeeData.employeeClass?.toString().trim() || employeeData.class?.toString().trim() || '',
           l1Head: employeeData.l1Head?.toString().trim() || '',
@@ -407,11 +468,56 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
           hireDate: employeeData.hireDate || employeeData.employmentDate || null,
         };
 
-        if (!normalizedEmployee.departmentId && normalizedEmployee.departmentName) {
-          const deptKey = normalizedEmployee.departmentName.toLowerCase();
-          const matchedDept = departmentsByKey.get(deptKey);
+        if (!normalizedEmployee.departmentId && (normalizedEmployee.departmentName || normalizedEmployee.departmentCode)) {
+          const deptCodeKey = normalizeDepartmentCode(normalizedEmployee.departmentCode);
+          const deptNameKey = normalizeDepartmentName(normalizedEmployee.departmentName);
+          let matchedDept =
+            (deptCodeKey && departmentsByKey.get(deptCodeKey)) ||
+            (deptNameKey && departmentsByKey.get(deptNameKey));
+
+          console.log(`🔍 [Bulk Import] Employee ${normalizedEmployee.name}: Matching department "${normalizedEmployee.departmentName}" (${normalizedEmployee.departmentCode}) -> Key: ${deptNameKey}/${deptCodeKey} -> Found: ${matchedDept ? matchedDept.name : 'NO'}`);
+
+          if (!matchedDept) {
+            let departmentCode = deptCodeKey || deriveDepartmentCode(normalizedEmployee.departmentName, generatedDepartmentCodeCounter++);
+            while (departmentCode && departmentsByKey.get(departmentCode)) {
+              departmentCode = `${departmentCode.slice(0, 8)}${Math.floor(Math.random() * 90 + 10)}`;
+            }
+
+            console.log(`➕ [Bulk Import] Creating new department: "${normalizedEmployee.departmentName}" with code "${departmentCode}"`);
+
+            const departmentDoc = {
+              name: normalizedEmployee.departmentName || departmentCode,
+              code: departmentCode,
+              description: '',
+              siteLocation: normalizedEmployee.siteLocation || '',
+              manager: '',
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+            const insertedDepartment = await departmentsCollection.insertOne(departmentDoc);
+            matchedDept = { _id: insertedDepartment.insertedId, ...departmentDoc };
+            departmentsByKey.set(normalizeDepartmentCode(matchedDept.code), matchedDept);
+            departmentsByKey.set(normalizeDepartmentName(matchedDept.name), matchedDept);
+          }
+
           if (matchedDept) {
+            if (matchedDept.isActive === false) {
+              console.log(`🔄 [Bulk Import] Reactivating department: ${matchedDept.name}`);
+              await departmentsCollection.updateOne(
+                { _id: matchedDept._id },
+                {
+                  $set: {
+                    isActive: true,
+                    updatedAt: new Date(),
+                    siteLocation: normalizedEmployee.siteLocation || matchedDept.siteLocation || '',
+                  },
+                }
+              );
+              matchedDept.isActive = true;
+            }
             normalizedEmployee.departmentId = matchedDept._id;
+            normalizedEmployee.departmentName = matchedDept.name;
           }
         }
 

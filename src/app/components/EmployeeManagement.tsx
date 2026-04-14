@@ -51,6 +51,11 @@ const EMPLOYEE_HEADER_MAP: Record<string, string> = {
   "Salary Adjustment": "salaryAdjustmentDefault",
   "Employee ID": "employeeCode",
   "Employee Code": "employeeCode",
+  "Emp ID": "employeeCode",
+  "Department Name": "departmentName",
+  "Department Code": "departmentCode",
+  Salary: "basicMonthlyRate",
+  Status: "employmentStatus",
   Email: "email",
   "Employee Email": "email",
   "Contact Number": "contactNumber",
@@ -176,6 +181,43 @@ const normalizeHireDate = (value: unknown): string => {
   return parsed.toISOString().split("T")[0];
 };
 
+const normalizeHeaderKey = (value: unknown): string => {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+};
+
+const EMPLOYEE_SHEET_CANDIDATES = [
+  "employee",
+  "employee master",
+  "employees",
+  "master",
+];
+
+const findEmployeeWorksheet = (workbook: XLSX.WorkBook) => {
+  const sheetNames = workbook.SheetNames || [];
+  if (!sheetNames.length) return null;
+
+  const byName = sheetNames.find((sheetName) =>
+    EMPLOYEE_SHEET_CANDIDATES.some((candidate) =>
+      sheetName.toLowerCase().includes(candidate)
+    )
+  );
+  if (byName) return workbook.Sheets[byName];
+
+  for (const sheetName of sheetNames) {
+    const ws = workbook.Sheets[sheetName];
+    const firstRow = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: "", range: 0 })[0] || [];
+    const normalized = new Set(firstRow.map(normalizeHeaderKey));
+    const looksLikeEmployeeSheet =
+      (normalized.has("employeeid") || normalized.has("empid")) &&
+      (normalized.has("employeename") || normalized.has("employeesname"));
+    if (looksLikeEmployeeSheet) return ws;
+  }
+
+  return workbook.Sheets[sheetNames[0]];
+};
+
 interface Employee {
   id: string;
   employeeCode?: string; // Short readable code like EMP001
@@ -260,6 +302,7 @@ export default function EmployeeManagement({ onEmployeeChange }: EmployeeManagem
   const [dragActive, setDragActive] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
   const [viewModal, setViewModal] = useState<{ open: boolean; employee?: Employee }>({
     open: false,
   });
@@ -393,6 +436,43 @@ const confirmDelete = async (e?: React.MouseEvent) => {
   } catch (error: any) {
     console.error("❌ Delete error:", error);
     setErrorModal({ open: true, message: error.message || "Delete failed" });
+  }
+};
+
+const handleDeleteAll = async () => {
+  if (filteredEmployees.length === 0) {
+    setErrorModal({ open: true, message: "No employees to delete." });
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Are you sure you want to delete ALL ${filteredEmployees.length} employees currently shown? This will also delete all their associated payroll records and cannot be undone.`
+  );
+
+  if (!confirmed) return;
+
+  setDeletingAll(true);
+  try {
+    const idsToDelete = filteredEmployees.map(emp => emp.id);
+    const result = await apiService.deleteBulkEmployees(idsToDelete);
+    
+    setSuccessModal({ 
+      open: true, 
+      message: `Successfully deleted ${result.deletedCount} employees and their associated records.` 
+    });
+    
+    // Refresh employee list
+    fetchEmployees();
+    
+    // Notify parent component if callback exists
+    if (onEmployeeChange) {
+      onEmployeeChange();
+    }
+  } catch (error: any) {
+    console.error("❌ Bulk delete error:", error);
+    setErrorModal({ open: true, message: error.message || "Bulk delete failed" });
+  } finally {
+    setDeletingAll(false);
   }
 };
 
@@ -556,7 +636,7 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         }
 
         const workbook = XLSX.read(buffer, { type: 'array' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const worksheet = findEmployeeWorksheet(workbook);
         if (!worksheet) {
           setImportErrors(['The uploaded file does not contain any sheets.']);
           return;
@@ -572,8 +652,13 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         rows.forEach((row: Record<string, unknown>) => {
           Object.keys(row).forEach((header) => headerSet.add(header));
         });
-        const missingHeaders = REQUIRED_HEADERS.filter((required) => !headerSet.has(required));
-        if (missingHeaders.length > 0) {
+        const hasLegacyHeaders = REQUIRED_HEADERS.every((required) => headerSet.has(required));
+        const hasTemplateStyleHeaders =
+          (headerSet.has('Employee Name') || headerSet.has("Employee's Name")) &&
+          (headerSet.has('Position') || headerSet.has('Official Role')) &&
+          (headerSet.has('Salary') || headerSet.has('Basic Monthly Rate'));
+        if (!hasLegacyHeaders && !hasTemplateStyleHeaders) {
+          const missingHeaders = REQUIRED_HEADERS.filter((required) => !headerSet.has(required));
           setImportErrors([
             `The uploaded sheet is missing required columns: ${missingHeaders.join(', ')}`,
           ]);
@@ -647,21 +732,16 @@ const confirmDelete = async (e?: React.MouseEvent) => {
     data.forEach((row, index) => {
       const rowNumber = index + 2; // account for header row
 
-      const missingGreen = GREEN_MANDATORY_HEADERS.filter((header) => {
-        const key = EMPLOYEE_HEADER_MAP[header] || header;
-        const value = row[key];
-        if (NUMERIC_FIELDS.has(key)) {
-          return parseNumericField(value) <= 0;
-        }
-        return value === undefined || value === null || value === '';
-      });
-
-      if (missingGreen.length) {
-        errors.push(`Row ${rowNumber}: Missing mandatory values for ${missingGreen.join(', ')}`);
+      const name = normalizeText(row.name);
+      const position = normalizeText(row.position || row.officialRole);
+      const salary = parseNumericField(row.basicMonthlyRate) || parseNumericField(row.salary);
+      if (!name || !position || salary <= 0) {
+        errors.push(`Row ${rowNumber}: Employee Name, Position, and Salary are required.`);
         return;
       }
 
       const departmentKey = normalizeText(row.departmentName || row.department);
+      const departmentCode = normalizeText(row.departmentCode);
       let departmentId: string | undefined;
       if (departmentKey) {
         const departmentMatch = departments.find(
@@ -672,9 +752,6 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 
         if (departmentMatch) {
           departmentId = departmentMatch.id;
-        } else {
-          errors.push(`Row ${rowNumber}: Department "${departmentKey}" does not match any active department`);
-          return;
         }
       }
 
@@ -683,18 +760,19 @@ const confirmDelete = async (e?: React.MouseEvent) => {
         name: normalizeText(row.name),
         bankAccountNumber: normalizeText(row.bankAccountNumber),
         siteLocation: normalizeText(row.siteLocation),
-        position: normalizeText(row.position || row.officialRole),
+        position,
         officialRole: normalizeText(row.officialRole),
         salaryType: normalizeText(row.salaryType),
         departmentName: departmentKey,
+        departmentCode,
         departmentId,
         subDepartment: normalizeText(row.subDepartment),
         employeeClass: normalizeText(row.employeeClass),
         l1Head: normalizeText(row.l1Head),
         l2Head: normalizeText(row.l2Head),
         averageDaysPerYear: parseNumericField(row.averageDaysPerYear),
-        basicMonthlyRate: parseNumericField(row.basicMonthlyRate),
-        salary: parseNumericField(row.basicMonthlyRate) || parseNumericField(row.salary),
+        basicMonthlyRate: salary,
+        salary,
         hourlyRate: parseNumericField(row.hourlyRate),
         workingDays: parseNumericField(row.workingDays),
         absenceDays: parseNumericField(row.absenceDays || row.absence),
@@ -908,27 +986,54 @@ const confirmDelete = async (e?: React.MouseEvent) => {
 
       {/* Search Bar */}
       <div className="bg-white shadow rounded-lg p-4">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, position, email, department..."
-            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
+          <div className="relative flex-1 w-full">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, position, email, department..."
+              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          
+          {filteredEmployees.length > 0 && (
+            <button
+              onClick={handleDeleteAll}
+              disabled={deletingAll}
+              className="flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 transition-colors"
+            >
+              {deletingAll ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete All ({filteredEmployees.length})
+                </>
+              )}
             </button>
           )}
         </div>

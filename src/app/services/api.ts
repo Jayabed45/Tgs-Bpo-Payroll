@@ -257,6 +257,15 @@ class ApiService {
     return this.handleResponse<{ success: boolean; message: string }>(response)
   }
 
+  async deleteBulkEmployees(ids: string[]) {
+    const response = await this.retryFetch(`${API_BASE_URL}/employees/delete-bulk`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ ids }),
+    })
+    return this.handleResponse<{ success: boolean; message: string; deletedCount: number }>(response)
+  }
+
   async getEmployeeStats() {
     const response = await this.retryFetch(`${API_BASE_URL}/employees/stats/overview`, {
       headers: this.getAuthHeaders(),

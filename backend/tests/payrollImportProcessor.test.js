@@ -16,6 +16,7 @@ function buildBase64Workbook(sheets) {
 function createMockDb(initialEmployees = []) {
   const state = {
     employees: initialEmployees.map((emp, i) => ({ _id: `emp-${i + 1}`, ...emp })),
+    departments: [],
     payroll: [],
     payrollProcessingAudits: [],
     settings: [
@@ -261,4 +262,52 @@ test('matches employees across sheets using code-first and normalized-name fallb
   assert.equal(john.specialHolidayHours, 8);
   assert.equal(jane.specialHolidayHours, 0);
   assert.notEqual(john.netPay, jane.netPay);
+});
+
+test('syncs employee and department master data from template sheets', async () => {
+  const base64 = buildBase64Workbook({
+    Employee: [
+      ['Emp ID', 'Employee Name', 'Position', 'Salary', 'Status', 'Site Location', 'Department Name', 'Department Code', 'Email'],
+      ['EMP777', 'Master User', 'Analyst', 18000, 'Active', 'Cebu', 'People Operations', 'POPS', 'master.user@example.com'],
+    ],
+    Allowances: [
+      ['Emp ID', 'Employee Name', 'FOOD ALLOWANCE', 'TRANSPORTATION ALLOWANCE', 'OTHER ALLOWANCE'],
+      ['EMP777', 'Master User', 1000, 500, 250],
+    ],
+    'Goverment Contirbution': [
+      ['Emp ID', 'Employee Name', 'SSS Number', 'Philhealth Number', 'Pag-ibig Number'],
+      ['EMP777', 'Master User', 'SSS-001', 'PH-001', 'PAG-001'],
+    ],
+    'Total Hours - Summary': [
+      ['Emp ID', "Employee's Name", '1-Feb', '2-Feb', 'Grand Total'],
+      ['EMP777', 'Master User', 8, 8, 16],
+    ],
+  });
+
+  const { db, state } = createMockDb([]);
+
+  const result = await processImportedPayroll(
+    { fileData: base64, cutoffStart: '2026-04-01', cutoffEnd: '2026-04-15', initiatedBy: 'tester' },
+    { db, ...contributionStubs(), logger: console }
+  );
+
+  assert.equal(result.httpStatus, 200);
+  assert.equal(result.payload.success, true);
+  assert.equal(result.payload.results.created, 1);
+  assert.equal(result.payload.results.employeesCreatedFromMaster, 1);
+  assert.equal(result.payload.results.departmentsCreated, 1);
+  assert.equal(state.departments.length, 1);
+  assert.equal(state.employees.length, 1);
+  assert.equal(state.payroll.length, 1);
+
+  const employee = state.employees[0];
+  const department = state.departments[0];
+  assert.equal(employee.departmentName, 'People Operations');
+  assert.equal(employee.departmentId, department._id);
+  assert.equal(employee.foodAllowance, 1000);
+  assert.equal(employee.transportationAllowance, 500);
+  assert.equal(employee.allowance, 250);
+  assert.equal(employee.sssNumber, 'SSS-001');
+  assert.equal(employee.philhealthNumber, 'PH-001');
+  assert.equal(employee.pagibigNumber, 'PAG-001');
 });

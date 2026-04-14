@@ -452,6 +452,196 @@ function extractFlexibleRows(workbook) {
   return { rows, warnings };
 }
 
+function buildIdentityKeys(employeeCode, employeeName) {
+  const keys = new Set();
+  buildEmployeeCodeKeys(employeeCode).forEach((codeKey) => keys.add(`code:${codeKey}`));
+  const normalizedName = normalizeEmployeeName(employeeName);
+  if (normalizedName) keys.add(`name:${normalizedName}`);
+  return Array.from(keys);
+}
+
+function buildMasterRowLookupMap(rows) {
+  const lookup = new Map();
+  rows.forEach((row) => {
+    buildIdentityKeys(row.employeeCode, row.employeeName).forEach((key) => {
+      if (!lookup.has(key)) lookup.set(key, row);
+    });
+  });
+  return lookup;
+}
+
+function getRowByIdentity(lookupMap, employeeCode, employeeName) {
+  const keys = buildIdentityKeys(employeeCode, employeeName);
+  for (const key of keys) {
+    if (lookupMap.has(key)) return lookupMap.get(key);
+  }
+  return null;
+}
+
+function normalizeDepartmentCode(value) {
+  const raw = String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .trim();
+  if (!raw) return '';
+  return raw.slice(0, 10);
+}
+
+function deriveDepartmentCode(name, fallbackIndex = 1) {
+  const cleaned = String(name || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (cleaned) {
+    const initials = cleaned
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word[0])
+      .join('')
+      .slice(0, 6);
+    if (initials.length >= 2) return initials;
+
+    const compact = cleaned.replace(/\s+/g, '').slice(0, 6);
+    if (compact.length >= 2) return compact;
+  }
+
+  return `DP${String(fallbackIndex).padStart(2, '0')}`;
+}
+
+function extractEmployeeMasterRows(workbook) {
+  const sheetNames = workbook.SheetNames || [];
+  const employeeSheetName = findSheetName(sheetNames, ['Employee', 'Employee Master', 'Employees']);
+  if (!employeeSheetName) {
+    return { rows: [], warnings: [] };
+  }
+
+  const employeeData = XLSX.utils.sheet_to_json(workbook.Sheets[employeeSheetName], { header: 1, defval: '' });
+  const employeeHeaders = employeeData[0] || [];
+  const idx = {
+    employeeCode: getHeaderIndex(employeeHeaders, ['emp id', 'employee id', 'employee code']),
+    employeeName: getHeaderIndex(employeeHeaders, ['employee name', 'name']),
+    position: getHeaderIndex(employeeHeaders, ['position', 'official role']),
+    salary: getHeaderIndex(employeeHeaders, ['salary', 'basic monthly rate']),
+    siteLocation: getHeaderIndex(employeeHeaders, ['site location', 'location']),
+    departmentName: getHeaderIndex(employeeHeaders, ['department name', 'department']),
+    departmentCode: getHeaderIndex(employeeHeaders, ['department code']),
+    email: getHeaderIndex(employeeHeaders, ['email']),
+    bankAccountNumber: getHeaderIndex(employeeHeaders, ['bank account']),
+    salaryType: getHeaderIndex(employeeHeaders, ['salary type']),
+    subDepartment: getHeaderIndex(employeeHeaders, ['sub department']),
+    employeeClass: getHeaderIndex(employeeHeaders, ['class']),
+    l1Head: getHeaderIndex(employeeHeaders, ['l1 head']),
+    l2Head: getHeaderIndex(employeeHeaders, ['l2 head']),
+    contactNumber: getHeaderIndex(employeeHeaders, ['contact number', 'contact']),
+    hireDate: getHeaderIndex(employeeHeaders, ['hire date', 'employment date']),
+  };
+
+  const masterRows = [];
+  for (let rowIdx = 1; rowIdx < employeeData.length; rowIdx++) {
+    const row = employeeData[rowIdx];
+    if (!row || row.every((cell) => String(cell || '').trim() === '')) continue;
+
+    const employeeCode = idx.employeeCode >= 0 ? String(row[idx.employeeCode] || '').trim() : '';
+    const employeeName = idx.employeeName >= 0 ? String(row[idx.employeeName] || '').trim() : '';
+    if (!employeeCode && !employeeName) continue;
+    if (normalizeHeader(employeeName) === 'grand total') continue;
+
+    masterRows.push({
+      source: `${employeeSheetName}#${rowIdx + 1}`,
+      employeeCode,
+      employeeName,
+      position: idx.position >= 0 ? String(row[idx.position] || '').trim() : '',
+      salary: idx.salary >= 0 ? parseNumber(row[idx.salary], 0) : 0,
+      siteLocation: idx.siteLocation >= 0 ? String(row[idx.siteLocation] || '').trim() : '',
+      departmentName: idx.departmentName >= 0 ? String(row[idx.departmentName] || '').trim() : '',
+      departmentCode: idx.departmentCode >= 0 ? String(row[idx.departmentCode] || '').trim() : '',
+      email: idx.email >= 0 ? String(row[idx.email] || '').trim() : '',
+      bankAccountNumber: idx.bankAccountNumber >= 0 ? String(row[idx.bankAccountNumber] || '').trim() : '',
+      salaryType: idx.salaryType >= 0 ? String(row[idx.salaryType] || '').trim() : '',
+      subDepartment: idx.subDepartment >= 0 ? String(row[idx.subDepartment] || '').trim() : '',
+      employeeClass: idx.employeeClass >= 0 ? String(row[idx.employeeClass] || '').trim() : '',
+      l1Head: idx.l1Head >= 0 ? String(row[idx.l1Head] || '').trim() : '',
+      l2Head: idx.l2Head >= 0 ? String(row[idx.l2Head] || '').trim() : '',
+      contactNumber: idx.contactNumber >= 0 ? String(row[idx.contactNumber] || '').trim() : '',
+      hireDate: idx.hireDate >= 0 ? String(row[idx.hireDate] || '').trim() : '',
+    });
+  }
+
+  const allowanceSheetName = findSheetName(sheetNames, ['Allowances', 'Allowance']);
+  if (allowanceSheetName) {
+    const allowanceData = XLSX.utils.sheet_to_json(workbook.Sheets[allowanceSheetName], { header: 1, defval: '' });
+    const headers = allowanceData[0] || [];
+    const allowanceIdx = {
+      employeeCode: getHeaderIndex(headers, ['emp id', 'employee id', 'employee code']),
+      employeeName: getHeaderIndex(headers, ['employee name', 'name']),
+      foodAllowance: getHeaderIndex(headers, ['food allowance']),
+      transportationAllowance: getHeaderIndex(headers, ['transportation allowance']),
+      complexityAllowance: getHeaderIndex(headers, ['complexity allowance']),
+      observationalAllowance: getHeaderIndex(headers, ['observational allowance']),
+      communicationsAllowance: getHeaderIndex(headers, ['communications allowance']),
+      internetAllowance: getHeaderIndex(headers, ['internet allowance']),
+      riceSubsidyAllowance: getHeaderIndex(headers, ['rice subsidy allowance']),
+      clothingAllowance: getHeaderIndex(headers, ['clothing allowance']),
+      laundryAllowance: getHeaderIndex(headers, ['laundry allowance']),
+      allowance: getHeaderIndex(headers, ['other allowance']),
+    };
+    const lookup = buildMasterRowLookupMap(masterRows);
+
+    for (let rowIdx = 1; rowIdx < allowanceData.length; rowIdx++) {
+      const row = allowanceData[rowIdx];
+      if (!row || row.every((cell) => String(cell || '').trim() === '')) continue;
+
+      const employeeCode = allowanceIdx.employeeCode >= 0 ? String(row[allowanceIdx.employeeCode] || '').trim() : '';
+      const employeeName = allowanceIdx.employeeName >= 0 ? String(row[allowanceIdx.employeeName] || '').trim() : '';
+      const target = getRowByIdentity(lookup, employeeCode, employeeName);
+      if (!target) continue;
+
+      if (allowanceIdx.foodAllowance >= 0) target.foodAllowance = parseNumber(row[allowanceIdx.foodAllowance], 0);
+      if (allowanceIdx.transportationAllowance >= 0) target.transportationAllowance = parseNumber(row[allowanceIdx.transportationAllowance], 0);
+      if (allowanceIdx.complexityAllowance >= 0) target.complexityAllowance = parseNumber(row[allowanceIdx.complexityAllowance], 0);
+      if (allowanceIdx.observationalAllowance >= 0) target.observationalAllowance = parseNumber(row[allowanceIdx.observationalAllowance], 0);
+      if (allowanceIdx.communicationsAllowance >= 0) target.communicationsAllowance = parseNumber(row[allowanceIdx.communicationsAllowance], 0);
+      if (allowanceIdx.internetAllowance >= 0) target.internetAllowance = parseNumber(row[allowanceIdx.internetAllowance], 0);
+      if (allowanceIdx.riceSubsidyAllowance >= 0) target.riceSubsidyAllowance = parseNumber(row[allowanceIdx.riceSubsidyAllowance], 0);
+      if (allowanceIdx.clothingAllowance >= 0) target.clothingAllowance = parseNumber(row[allowanceIdx.clothingAllowance], 0);
+      if (allowanceIdx.laundryAllowance >= 0) target.laundryAllowance = parseNumber(row[allowanceIdx.laundryAllowance], 0);
+      if (allowanceIdx.allowance >= 0) target.allowance = parseNumber(row[allowanceIdx.allowance], 0);
+    }
+  }
+
+  const governmentSheetName = findSheetName(sheetNames, ['Government Contribution', 'Goverment Contirbution', 'Government']);
+  if (governmentSheetName) {
+    const govData = XLSX.utils.sheet_to_json(workbook.Sheets[governmentSheetName], { header: 1, defval: '' });
+    const headers = govData[0] || [];
+    const govIdx = {
+      employeeCode: getHeaderIndex(headers, ['emp id', 'employee id', 'employee code']),
+      employeeName: getHeaderIndex(headers, ['employee name', 'name']),
+      sssNumber: getHeaderIndex(headers, ['sss number', 'sss']),
+      philhealthNumber: getHeaderIndex(headers, ['philhealth number', 'philhealth']),
+      pagibigNumber: getHeaderIndex(headers, ['pag ibig number', 'pagibig number', 'pag ibig', 'pagibig']),
+    };
+    const lookup = buildMasterRowLookupMap(masterRows);
+
+    for (let rowIdx = 1; rowIdx < govData.length; rowIdx++) {
+      const row = govData[rowIdx];
+      if (!row || row.every((cell) => String(cell || '').trim() === '')) continue;
+
+      const employeeCode = govIdx.employeeCode >= 0 ? String(row[govIdx.employeeCode] || '').trim() : '';
+      const employeeName = govIdx.employeeName >= 0 ? String(row[govIdx.employeeName] || '').trim() : '';
+      const target = getRowByIdentity(lookup, employeeCode, employeeName);
+      if (!target) continue;
+
+      if (govIdx.sssNumber >= 0) target.sssNumber = String(row[govIdx.sssNumber] || '').trim();
+      if (govIdx.philhealthNumber >= 0) target.philhealthNumber = String(row[govIdx.philhealthNumber] || '').trim();
+      if (govIdx.pagibigNumber >= 0) target.pagibigNumber = String(row[govIdx.pagibigNumber] || '').trim();
+    }
+  }
+
+  return { rows: masterRows, warnings: [] };
+}
+
 function mergeRecords(primaryRows, secondaryRows) {
   const merged = [];
   const keyIndex = new Map();
@@ -537,6 +727,12 @@ async function processImportedPayroll(input, deps) {
 
   const payrollCollection = db.collection('payroll');
   const employeesCollection = db.collection('employees');
+  let departmentsCollection = null;
+  try {
+    departmentsCollection = db.collection('departments');
+  } catch (error) {
+    departmentsCollection = null;
+  }
   const auditCollection = db.collection('payrollProcessingAudits');
 
   const processingStartedAt = new Date();
@@ -560,6 +756,7 @@ async function processImportedPayroll(input, deps) {
     const buffer = Buffer.from(fileData, 'base64');
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     processingAudit.sheetNames = workbook.SheetNames || [];
+    const employeeMaster = extractEmployeeMasterRows(workbook);
 
     const legacy = extractLegacyRows(workbook, cutoffStart, cutoffEnd);
     const flexible = extractFlexibleRows(workbook);
@@ -593,6 +790,170 @@ async function processImportedPayroll(input, deps) {
       buildEmployeeCodeKeys(emp.employeeCode).forEach((key) => employeeByCode.set(key, emp));
     });
 
+    const departmentByCode = new Map();
+    const departmentByName = new Map();
+    let departmentsCreated = 0;
+    let departmentsUpdated = 0;
+    if (departmentsCollection) {
+      const departments = await departmentsCollection.find({}).toArray();
+      departments.forEach((dept) => {
+        const codeKey = normalizeDepartmentCode(dept.code);
+        const nameKey = normalizeHeader(dept.name);
+        if (codeKey) departmentByCode.set(codeKey, dept);
+        if (nameKey) departmentByName.set(nameKey, dept);
+      });
+    }
+
+    let employeesCreatedFromMaster = 0;
+    let employeesUpdatedFromMaster = 0;
+    if (employeeMaster.rows.length > 0) {
+      let generatedDepartmentCodeCounter = 1;
+
+      for (const masterRow of employeeMaster.rows) {
+        let department = null;
+        if (departmentsCollection && (masterRow.departmentCode || masterRow.departmentName)) {
+          const normalizedCode = normalizeDepartmentCode(masterRow.departmentCode);
+          const normalizedName = normalizeHeader(masterRow.departmentName);
+          department = (normalizedCode && departmentByCode.get(normalizedCode)) || (normalizedName && departmentByName.get(normalizedName)) || null;
+
+          console.log(`🔍 [Payroll Template] Row ${masterRow.employeeName}: Matching department "${masterRow.departmentName}" (${masterRow.departmentCode}) -> Key: ${normalizedName}/${normalizedCode} -> Found: ${department ? department.name : 'NO'}`);
+
+          if (!department) {
+            const finalCode = normalizedCode || deriveDepartmentCode(masterRow.departmentName, generatedDepartmentCodeCounter++);
+            const finalName = masterRow.departmentName || finalCode;
+
+            console.log(`➕ [Payroll Template] Creating new department: "${finalName}" with code "${finalCode}"`);
+
+            const departmentDoc = {
+              name: finalName,
+              code: finalCode,
+              description: 'Created during payroll template import',
+              siteLocation: masterRow.siteLocation || '',
+              manager: '',
+              isActive: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+            const insertedDepartment = await departmentsCollection.insertOne(departmentDoc);
+            department = { _id: insertedDepartment.insertedId, ...departmentDoc };
+            departmentByCode.set(normalizeDepartmentCode(department.code), department);
+            departmentByName.set(normalizeHeader(department.name), department);
+            departmentsCreated++;
+          } else {
+            const patch = {};
+            if (department.isActive === false) {
+              console.log(`🔄 [Payroll Template] Reactivating department: ${department.name}`);
+              patch.isActive = true;
+            }
+            if (masterRow.departmentName && masterRow.departmentName !== department.name) patch.name = masterRow.departmentName;
+            if (normalizedCode && normalizedCode !== normalizeDepartmentCode(department.code)) patch.code = normalizedCode;
+            if (masterRow.siteLocation && masterRow.siteLocation !== department.siteLocation) patch.siteLocation = masterRow.siteLocation;
+            if (Object.keys(patch).length > 0) {
+              patch.updatedAt = new Date();
+              await departmentsCollection.updateOne({ _id: department._id }, { $set: patch });
+              department = { ...department, ...patch };
+              departmentByCode.set(normalizeDepartmentCode(department.code), department);
+              departmentByName.set(normalizeHeader(department.name), department);
+              departmentsUpdated++;
+            }
+          }
+        }
+
+        let employee = null;
+        const employeeCodeKeys = buildEmployeeCodeKeys(masterRow.employeeCode);
+        for (const key of employeeCodeKeys) {
+          if (employeeByCode.has(key)) {
+            employee = employeeByCode.get(key);
+            break;
+          }
+        }
+        if (!employee && masterRow.employeeName) {
+          employee = employeeByName.get(normalizeEmployeeName(masterRow.employeeName)) || null;
+        }
+
+        const baseSalary = parseNumber(masterRow.salary, 0);
+        const patch = {};
+        const setIfPresent = (field, value) => {
+          if (value !== undefined && value !== null && String(value).trim() !== '') {
+            patch[field] = value;
+          }
+        };
+        setIfPresent('employeeCode', masterRow.employeeCode);
+        setIfPresent('name', masterRow.employeeName);
+        setIfPresent('position', masterRow.position || 'Imported Employee');
+        if (baseSalary > 0) {
+          patch.salary = baseSalary;
+          patch.basicMonthlyRate = baseSalary;
+        }
+        setIfPresent('siteLocation', masterRow.siteLocation);
+        setIfPresent('departmentName', masterRow.departmentName);
+        setIfPresent('email', masterRow.email);
+        setIfPresent('bankAccountNumber', masterRow.bankAccountNumber);
+        setIfPresent('salaryType', masterRow.salaryType);
+        setIfPresent('subDepartment', masterRow.subDepartment);
+        setIfPresent('employeeClass', masterRow.employeeClass);
+        setIfPresent('l1Head', masterRow.l1Head);
+        setIfPresent('l2Head', masterRow.l2Head);
+        setIfPresent('contactNumber', masterRow.contactNumber);
+        setIfPresent('hireDate', masterRow.hireDate);
+        setIfPresent('sssNumber', masterRow.sssNumber);
+        setIfPresent('philhealthNumber', masterRow.philhealthNumber);
+        setIfPresent('pagibigNumber', masterRow.pagibigNumber);
+
+        [
+          'foodAllowance',
+          'transportationAllowance',
+          'complexityAllowance',
+          'observationalAllowance',
+          'communicationsAllowance',
+          'internetAllowance',
+          'riceSubsidyAllowance',
+          'clothingAllowance',
+          'laundryAllowance',
+          'allowance',
+        ].forEach((field) => {
+          if (masterRow[field] !== undefined && masterRow[field] !== null && masterRow[field] !== '') {
+            patch[field] = parseNumber(masterRow[field], 0);
+          }
+        });
+
+        if (department?._id) {
+          patch.departmentId = department._id;
+          patch.departmentName = department.name || patch.departmentName || '';
+          patch.siteLocation = patch.siteLocation || department.siteLocation || '';
+        }
+
+        if (!employee) {
+          const newEmployee = {
+            employeeCode: patch.employeeCode || `IMPORTED-${Date.now()}-${employeesCreatedFromMaster + 1}`,
+            name: patch.name || patch.employeeCode || 'Imported Employee',
+            position: patch.position || 'Imported Employee',
+            salary: patch.salary || 0,
+            basicMonthlyRate: patch.basicMonthlyRate || patch.salary || 0,
+            hourlyRate: parseNumber(patch.hourlyRate, 0),
+            siteLocation: patch.siteLocation || '',
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            ...patch,
+          };
+          const insertedEmployee = await employeesCollection.insertOne(newEmployee);
+          employee = { _id: insertedEmployee.insertedId, ...newEmployee };
+          employeesCreatedFromMaster++;
+        } else if (Object.keys(patch).length > 0) {
+          patch.updatedAt = new Date();
+          await employeesCollection.updateOne({ _id: employee._id }, { $set: patch });
+          employee = { ...employee, ...patch };
+          employeesUpdatedFromMaster++;
+        }
+
+        const employeeId = employee._id.toString();
+        employeeById.set(employeeId, employee);
+        if (employee.name) employeeByName.set(normalizeEmployeeName(employee.name), employee);
+        buildEmployeeCodeKeys(employee.employeeCode).forEach((key) => employeeByCode.set(key, employee));
+      }
+    }
+
     const settingsDoc = await db.collection('settings').findOne({ type: 'system' });
     const defaultAllowances = (settingsDoc && settingsDoc.data && settingsDoc.data.defaultAllowances) ? settingsDoc.data.defaultAllowances : {};
     const resolveAllowance = (rowValue, employeeValue, defaultValue) => {
@@ -608,8 +969,12 @@ async function processImportedPayroll(input, deps) {
       updated: 0,
       failed: 0,
       employeesCreated: 0,
+      employeesCreatedFromMaster,
+      employeesUpdatedFromMaster,
+      departmentsCreated,
+      departmentsUpdated,
       errors: [],
-      warnings: [...legacy.warnings, ...flexible.warnings],
+      warnings: [...legacy.warnings, ...flexible.warnings, ...employeeMaster.warnings],
       processed: [],
     };
 
