@@ -9,14 +9,12 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    setSuccess("");
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -36,19 +34,38 @@ export default function Home() {
       const data = await response.json();
 
       if (response.ok) {
-        // Store user data and token in localStorage
+        if (!data.token || !data.user) {
+          throw new Error('Invalid response from server. Missing token or user data.');
+        }
+
+        // Store user data and token in both localStorage and sessionStorage for redundancy
         localStorage.setItem('user', JSON.stringify(data.user));
         localStorage.setItem('token', data.token);
+        sessionStorage.setItem('user', JSON.stringify(data.user));
+        sessionStorage.setItem('token', data.token);
+        
         // Redirect to admin page
-        router.push('/admin');
+        // Use a small timeout to ensure state updates and storage are committed
+        setTimeout(() => {
+          router.push('/admin');
+          // Fallback redirect if router.push doesn't work after 2 seconds
+          setTimeout(() => {
+            if (window.location.pathname !== '/admin') {
+              window.location.href = '/admin';
+            }
+          }, 2000);
+        }, 100);
+        
+        // We DON'T set loading to false here so the button stays in loading state during redirection
       } else {
         setError(data.error || 'Login failed');
+        setLoading(false);
       }
     } catch (error) {
       setError('Network error. Please try again.');
-    } finally {
       setLoading(false);
     }
+    // Remove finally block to prevent premature loading state reset on success
   };
   
   return (
@@ -117,12 +134,6 @@ export default function Home() {
           {error && (
             <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-md">
               {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="text-green-600 text-sm text-center bg-green-50 p-3 rounded-md">
-              {success}
             </div>
           )}
 
