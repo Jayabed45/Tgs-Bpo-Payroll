@@ -840,7 +840,8 @@ export default function ActivityLogs() {
 
       {stats && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Status Cards - Commented Out */}
+          {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white border rounded-lg p-4">
               <p className="text-xs text-gray-500">Last 24h Events</p>
               <p className="text-2xl font-semibold">{stats.totalCount || 0}</p>
@@ -862,9 +863,10 @@ export default function ActivityLogs() {
                 </p>
               )}
             </div>
-          </div>
+          </div> */}
 
-          {showAlerts && stats.alerts && stats.alerts.length > 0 && (
+          {/* Security Alerts Section - Commented Out */}
+          {/* {showAlerts && stats.alerts && stats.alerts.length > 0 && (
             <div className="bg-white border rounded-lg p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Security Alerts</h3>
@@ -953,7 +955,7 @@ export default function ActivityLogs() {
                 ))}
               </div>
             </div>
-          )}
+          )} */}
         </>
       )}
 
