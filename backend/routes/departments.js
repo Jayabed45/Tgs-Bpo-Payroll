@@ -1,6 +1,7 @@
 const express = require('express');
 const { ObjectId } = require('mongodb');
 const Department = require('../models/Department');
+const { logActivity } = require('../services/auditLogger');
 
 const router = express.Router();
 
@@ -242,6 +243,21 @@ router.post('/', verifyAdminToken, async (req, res) => {
     };
 
     console.log(' Department created successfully:', newDepartment.id);
+    
+    logActivity(req, {
+      actionType: 'create',
+      module: 'departments',
+      entity: 'department',
+      status: 'success',
+      user: req.user,
+      recordId: result.insertedId.toString(),
+      newValues: newDepartment,
+      metadata: {
+        departmentCode: departmentData.code,
+        departmentName: departmentData.name,
+      },
+    });
+    
     res.status(201).json({ 
       success: true, 
       message: 'Department created successfully', 
@@ -249,6 +265,15 @@ router.post('/', verifyAdminToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating department:', error);
+    logActivity(req, {
+      actionType: 'create',
+      module: 'departments',
+      entity: 'department',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ 
       success: false, 
       error: 'Failed to create department' 
@@ -306,6 +331,11 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
     // Ensure code is uppercase
     departmentData.code = departmentData.code.toUpperCase();
 
+    // Get old department data for logging
+    const oldDepartment = await departmentsCollection.findOne({ 
+      _id: new ObjectId(id) 
+    });
+
     const result = await departmentsCollection.updateOne(
       { _id: new ObjectId(id) },
       { $set: departmentData.toMongoDoc() }
@@ -322,6 +352,33 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
       _id: new ObjectId(id) 
     });
 
+    logActivity(req, {
+      actionType: 'update',
+      module: 'departments',
+      entity: 'department',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      oldValues: {
+        name: oldDepartment.name,
+        code: oldDepartment.code,
+        description: oldDepartment.description,
+        manager: oldDepartment.manager,
+        siteLocation: oldDepartment.siteLocation,
+      },
+      newValues: {
+        name: updatedDepartment.name,
+        code: updatedDepartment.code,
+        description: updatedDepartment.description,
+        manager: updatedDepartment.manager,
+        siteLocation: updatedDepartment.siteLocation,
+      },
+      metadata: {
+        departmentCode: updatedDepartment.code,
+        departmentName: updatedDepartment.name,
+      },
+    });
+
     res.json({ 
       success: true, 
       message: 'Department updated successfully', 
@@ -332,6 +389,16 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating department:', error);
+    logActivity(req, {
+      actionType: 'update',
+      module: 'departments',
+      entity: 'department',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params.id,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ 
       success: false, 
       error: 'Failed to update department' 
@@ -362,6 +429,16 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
     const departmentsCollection = global.db.collection('departments');
     const employeesCollection = global.db.collection('employees');
 
+    // Get department data before deletion for logging
+    const department = await departmentsCollection.findOne({ _id: objectId });
+    
+    if (!department) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Department not found' 
+      });
+    }
+
     // Check if department has active employees
     const employeeCount = await employeesCollection.countDocuments({
       departmentId: objectId,
@@ -369,6 +446,21 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
     });
 
     if (employeeCount > 0) {
+      logActivity(req, {
+        actionType: 'delete',
+        module: 'departments',
+        entity: 'department',
+        status: 'failure',
+        user: req.user,
+        recordId: id,
+        errorDetails: `Cannot delete department with ${employeeCount} active employees`,
+        metadata: {
+          departmentCode: department.code,
+          departmentName: department.name,
+          activeEmployees: employeeCount,
+        },
+      });
+      
       return res.status(409).json({ 
         success: false, 
         error: `Cannot delete department. ${employeeCount} active employees are assigned to this department.`,
@@ -393,12 +485,43 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
       });
     }
 
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'departments',
+      entity: 'department',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      oldValues: {
+        name: department.name,
+        code: department.code,
+        description: department.description,
+        manager: department.manager,
+        isActive: department.isActive,
+      },
+      metadata: {
+        departmentCode: department.code,
+        departmentName: department.name,
+        deletionType: 'soft',
+      },
+    });
+
     res.json({ 
       success: true, 
       message: 'Department deleted successfully' 
     });
   } catch (error) {
     console.error('Error deleting department:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'departments',
+      entity: 'department',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params.id,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ 
       success: false, 
       error: 'Failed to delete department' 
