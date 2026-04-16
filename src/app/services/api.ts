@@ -891,15 +891,22 @@ class ApiService {
   // Auth API calls
   async logout() {
     try {
-      const response = await this.retryFetch(`${API_BASE_URL}/auth/logout`, {
+      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
         method: "POST",
         headers: this.getAuthHeaders(),
       });
-      return this.handleResponse<{ success: boolean; message: string }>(response);
+      
+      if (response.ok) {
+        return this.handleResponse<{ success: boolean; message: string }>(response);
+      } else {
+        // If endpoint doesn't exist or fails, still return success
+        console.warn('Logout API endpoint not available, logging out locally');
+        return { success: true, message: 'Logged out locally' };
+      }
     } catch (error) {
       // Silently fail on logout - user should always be able to log out
       console.warn('Logout API call failed:', error);
-      return { success: false, message: 'Logged out locally' };
+      return { success: true, message: 'Logged out locally' };
     }
   }
 }

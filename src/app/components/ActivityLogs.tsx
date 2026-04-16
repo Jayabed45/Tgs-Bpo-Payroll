@@ -317,20 +317,15 @@ export default function ActivityLogs() {
     message: "",
   });
 
-  const queryParams = useMemo(
-    () => ({
-      page,
-      pageSize,
-      ...filters,
-    }),
-    [page, pageSize, filters]
-  );
-
   const fetchLogs = async () => {
     try {
       setLoading(true);
       setError("");
-      const response = await apiService.getAuditLogs(queryParams);
+      const response = await apiService.getAuditLogs({
+        page,
+        pageSize,
+        ...filters,
+      });
       setLogs(response.logs || []);
       setPagination(response.pagination || pagination);
     } catch (err: any) {
@@ -354,14 +349,20 @@ export default function ActivityLogs() {
     }
   };
 
-  const handleApplyFilters = () => {
-    setPage(1);
-    fetchLogs();
-  };
+  // Debounced fetch logs - triggers after user stops typing
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setPage(1); // Reset to first page on filter change
+      fetchLogs();
+    }, 500); // 500ms delay
 
+    return () => clearTimeout(timeoutId);
+  }, [filters]); // Trigger when filters change
+
+  // Fetch logs when page changes
   useEffect(() => {
     fetchLogs();
-  }, [queryParams]);
+  }, [page]);
 
   useEffect(() => {
     fetchStats();
@@ -697,79 +698,107 @@ export default function ActivityLogs() {
         </>
       )}
 
-      <div className="bg-white border rounded-lg p-4 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="bg-white border rounded-lg shadow-sm p-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Search Text */}
           <input
-            placeholder="Search text"
+            type="text"
+            placeholder="Search..."
             value={filters.searchText}
             onChange={(e) => setFilters((prev) => ({ ...prev, searchText: e.target.value }))}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="flex-1 min-w-[180px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
           />
+
+          {/* Username */}
           <input
+            type="text"
             placeholder="Username"
             value={filters.username}
             onChange={(e) => setFilters((prev) => ({ ...prev, username: e.target.value }))}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="flex-1 min-w-[140px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
           />
+
+          {/* Action Type */}
           <select
             value={filters.actionType}
             onChange={(e) => setFilters((prev) => ({ ...prev, actionType: e.target.value }))}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
           >
             <option value="">All Actions</option>
             {ACTION_TYPES.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {item.charAt(0).toUpperCase() + item.slice(1)}
               </option>
             ))}
           </select>
+
+          {/* Module */}
           <select
             value={filters.module}
             onChange={(e) => setFilters((prev) => ({ ...prev, module: e.target.value }))}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
           >
             <option value="">All Modules</option>
             {MODULE_TYPES.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {item.charAt(0).toUpperCase() + item.slice(1)}
               </option>
             ))}
           </select>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+
+          {/* Start Date */}
           <input
             type="date"
             value={filters.startDate}
             onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
           />
+
+          {/* End Date */}
           <input
             type="date"
             value={filters.endDate}
             onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
           />
+
+          {/* Status */}
           <select
             value={filters.operationStatus}
             onChange={(e) => setFilters((prev) => ({ ...prev, operationStatus: e.target.value }))}
-            className="px-3 py-2 border rounded-md text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
           >
             <option value="">All Status</option>
             {STATUS_TYPES.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {item.charAt(0).toUpperCase() + item.slice(1)}
               </option>
             ))}
           </select>
-          <button
-            onClick={() => {
-              setPage(1);
-              fetchLogs();
-            }}
-            className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-black text-sm"
-          >
-            Apply Filters
-          </button>
+
+          {/* Clear Button - only show if filters are active */}
+          {Object.values(filters).some(v => v !== "") && (
+            <button
+              onClick={() => {
+                setFilters({
+                  username: "",
+                  actionType: "",
+                  module: "",
+                  operationStatus: "",
+                  startDate: "",
+                  endDate: "",
+                  searchText: "",
+                });
+              }}
+              className="px-3 py-2 text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium flex items-center gap-1"
+              title="Clear all filters"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
