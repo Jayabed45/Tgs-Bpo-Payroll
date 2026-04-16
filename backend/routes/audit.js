@@ -116,25 +116,59 @@ router.get('/export', async (req, res) => {
     if (format === 'pdf') {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.pdf"`);
-      const doc = new PDFDocument({ margin: 36, size: 'A4' });
+      
+      const doc = new PDFDocument({ 
+        margin: 40, 
+        size: 'A4',
+        bufferPages: true 
+      });
+      
       doc.pipe(res);
-      doc.fontSize(14).text('Audit Logs Export', { underline: true });
+      
+      // Header
+      doc.fontSize(16).font('Helvetica-Bold').text('Audit Logs Export', { align: 'center' });
       doc.moveDown(0.5);
-      doc.fontSize(9).text(`Generated At: ${payload.generatedAt}`);
-      doc.text(`Timezone: ${payload.timezone}`);
-      doc.text(`Rows: ${payload.rowCount}`);
-      doc.text(`Signature: ${signature}`);
-      doc.moveDown();
+      doc.fontSize(9).font('Helvetica').text(`Generated: ${payload.generatedAt}`, { align: 'center' });
+      doc.text(`Timezone: ${payload.timezone}`, { align: 'center' });
+      doc.text(`Total Rows: ${payload.rowCount}`, { align: 'center' });
+      doc.moveDown(1);
+      
+      // Add signature at bottom of first page
+      doc.fontSize(7).text(`Signature: ${signature}`, { align: 'center' });
+      doc.moveDown(1);
 
-      logs.slice(0, 200).forEach((log, index) => {
-        doc.fontSize(9).text(
-          `${index + 1}. ${log.timestampUtc} | ${log.username || 'unknown'} (${log.userId || '-'}) | ${log.actionType} | ${log.module} | ${log.operationStatus}`
-        );
-        if (log.recordId) doc.text(`Record: ${log.recordId}`);
-        if (log.errorDetails) doc.text(`Error: ${log.errorDetails}`);
-        doc.text(`Checksum: ${log.checksum}`);
+      // Limit to 100 logs for PDF to avoid memory issues
+      const pdfLogs = logs.slice(0, 100);
+      
+      pdfLogs.forEach((log, index) => {
+        // Check if we need a new page
+        if (doc.y > 700) {
+          doc.addPage();
+        }
+        
+        // Log entry
+        doc.fontSize(8).font('Helvetica-Bold')
+          .text(`${index + 1}. ${log.timestampLocal || log.timestampUtc}`, { continued: false });
+        
+        doc.fontSize(7).font('Helvetica')
+          .text(`   User: ${log.username || 'unknown'} | Action: ${log.actionType} | Module: ${log.module} | Status: ${log.operationStatus}`, { continued: false });
+        
+        if (log.recordId) {
+          doc.text(`   Record ID: ${log.recordId}`, { continued: false });
+        }
+        
+        if (log.errorDetails) {
+          doc.fillColor('red').text(`   Error: ${log.errorDetails.substring(0, 100)}`, { continued: false }).fillColor('black');
+        }
+        
         doc.moveDown(0.3);
       });
+      
+      if (logs.length > 100) {
+        doc.moveDown(1);
+        doc.fontSize(8).fillColor('gray')
+          .text(`Note: Only first 100 of ${logs.length} logs shown. Use Excel/CSV export for complete data.`, { align: 'center' });
+      }
 
       doc.end();
       return;

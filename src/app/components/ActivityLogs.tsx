@@ -139,7 +139,7 @@ function LogDetailsModal({ isOpen, onClose, log, getChangedFields, renderJson }:
         {/* Content */}
         <div className="px-6 py-4 overflow-y-auto flex-1">
           {/* Basic Info */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div>
               <p className="text-xs text-gray-500 mb-1">Module</p>
               <p className="text-sm font-medium">{log.module}</p>
@@ -160,39 +160,90 @@ function LogDetailsModal({ isOpen, onClose, log, getChangedFields, renderJson }:
                 {log.operationStatus}
               </span>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">IP Address</p>
-              <p className="text-sm font-medium">{log.ipAddress || "-"}</p>
-            </div>
           </div>
 
           {/* Bulk Operation Summary */}
           {log.metadata?.isBulk && (
             <div className="mb-6">
-              <p className="font-semibold mb-2 text-sm">Bulk Operation Summary</p>
-              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
-                <p className="mb-2 text-sm">
-                  <span className="font-medium">Total Records:</span>{" "}
-                  {log.metadata.recordCount || log.metadata.insertedCount || log.metadata.deletedCount || 0}
-                </p>
+              <h4 className="font-semibold mb-3 text-sm text-gray-900 flex items-center">
+                <svg className="w-5 h-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Bulk Operation Summary
+              </h4>
+              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-lg p-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                  <div className="bg-white rounded-lg p-3 shadow-sm">
+                    <p className="text-xs text-gray-500 mb-1">Total Records</p>
+                    <p className="text-2xl font-bold text-indigo-600">
+                      {log.metadata.recordCount || log.metadata.insertedCount || log.metadata.deletedCount || log.metadata.totalGenerated || 0}
+                    </p>
+                  </div>
+                  {log.metadata.cutoffStart && log.metadata.cutoffEnd && (
+                    <div className="bg-white rounded-lg p-3 shadow-sm col-span-2">
+                      <p className="text-xs text-gray-500 mb-1">Cutoff Period</p>
+                      <p className="text-sm font-semibold text-gray-700">
+                        {new Date(log.metadata.cutoffStart).toLocaleDateString()} - {new Date(log.metadata.cutoffEnd).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                  {log.metadata.totalGenerated !== undefined && (
+                    <>
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <p className="text-xs text-gray-500 mb-1">Generated</p>
+                        <p className="text-lg font-semibold text-green-600">{log.metadata.totalGenerated}</p>
+                      </div>
+                      {log.metadata.totalSkipped > 0 && (
+                        <div className="bg-white rounded-lg p-3 shadow-sm">
+                          <p className="text-xs text-gray-500 mb-1">Skipped</p>
+                          <p className="text-lg font-semibold text-amber-600">{log.metadata.totalSkipped}</p>
+                        </div>
+                      )}
+                      {log.metadata.totalFailed > 0 && (
+                        <div className="bg-white rounded-lg p-3 shadow-sm">
+                          <p className="text-xs text-gray-500 mb-1">Failed</p>
+                          <p className="text-lg font-semibold text-red-600">{log.metadata.totalFailed}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+                
                 {log.metadata.processedEmployees && log.metadata.processedEmployees.length > 0 && (
                   <div>
-                    <p className="font-medium mb-2 text-sm">Processed Records:</p>
+                    <p className="font-medium mb-2 text-sm text-gray-700">Processed Records:</p>
                     <div className="flex flex-wrap gap-2">
                       {log.metadata.processedEmployees.map((emp: string, i: number) => (
-                        <span key={i} className="bg-white border px-2 py-1 rounded text-xs">
+                        <span key={i} className="inline-flex items-center px-3 py-1 bg-white border border-indigo-200 rounded-full text-xs font-medium text-indigo-700 shadow-sm">
+                          <svg className="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                          </svg>
                           {emp}
                         </span>
                       ))}
-                      {(log.metadata.recordCount || log.metadata.insertedCount || 0) >
-                        log.metadata.processedEmployees.length && (
-                        <span className="text-gray-500 italic text-xs">
-                          ...and{" "}
-                          {(log.metadata.recordCount || log.metadata.insertedCount || 0) -
-                            log.metadata.processedEmployees.length}{" "}
-                          more
+                      {(log.metadata.recordCount || log.metadata.insertedCount || 0) > log.metadata.processedEmployees.length && (
+                        <span className="inline-flex items-center px-3 py-1 text-xs text-gray-500 italic">
+                          +{(log.metadata.recordCount || log.metadata.insertedCount || 0) - log.metadata.processedEmployees.length} more
                         </span>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {log.metadata.fullEmployeeList && log.metadata.fullEmployeeList.length > 0 && (
+                  <div className="mt-4">
+                    <p className="font-medium mb-2 text-sm text-gray-700">All Employees:</p>
+                    <div className="bg-white rounded-lg p-3 max-h-40 overflow-y-auto">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {log.metadata.fullEmployeeList.map((emp: string, i: number) => (
+                          <div key={i} className="flex items-center text-xs text-gray-600">
+                            <svg className="w-3 h-3 mr-1.5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                            </svg>
+                            {emp}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -201,11 +252,156 @@ function LogDetailsModal({ isOpen, onClose, log, getChangedFields, renderJson }:
           )}
 
           {/* Change Summary */}
-          {(log.actionType === "update" || log.actionType === "create") && !log.metadata?.isBulk && (
+          {(log.actionType === "update" || log.actionType === "create" || log.actionType === "generate") && !log.metadata?.isBulk && (
             <div className="mb-6">
-              <p className="font-semibold mb-2 text-sm">Change Summary</p>
+              <h4 className="font-semibold mb-3 text-sm text-gray-900">
+                {log.actionType === "create" ? "Created Information" : log.actionType === "generate" ? "Generated Information" : "Change Summary"}
+              </h4>
               <div className="bg-gray-50 border rounded-lg p-4">
-                {getChangedFields(log).length === 0 ? (
+                {(log.actionType === "create" || log.actionType === "generate") && log.newValues ? (
+                  // Show created/generated data in a nice format
+                  <div className="space-y-3">
+                    {log.module === "payslips" && (
+                      <div className="bg-white border rounded-lg p-4">
+                        <div className="flex items-center mb-3">
+                          <svg className="w-5 h-5 mr-2 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <h5 className="font-semibold text-gray-900">Payslip Details</h5>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {log.newValues.employeeName && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Employee Name</p>
+                              <p className="text-sm font-medium text-gray-900">{log.newValues.employeeName}</p>
+                            </div>
+                          )}
+                          {log.newValues.employeeId && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Employee ID</p>
+                              <p className="text-sm text-gray-700">{log.newValues.employeeId}</p>
+                            </div>
+                          )}
+                          {log.newValues.cutoffPeriod && (
+                            <div className="col-span-2">
+                              <p className="text-xs text-gray-500 mb-1">Cutoff Period</p>
+                              <p className="text-sm font-medium text-indigo-600">{log.newValues.cutoffPeriod}</p>
+                            </div>
+                          )}
+                          {log.newValues.netPay !== undefined && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Net Pay</p>
+                              <p className="text-lg font-bold text-green-600">₱{Number(log.newValues.netPay).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                            </div>
+                          )}
+                          {log.newValues.status && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Status</p>
+                              <span className="inline-block px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
+                                {log.newValues.status}
+                              </span>
+                            </div>
+                          )}
+                          {log.newValues.generatedAt && (
+                            <div className="col-span-2">
+                              <p className="text-xs text-gray-500 mb-1">Generated At</p>
+                              <p className="text-sm text-gray-700">{new Date(log.newValues.generatedAt).toLocaleString()}</p>
+                            </div>
+                          )}
+                          {log.metadata?.payrollId && (
+                            <div className="col-span-2">
+                              <p className="text-xs text-gray-500 mb-1">Payroll ID</p>
+                              <p className="text-xs text-gray-600 font-mono">{log.metadata.payrollId}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {log.module === "departments" && (
+                      <div className="bg-white border rounded-lg p-4">
+                        <div className="flex items-center mb-3">
+                          <svg className="w-5 h-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                          <h5 className="font-semibold text-gray-900">Department Details</h5>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {log.newValues.name && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Department Name</p>
+                              <p className="text-sm font-medium text-gray-900">{log.newValues.name}</p>
+                            </div>
+                          )}
+                          {log.newValues.code && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Department Code</p>
+                              <p className="text-sm font-medium text-indigo-600">{log.newValues.code}</p>
+                            </div>
+                          )}
+                          {log.newValues.description && (
+                            <div className="col-span-2">
+                              <p className="text-xs text-gray-500 mb-1">Description</p>
+                              <p className="text-sm text-gray-700">{log.newValues.description}</p>
+                            </div>
+                          )}
+                          {log.newValues.manager && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Manager</p>
+                              <p className="text-sm text-gray-700">{log.newValues.manager}</p>
+                            </div>
+                          )}
+                          {log.newValues.siteLocation && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Site Location</p>
+                              <p className="text-sm text-gray-700">{log.newValues.siteLocation}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {log.module === "employees" && (
+                      <div className="bg-white border rounded-lg p-4">
+                        <div className="flex items-center mb-3">
+                          <svg className="w-5 h-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          <h5 className="font-semibold text-gray-900">Employee Details</h5>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          {log.newValues.name && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Name</p>
+                              <p className="text-sm font-medium text-gray-900">{log.newValues.name}</p>
+                            </div>
+                          )}
+                          {log.newValues.email && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Email</p>
+                              <p className="text-sm text-gray-700">{log.newValues.email}</p>
+                            </div>
+                          )}
+                          {log.newValues.position && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Position</p>
+                              <p className="text-sm text-gray-700">{log.newValues.position}</p>
+                            </div>
+                          )}
+                          {log.newValues.department && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Department</p>
+                              <p className="text-sm text-gray-700">{log.newValues.department}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {log.module !== "departments" && log.module !== "employees" && log.module !== "payslips" && (
+                      <div className="bg-white border rounded p-3">
+                        <pre className="text-xs text-gray-700 whitespace-pre-wrap">{renderJson(log.newValues)}</pre>
+                      </div>
+                    )}
+                  </div>
+                ) : getChangedFields(log).length === 0 ? (
                   <p className="text-gray-500 text-sm">No field-level changes captured.</p>
                 ) : (
                   <div className="space-y-3">
@@ -230,42 +426,56 @@ function LogDetailsModal({ isOpen, onClose, log, getChangedFields, renderJson }:
             </div>
           )}
 
-          {/* Detailed Data */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div>
-              <p className="font-semibold mb-2 text-sm">Old Values</p>
-              <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
-                {renderJson(log.oldValues)}
-              </pre>
+          {/* Detailed Data - Only show if not bulk or if there's specific data */}
+          {/* Commented out - redundant with organized display above
+          {!log.metadata?.isBulk && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div>
+                <p className="font-semibold mb-2 text-sm">Old Values</p>
+                <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
+                  {renderJson(log.oldValues)}
+                </pre>
+              </div>
+              <div>
+                <p className="font-semibold mb-2 text-sm">New Values</p>
+                <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
+                  {renderJson(log.newValues)}
+                </pre>
+              </div>
+              <div>
+                <p className="font-semibold mb-2 text-sm">Metadata</p>
+                <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
+                  {renderJson(log.metadata)}
+                </pre>
+                {log.errorDetails && (
+                  <>
+                    <p className="font-semibold mt-4 mb-2 text-sm text-red-600">Error Details</p>
+                    <pre className="bg-red-50 border border-red-200 rounded-lg p-3 overflow-auto max-h-32 text-xs text-red-700">
+                      {log.errorDetails}
+                    </pre>
+                  </>
+                )}
+              </div>
             </div>
-            <div>
-              <p className="font-semibold mb-2 text-sm">New Values</p>
-              <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
-                {renderJson(log.newValues)}
-              </pre>
+          )}
+          */}
+
+          {/* Show error details if present */}
+          {log.errorDetails && (
+            <div className="mb-6">
+              <h4 className="font-semibold mb-2 text-sm text-red-600">Error Details</h4>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-700">{log.errorDetails}</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold mb-2 text-sm">Metadata</p>
-              <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
-                {renderJson(log.metadata)}
-              </pre>
-              {log.errorDetails && (
-                <>
-                  <p className="font-semibold mt-4 mb-2 text-sm text-red-600">Error Details</p>
-                  <pre className="bg-red-50 border border-red-200 rounded-lg p-3 overflow-auto max-h-32 text-xs text-red-700">
-                    {log.errorDetails}
-                  </pre>
-                </>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t flex justify-end">
+        <div className="px-6 py-4 border-t flex justify-end bg-gray-50">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-black text-sm"
+            className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-black text-sm font-medium transition-colors"
           >
             Close
           </button>
@@ -376,19 +586,50 @@ export default function ActivityLogs() {
 
   const handleExport = async () => {
     try {
+      setLoading(true);
+      setError(""); // Clear any previous errors
+      
       const blob = await apiService.exportAuditLogs({
         format: exportFormat,
         ...filters,
         maxRows: 10000,
       });
+      
+      // Check if blob is valid
+      if (!blob || blob.size === 0) {
+        throw new Error('Export returned empty file');
+      }
+      
       const url = window.URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `audit-logs.${exportFormat === "xlsx" ? "xlsx" : exportFormat}`;
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().split('T')[0];
+      const extension = exportFormat === "xlsx" ? "xlsx" : exportFormat;
+      anchor.download = `audit-logs-${timestamp}.${extension}`;
+      
+      document.body.appendChild(anchor);
       anchor.click();
+      document.body.removeChild(anchor);
       window.URL.revokeObjectURL(url);
+      
+      setStatusModal({
+        open: true,
+        type: 'success',
+        title: "Export Successful",
+        message: `Audit logs exported successfully as ${extension.toUpperCase()} file.`,
+      });
     } catch (err: any) {
-      setError(err.message || "Failed to export logs");
+      console.error('Export error:', err);
+      setStatusModal({
+        open: true,
+        type: 'error',
+        title: "Export Failed",
+        message: err.message || `Failed to export logs as ${exportFormat.toUpperCase()}. Please try again or use a different format.`,
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -557,6 +798,7 @@ export default function ActivityLogs() {
             value={exportFormat}
             onChange={(e) => setExportFormat(e.target.value as any)}
             className="px-3 py-2 border rounded-md text-sm"
+            disabled={loading}
           >
             <option value="xlsx">Excel</option>
             <option value="csv">CSV</option>
@@ -565,13 +807,30 @@ export default function ActivityLogs() {
           </select>
           <button
             onClick={handleExport}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+            disabled={loading}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Export Logs
+            {loading ? (
+              <>
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Exporting...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export Logs
+              </>
+            )}
           </button>
           <button
             onClick={handleDeleteAll}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+            disabled={loading}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             title="Delete all logs matching current filters"
           >
             Delete All
