@@ -527,83 +527,6 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Filters */}
-      <div className="flex justify-between items-start gap-6">
-        <div className="flex-1">
-          <h3 className="text-lg font-medium text-gray-900">Reports & Payslips</h3>
-          <p className="text-sm text-gray-500 mt-1">
-            {filterEmployee !== 'all' || filterStatus !== 'all' 
-              ? `Filtered results` 
-              : ''
-            }
-          </p>
-        </div>
-
-        {/* Compact Filters - Right Side */}
-        <div className="flex items-center gap-3">
-          {/* Status Filter */}
-          <div className="relative">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white hover:border-gray-400 transition-colors"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="processed">Processed</option>
-              <option value="completed">Completed</option>
-            </select>
-            <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-
-          {/* Employee Search */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Employee..."
-              value={filterEmployee}
-              onChange={(e) => setFilterEmployee(e.target.value)}
-              className="pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 w-40 hover:border-gray-400 transition-colors"
-            />
-            {filterEmployee !== 'all' && (
-              <button
-                onClick={() => setFilterEmployee('all')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Clear Filters Button */}
-          <button
-            onClick={() => {
-              setFilterStatus('all');
-              setFilterEmployee('all');
-              setPayrollDateFrom('');
-              setPayrollDateTo('');
-              setPayrollSortOrder('date_desc');
-              setPayslipDateFrom('');
-              setPayslipDateTo('');
-              setPayslipSortOrder('generated_desc');
-              setSearchQuery('');
-              setPayslipSearchQuery('');
-            }}
-            className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1"
-            title="Clear all filters"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Reset
-          </button>
-        </div>
-      </div>
-
       {/* Tab Navigation */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8" aria-label="Tabs">
@@ -634,37 +557,32 @@ export default function Reports() {
       {activeTab === 'payrollRecords' && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-start mb-4">
+            {/* Title and Action Buttons */}
+            <div className="flex justify-between items-center mb-4">
               <div>
                 <h4 className="text-lg font-medium text-gray-900">Payroll Records</h4>
-                <p className="text-sm text-gray-500">
-                  {filterEmployee !== 'all' || filterStatus !== 'all' || searchQuery
-                    ? `Showing ${filteredPayrolls.length} of ${payrolls.length} payrolls`
-                    : `Select a payroll to generate payslip`
-                  }
-                </p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={generateAllPayslips}
                   disabled={generatingAll || deletingAllPayrolls || filteredPayrolls.length === 0}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   {generatingAll ? 'Generating All...' : 'Generate Payslip All'}
                 </button>
                 <button
                   onClick={deleteAllFilteredPayrollRecords}
                   disabled={generatingAll || deletingAllPayrolls || filteredPayrolls.length === 0}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   {deletingAllPayrolls ? 'Deleting...' : 'Delete All'}
                 </button>
               </div>
             </div>
             
-            {/* Search Bar and Date Filters */}
-            <div className="flex gap-3 items-start">
-              {/* Search Bar */}
+            {/* Combined Filters Row */}
+            <div className="flex gap-2 items-center">
+              {/* Search Bar - Takes most space */}
               <div className="relative flex-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -676,7 +594,7 @@ export default function Reports() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search employee, ID, period..."
-                  className="block w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
+                  className="block w-full pl-9 pr-9 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 text-sm"
                 />
                 {searchQuery && (
                   <button
@@ -690,46 +608,66 @@ export default function Reports() {
                 )}
               </div>
 
-              {/* Compact Date Filters */}
-              <div className="flex gap-2 items-center">
-                <input
-                  type="date"
-                  value={payrollDateFrom}
-                  onChange={(e) => setPayrollDateFrom(e.target.value)}
-                  placeholder="From"
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-gray-400">—</span>
-                <input
-                  type="date"
-                  value={payrollDateTo}
-                  onChange={(e) => setPayrollDateTo(e.target.value)}
-                  placeholder="To"
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              {/* Date From */}
+              <input
+                type="date"
+                value={payrollDateFrom}
+                onChange={(e) => setPayrollDateFrom(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              
+              <span className="text-gray-400">—</span>
+              
+              {/* Date To */}
+              <input
+                type="date"
+                value={payrollDateTo}
+                onChange={(e) => setPayrollDateTo(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              {/* Status Filter */}
+              <div className="relative">
                 <select
-                  value={payrollSortOrder}
-                  onChange={(e) => setPayrollSortOrder(e.target.value as "date_desc" | "date_asc")}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="appearance-none pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 bg-white hover:border-gray-400 transition-colors"
                 >
-                  <option value="date_desc">↓ Newest</option>
-                  <option value="date_asc">↑ Oldest</option>
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="processed">Processed</option>
+                  <option value="completed">Completed</option>
                 </select>
-                {(payrollDateFrom || payrollDateTo) && (
-                  <button
-                    onClick={() => {
-                      setPayrollDateFrom('');
-                      setPayrollDateTo('');
-                    }}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Clear date filters"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
+                <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
+
+              {/* Sort Order */}
+              <select
+                value={payrollSortOrder}
+                onChange={(e) => setPayrollSortOrder(e.target.value as "date_desc" | "date_asc")}
+                className="px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="date_desc">↓ Newest</option>
+                <option value="date_asc">↑ Oldest</option>
+              </select>
+
+              {/* Reset Button */}
+              <button
+                onClick={() => {
+                  setFilterStatus('all');
+                  setFilterEmployee('all');
+                  setPayrollDateFrom('');
+                  setPayrollDateTo('');
+                  setPayrollSortOrder('date_desc');
+                  setSearchQuery('');
+                }}
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors whitespace-nowrap"
+                title="Reset all filters"
+              >
+                🔄 Reset
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -796,28 +734,24 @@ export default function Reports() {
       {activeTab === 'generatedPayslips' && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-start mb-4">
+            {/* Title and Action Button */}
+            <div className="flex justify-between items-center mb-4">
               <div>
                 <h4 className="text-lg font-medium text-gray-900">Generated Payslips</h4>
-                <p className="text-sm text-gray-500">
-                  {payslipSearchQuery
-                    ? `Showing ${filteredPayslips.length} of ${payslips.length} payslips`
-                    : 'View and download generated payslips'
-                  }
-                </p>
+                <p className="text-sm text-gray-500">View and download generated payslips</p>
               </div>
               <button
                 onClick={deleteAllFilteredPayslips}
                 disabled={deletingAllPayslips || filteredPayslips.length === 0}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 {deletingAllPayslips ? 'Deleting...' : 'Delete All'}
               </button>
             </div>
             
-            {/* Search Bar and Date Filters */}
-            <div className="flex gap-3 items-start">
-              {/* Search Bar */}
+            {/* Combined Filters Row */}
+            <div className="flex gap-2 items-center">
+              {/* Search Bar - Takes most space */}
               <div className="relative flex-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -829,7 +763,7 @@ export default function Reports() {
                   value={payslipSearchQuery}
                   onChange={(e) => setPayslipSearchQuery(e.target.value)}
                   placeholder="Search employee, period, date..."
-                  className="block w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 text-sm"
+                  className="block w-full pl-9 pr-9 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-900 text-sm"
                 />
                 {payslipSearchQuery && (
                   <button
@@ -843,46 +777,66 @@ export default function Reports() {
                 )}
               </div>
 
-              {/* Compact Date Filters */}
-              <div className="flex gap-2 items-center">
-                <input
-                  type="date"
-                  value={payslipDateFrom}
-                  onChange={(e) => setPayslipDateFrom(e.target.value)}
-                  placeholder="From"
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <span className="text-gray-400">—</span>
-                <input
-                  type="date"
-                  value={payslipDateTo}
-                  onChange={(e) => setPayslipDateTo(e.target.value)}
-                  placeholder="To"
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+              {/* Date From */}
+              <input
+                type="date"
+                value={payslipDateFrom}
+                onChange={(e) => setPayslipDateFrom(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              
+              <span className="text-gray-400">—</span>
+              
+              {/* Date To */}
+              <input
+                type="date"
+                value={payslipDateTo}
+                onChange={(e) => setPayslipDateTo(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+
+              {/* Status Filter */}
+              <div className="relative">
                 <select
-                  value={payslipSortOrder}
-                  onChange={(e) => setPayslipSortOrder(e.target.value as "generated_desc" | "generated_asc")}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-900 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="appearance-none pl-3 pr-8 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-gray-700 bg-white hover:border-gray-400 transition-colors"
                 >
-                  <option value="generated_desc">↓ Newest</option>
-                  <option value="generated_asc">↑ Oldest</option>
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="processed">Processed</option>
+                  <option value="completed">Completed</option>
                 </select>
-                {(payslipDateFrom || payslipDateTo) && (
-                  <button
-                    onClick={() => {
-                      setPayslipDateFrom('');
-                      setPayslipDateTo('');
-                    }}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="Clear date filters"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
+                <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
+
+              {/* Sort Order */}
+              <select
+                value={payslipSortOrder}
+                onChange={(e) => setPayslipSortOrder(e.target.value as "generated_desc" | "generated_asc")}
+                className="px-3 py-2 border border-gray-300 rounded-md text-gray-900 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="generated_desc">↓ Newest</option>
+                <option value="generated_asc">↑ Oldest</option>
+              </select>
+
+              {/* Reset Button */}
+              <button
+                onClick={() => {
+                  setFilterStatus('all');
+                  setFilterEmployee('all');
+                  setPayslipDateFrom('');
+                  setPayslipDateTo('');
+                  setPayslipSortOrder('generated_desc');
+                  setPayslipSearchQuery('');
+                }}
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors whitespace-nowrap"
+                title="Reset all filters"
+              >
+                🔄 Reset
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto">
