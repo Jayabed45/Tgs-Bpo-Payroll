@@ -103,6 +103,178 @@ function StatusModal({ isOpen, onClose, type, title, message }: StatusModalProps
   );
 }
 
+// Log Details Modal Component
+interface LogDetailsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  log: any;
+  getChangedFields: (log: any) => Array<{ field: string; oldValue: any; newValue: any }>;
+  renderJson: (value: any) => string;
+}
+
+function LogDetailsModal({ isOpen, onClose, log, getChangedFields, renderJson }: LogDetailsModalProps) {
+  if (!isOpen || !log) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-[9999] p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Log Details</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {log.timestampLocal || log.timestampUtc} • {log.username || "Unknown"} • {log.actionType.toUpperCase()}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="px-6 py-4 overflow-y-auto flex-1">
+          {/* Basic Info */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Module</p>
+              <p className="text-sm font-medium">{log.module}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Record ID</p>
+              <p className="text-sm font-medium">{log.recordId || "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Status</p>
+              <span
+                className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                  log.operationStatus === "success"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {log.operationStatus}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">IP Address</p>
+              <p className="text-sm font-medium">{log.ipAddress || "-"}</p>
+            </div>
+          </div>
+
+          {/* Bulk Operation Summary */}
+          {log.metadata?.isBulk && (
+            <div className="mb-6">
+              <p className="font-semibold mb-2 text-sm">Bulk Operation Summary</p>
+              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
+                <p className="mb-2 text-sm">
+                  <span className="font-medium">Total Records:</span>{" "}
+                  {log.metadata.recordCount || log.metadata.insertedCount || log.metadata.deletedCount || 0}
+                </p>
+                {log.metadata.processedEmployees && log.metadata.processedEmployees.length > 0 && (
+                  <div>
+                    <p className="font-medium mb-2 text-sm">Processed Records:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {log.metadata.processedEmployees.map((emp: string, i: number) => (
+                        <span key={i} className="bg-white border px-2 py-1 rounded text-xs">
+                          {emp}
+                        </span>
+                      ))}
+                      {(log.metadata.recordCount || log.metadata.insertedCount || 0) >
+                        log.metadata.processedEmployees.length && (
+                        <span className="text-gray-500 italic text-xs">
+                          ...and{" "}
+                          {(log.metadata.recordCount || log.metadata.insertedCount || 0) -
+                            log.metadata.processedEmployees.length}{" "}
+                          more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Change Summary */}
+          {(log.actionType === "update" || log.actionType === "create") && !log.metadata?.isBulk && (
+            <div className="mb-6">
+              <p className="font-semibold mb-2 text-sm">Change Summary</p>
+              <div className="bg-gray-50 border rounded-lg p-4">
+                {getChangedFields(log).length === 0 ? (
+                  <p className="text-gray-500 text-sm">No field-level changes captured.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {getChangedFields(log).map((change) => (
+                      <div key={change.field} className="bg-white border rounded p-3">
+                        <p className="font-medium text-sm mb-2">{change.field}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <span className="text-gray-500">Before:</span>
+                            <p className="mt-1 text-gray-700 break-all">{String(change.oldValue ?? "-")}</p>
+                          </div>
+                          <div>
+                            <span className="text-indigo-600">After:</span>
+                            <p className="mt-1 text-indigo-700 break-all">{String(change.newValue ?? "-")}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Detailed Data */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div>
+              <p className="font-semibold mb-2 text-sm">Old Values</p>
+              <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
+                {renderJson(log.oldValues)}
+              </pre>
+            </div>
+            <div>
+              <p className="font-semibold mb-2 text-sm">New Values</p>
+              <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
+                {renderJson(log.newValues)}
+              </pre>
+            </div>
+            <div>
+              <p className="font-semibold mb-2 text-sm">Metadata</p>
+              <pre className="bg-gray-50 border rounded-lg p-3 overflow-auto max-h-64 text-xs">
+                {renderJson(log.metadata)}
+              </pre>
+              {log.errorDetails && (
+                <>
+                  <p className="font-semibold mt-4 mb-2 text-sm text-red-600">Error Details</p>
+                  <pre className="bg-red-50 border border-red-200 rounded-lg p-3 overflow-auto max-h-32 text-xs text-red-700">
+                    {log.errorDetails}
+                  </pre>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-black text-sm"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ActivityLogs() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -119,7 +291,7 @@ export default function ActivityLogs() {
     endDate: "",
     searchText: "",
   });
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [selectedLog, setSelectedLog] = useState<any>(null);
   const [exportFormat, setExportFormat] = useState<"json" | "csv" | "xlsx" | "pdf">("xlsx");
   const [pagination, setPagination] = useState({
     page: 1,
@@ -483,7 +655,10 @@ export default function ActivityLogs() {
               {!loading &&
                 logs.map((log) => (
                   <React.Fragment key={log.id}>
-                    <tr className="border-t">
+                    <tr 
+                      className="border-t hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => setSelectedLog(log)}
+                    >
                       <td className="px-3 py-2 whitespace-nowrap">{log.timestampLocal || log.timestampUtc}</td>
                       <td className="px-3 py-2">
                         <div>{log.username || "Unknown"}</div>
@@ -505,91 +680,17 @@ export default function ActivityLogs() {
                       </td>
                       <td className="px-3 py-2">{log.ipAddress || "-"}</td>
                       <td className="px-3 py-2">
-                        <div className="flex items-center gap-3">
-                          <button
-                            className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
-                            onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
-                          >
-                            {expandedLogId === log.id ? "Hide" : "View"}
-                          </button>
-                          <button
-                            className="text-red-600 hover:text-red-800 text-xs font-medium"
-                            onClick={() => handleDelete(log.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        <button
+                          className="text-red-600 hover:text-red-800 text-xs font-medium"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(log.id);
+                          }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
-                    {expandedLogId === log.id && (
-                      <tr className="bg-gray-50 border-t">
-                        <td className="px-3 py-3" colSpan={8}>
-                          {log.metadata?.isBulk && (
-                            <div className="mb-3">
-                              <p className="font-semibold mb-1 text-xs">Bulk Operation Summary</p>
-                              <div className="bg-indigo-50 border border-indigo-100 rounded p-2 text-xs">
-                                <p className="mb-1">
-                                  <span className="font-medium">Total Records:</span> {log.metadata.recordCount || log.metadata.insertedCount || log.metadata.deletedCount || 0}
-                                </p>
-                                {log.metadata.processedEmployees && log.metadata.processedEmployees.length > 0 && (
-                                  <div>
-                                    <p className="font-medium mb-1">Processed Records:</p>
-                                    <div className="flex flex-wrap gap-1">
-                                      {log.metadata.processedEmployees.map((emp: string, i: number) => (
-                                        <span key={i} className="bg-white border px-1 rounded text-[10px]">{emp}</span>
-                                      ))}
-                                      {(log.metadata.recordCount || log.metadata.insertedCount || 0) > log.metadata.processedEmployees.length && (
-                                        <span className="text-gray-500 italic">...and {(log.metadata.recordCount || log.metadata.insertedCount || 0) - log.metadata.processedEmployees.length} more</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          {(log.actionType === "update" || log.actionType === "create") && !log.metadata?.isBulk && (
-                            <div className="mb-3">
-                              <p className="font-semibold mb-1 text-xs">Change Summary</p>
-                              <div className="bg-white border rounded p-2 text-xs space-y-1">
-                                {getChangedFields(log).length === 0 ? (
-                                  <p className="text-gray-500">No field-level changes captured.</p>
-                                ) : (
-                                  getChangedFields(log).map((change) => (
-                                    <div key={change.field} className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                      <span className="font-medium">{change.field}</span>
-                                      <span className="text-gray-600">Before: {String(change.oldValue ?? "-")}</span>
-                                      <span className="text-indigo-700">After: {String(change.newValue ?? "-")}</span>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          )}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                            <div>
-                              <p className="font-semibold mb-1">Old Values</p>
-                              <pre className="bg-white border rounded p-2 overflow-auto max-h-48">{renderJson(log.oldValues)}</pre>
-                            </div>
-                            <div>
-                              <p className="font-semibold mb-1">New Values</p>
-                              <pre className="bg-white border rounded p-2 overflow-auto max-h-48">{renderJson(log.newValues)}</pre>
-                            </div>
-                            <div>
-                              <p className="font-semibold mb-1">Metadata</p>
-                              <pre className="bg-white border rounded p-2 overflow-auto max-h-48">{renderJson(log.metadata)}</pre>
-                              {log.errorDetails && (
-                                <>
-                                  <p className="font-semibold mt-2 mb-1 text-red-600">Error</p>
-                                  <pre className="bg-white border rounded p-2 overflow-auto max-h-28 text-red-700">
-                                    {log.errorDetails}
-                                  </pre>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
                   </React.Fragment>
                 ))}
             </tbody>
@@ -633,6 +734,14 @@ export default function ActivityLogs() {
         type={statusModal.type}
         title={statusModal.title}
         message={statusModal.message}
+      />
+
+      <LogDetailsModal
+        isOpen={!!selectedLog}
+        onClose={() => setSelectedLog(null)}
+        log={selectedLog}
+        getChangedFields={getChangedFields}
+        renderJson={renderJson}
       />
     </div>
   );
