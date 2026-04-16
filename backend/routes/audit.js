@@ -219,4 +219,55 @@ router.delete('/logs/:id', async (req, res) => {
   }
 });
 
+router.patch('/alerts/:id/acknowledge', async (req, res) => {
+  try {
+    const { acknowledgeAlert } = require('../services/auditLogger');
+    const success = await acknowledgeAlert(req.params.id);
+    
+    if (!success) {
+      return res.status(404).json({ success: false, error: 'Alert not found' });
+    }
+    
+    res.json({ success: true, message: 'Alert acknowledged successfully' });
+
+    logActivity(req, {
+      actionType: 'update',
+      module: 'system',
+      entity: 'audit_alerts',
+      status: 'success',
+      user: req.user,
+      recordId: req.params.id,
+      metadata: { action: 'acknowledge' },
+    });
+  } catch (error) {
+    console.error('Acknowledge alert error:', error);
+    res.status(500).json({ success: false, error: 'Failed to acknowledge alert' });
+  }
+});
+
+router.delete('/alerts/:id', async (req, res) => {
+  try {
+    const { deleteAlert } = require('../services/auditLogger');
+    const success = await deleteAlert(req.params.id);
+    
+    if (!success) {
+      return res.status(404).json({ success: false, error: 'Alert not found' });
+    }
+    
+    res.json({ success: true, message: 'Alert deleted successfully' });
+
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'system',
+      entity: 'audit_alerts',
+      status: 'success',
+      user: req.user,
+      recordId: req.params.id,
+    });
+  } catch (error) {
+    console.error('Delete alert error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete alert' });
+  }
+});
+
 module.exports = router;

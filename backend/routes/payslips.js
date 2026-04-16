@@ -167,6 +167,129 @@ router.post('/generate', async (req, res) => {
   }
 });
 
+// Bulk generate payslips
+router.post('/generate-bulk', async (req, res) => {
+  try {
+    const { payrollIds } = req.body;
+    
+    if (!payrollIds || !Array.isArray(payrollIds) || payrollIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Payroll IDs array is required'
+      });
+    }
+    
+    const client = await clientPromise;
+    const db = client.db();
+    const payrollCollection = db.collection('payroll');
+    const payslipsCollection = db.collection('payslips');
+    
+    const results = {
+      success: [],
+      failed: [],
+      skipped: []
+    };
+    
+    const processedEmployees = [];
+    
+    for (const payrollId of payrollIds) {
+      try {
+        // Get the payroll data
+        const payroll = await payrollCollection.findOne({ _id: new ObjectId(payrollId) });
+        
+        if (!payroll) {
+          results.failed.push({ payrollId, reason: 'Payroll not found' });
+          continue;
+        }
+        
+        // Check if payroll is processed
+        if (payroll.status !== 'processed' && payroll.status !== 'completed') {
+          results.skipped.push({ payrollId, employeeName: payroll.employeeName, reason: 'Not processed' });
+          continue;
+        }
+        
+        // Check if payslip already exists
+        const existingPayslip = await payslipsCollection.findOne({ payrollId: payrollId });
+        
+        if (existingPayslip) {
+          results.skipped.push({ payrollId, employeeName: payroll.employeeName, reason: 'Already exists' });
+          continue;
+        }
+        
+        // Create payslip data
+        const payslipData = {
+          payrollId: payrollId,
+          employeeId: payroll.employeeId,
+          employeeName: payroll.employeeName,
+          cutoffPeriod: `${new Date(payroll.cutoffStart).toLocaleDateString()} - ${new Date(payroll.cutoffEnd).toLocaleDateString()}`,
+          netPay: payroll.netPay,
+          generatedAt: new Date().toISOString(),
+          status: 'generated'
+        };
+        
+        // Insert the payslip
+        const result = await payslipsCollection.insertOne(payslipData);
+        
+        results.success.push({ 
+          payrollId, 
+          payslipId: result.insertedId.toString(),
+          employeeName: payroll.employeeName 
+        });
+        processedEmployees.push(payroll.employeeName);
+        
+      } catch (error) {
+        results.failed.push({ payrollId, reason: error.message });
+      }
+    }
+    
+    const totalGenerated = results.success.length;
+    
+    res.json({
+      success: true,
+      message: `Generated ${totalGenerated} payslip(s)`,
+      results,
+      totalGenerated,
+      totalFailed: results.failed.length,
+      totalSkipped: results.skipped.length
+    });
+    
+    // Log as a single bulk operation
+    logActivity(req, {
+      actionType: 'generate',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'success',
+      user: req.user,
+      metadata: { 
+        isBulk: true,
+        recordCount: totalGenerated,
+        processedEmployees: processedEmployees.slice(0, 10), // First 10 for display
+        totalRequested: payrollIds.length,
+        totalGenerated,
+        totalFailed: results.failed.length,
+        totalSkipped: results.skipped.length
+      },
+    });
+    
+  } catch (error) {
+    console.error('Error generating bulk payslips:', error);
+    logActivity(req, {
+      actionType: 'generate',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+      metadata: { isBulk: true },
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate payslips'
+    });
+  }
+});
+
 // Download payslip (returns PDF data)
 router.get('/:id/download', async (req, res) => {
   try {

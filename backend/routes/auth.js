@@ -573,4 +573,53 @@ router.post('/reset-password', authLimiter, async (req, res) => {
   }
 });
 
+// Logout route
+router.post('/logout', async (req, res) => {
+  try {
+    // Try to get user info from token if available
+    const token = req.headers.authorization?.split(' ')[1];
+    let user = null;
+    
+    if (token) {
+      try {
+        user = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      } catch (error) {
+        // Token might be expired, but we still want to log the logout attempt
+        console.log('Logout with expired/invalid token');
+      }
+    }
+
+    logActivity(req, {
+      actionType: 'logout',
+      module: 'auth',
+      entity: 'user',
+      status: 'success',
+      user: user,
+      userId: user?.userId?.toString?.(),
+      username: user?.email || 'unknown',
+      recordId: user?.userId?.toString?.(),
+      metadata: {
+        email: user?.email || 'unknown',
+      },
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Logged out successfully' 
+    });
+
+  } catch (error) {
+    console.error('Logout error:', error);
+    logActivity(req, {
+      actionType: 'logout',
+      module: 'auth',
+      entity: 'user',
+      status: 'failure',
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = { router, verifyAdminToken };

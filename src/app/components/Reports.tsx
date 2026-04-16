@@ -209,36 +209,54 @@ export default function Reports() {
 
   const generateAllPayslips = async () => {
     setGeneratingAll(true);
-    let successCount = 0;
-    let errorCount = 0;
-    let warningCount = 0;
-
-    for (const payroll of filteredPayrolls) {
-      if (payroll.status !== 'processed' && payroll.status !== 'completed') {
-        warningCount++;
-        continue;
+    
+    try {
+      // Filter payrolls that are processed or completed
+      const eligiblePayrolls = filteredPayrolls.filter(
+        payroll => payroll.status === 'processed' || payroll.status === 'completed'
+      );
+      
+      if (eligiblePayrolls.length === 0) {
+        setWarningModal({ open: true, message: 'No eligible payrolls found (must be processed or completed).' });
+        setGeneratingAll(false);
+        return;
       }
-      try {
-        await apiService.generatePayslip(payroll._id || payroll.id || '');
-        successCount++;
-      } catch (error) {
-        console.error(`Failed to generate payslip for ${payroll.employeeName}:`, error);
-        errorCount++;
+      
+      const payrollIds = eligiblePayrolls.map(p => p._id || p.id || '').filter(id => id);
+      
+      // Call bulk generate API
+      const result = await apiService.generateBulkPayslips(payrollIds);
+      
+      // Show results
+      const messages = [];
+      if (result.totalGenerated > 0) {
+        messages.push(`${result.totalGenerated} payslip(s) generated successfully!`);
       }
+      if (result.totalSkipped > 0) {
+        messages.push(`${result.totalSkipped} payslip(s) skipped (already exist or not eligible).`);
+      }
+      if (result.totalFailed > 0) {
+        messages.push(`${result.totalFailed} payslip(s) failed to generate.`);
+      }
+      
+      if (result.totalGenerated > 0) {
+        setSuccessModal({ open: true, message: messages.join(' ') });
+      } else if (result.totalSkipped > 0) {
+        setWarningModal({ open: true, message: messages.join(' ') });
+      } else {
+        setErrorModal({ open: true, message: messages.join(' ') });
+      }
+      
+      fetchData(); // Refresh the list
+    } catch (error: unknown) {
+      const message =
+        typeof error === 'object' && error !== null && 'message' in error
+          ? String((error as { message?: unknown }).message)
+          : 'Failed to generate payslips';
+      setErrorModal({ open: true, message });
+    } finally {
+      setGeneratingAll(false);
     }
-
-    if (successCount > 0) {
-      setSuccessModal({ open: true, message: `${successCount} payslip(s) generated successfully!` });
-    }
-    if (errorCount > 0) {
-      setErrorModal({ open: true, message: `${errorCount} payslip(s) failed to generate.` });
-    }
-    if (warningCount > 0) {
-      setWarningModal({ open: true, message: `${warningCount} payroll(s) skipped (not processed/completed).` });
-    }
-
-    fetchData(); // Refresh the list after all attempts
-    setGeneratingAll(false);
   };
 
   const generatePayslip = async (payroll: Payroll) => {

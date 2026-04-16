@@ -453,6 +453,22 @@ class ApiService {
     return this.handleResponse<{ success: boolean; payslip: any; message: string }>(response);
   }
 
+  async generateBulkPayslips(payrollIds: string[]) {
+    const response = await this.retryFetch(`${API_BASE_URL}/payslips/generate-bulk`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ payrollIds })
+    });
+    return this.handleResponse<{ 
+      success: boolean; 
+      message: string;
+      results: any;
+      totalGenerated: number;
+      totalFailed: number;
+      totalSkipped: number;
+    }>(response);
+  }
+
   async downloadPayslip(payslipId: string) {
     const response = await this.retryFetch(`${API_BASE_URL}/payslips/${payslipId}/download`, {
       headers: this.getAuthHeaders()
@@ -854,6 +870,37 @@ class ApiService {
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
     return response.blob();
+  }
+
+  async acknowledgeAlert(alertId: string) {
+    const response = await this.retryFetch(`${API_BASE_URL}/audit/alerts/${alertId}/acknowledge`, {
+      method: "PATCH",
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<{ success: boolean; message: string }>(response);
+  }
+
+  async deleteAlert(alertId: string) {
+    const response = await this.retryFetch(`${API_BASE_URL}/audit/alerts/${alertId}`, {
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<{ success: boolean; message: string }>(response);
+  }
+
+  // Auth API calls
+  async logout() {
+    try {
+      const response = await this.retryFetch(`${API_BASE_URL}/auth/logout`, {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+      });
+      return this.handleResponse<{ success: boolean; message: string }>(response);
+    } catch (error) {
+      // Silently fail on logout - user should always be able to log out
+      console.warn('Logout API call failed:', error);
+      return { success: false, message: 'Logged out locally' };
+    }
   }
 }
 

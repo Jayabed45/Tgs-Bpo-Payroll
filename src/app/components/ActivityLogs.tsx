@@ -292,6 +292,7 @@ export default function ActivityLogs() {
     searchText: "",
   });
   const [selectedLog, setSelectedLog] = useState<any>(null);
+  const [showAlerts, setShowAlerts] = useState(false);
   const [exportFormat, setExportFormat] = useState<"json" | "csv" | "xlsx" | "pdf">("xlsx");
   const [pagination, setPagination] = useState({
     page: 1,
@@ -460,6 +461,60 @@ export default function ActivityLogs() {
     });
   };
 
+  const handleAcknowledgeAlert = async (alertId: string) => {
+    try {
+      setLoading(true);
+      await apiService.acknowledgeAlert(alertId);
+      setStatusModal({
+        open: true,
+        type: 'success',
+        title: "Success",
+        message: "Alert acknowledged successfully.",
+      });
+      await fetchStats();
+    } catch (err: any) {
+      setStatusModal({
+        open: true,
+        type: 'error',
+        title: "Error",
+        message: err.message || "Failed to acknowledge alert.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAlert = async (alertId: string) => {
+    setConfirmModal({
+      open: true,
+      title: "Confirm Alert Deletion",
+      message: "Are you sure you want to delete this security alert?",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await apiService.deleteAlert(alertId);
+          setStatusModal({
+            open: true,
+            type: 'success',
+            title: "Success",
+            message: "Alert deleted successfully.",
+          });
+          await fetchStats();
+        } catch (err: any) {
+          setStatusModal({
+            open: true,
+            type: 'error',
+            title: "Error",
+            message: err.message || "Failed to delete alert.",
+          });
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
+  };
+
   const renderJson = (value: any) => {
     if (!value) return "-";
     try {
@@ -524,24 +579,122 @@ export default function ActivityLogs() {
       </div>
 
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white border rounded-lg p-4">
-            <p className="text-xs text-gray-500">Last 24h Events</p>
-            <p className="text-2xl font-semibold">{stats.totalCount || 0}</p>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white border rounded-lg p-4">
+              <p className="text-xs text-gray-500">Last 24h Events</p>
+              <p className="text-2xl font-semibold">{stats.totalCount || 0}</p>
+            </div>
+            <div className="bg-white border rounded-lg p-4">
+              <p className="text-xs text-gray-500">Success</p>
+              <p className="text-2xl font-semibold text-emerald-600">{stats.successCount || 0}</p>
+            </div>
+            <div className="bg-white border rounded-lg p-4">
+              <p className="text-xs text-gray-500">Failures</p>
+              <p className="text-2xl font-semibold text-red-600">{stats.failureCount || 0}</p>
+            </div>
+            <div className="bg-white border rounded-lg p-4 cursor-pointer hover:bg-gray-50" onClick={() => setShowAlerts(!showAlerts)}>
+              <p className="text-xs text-gray-500">Security Alerts</p>
+              <p className="text-2xl font-semibold text-amber-600">{stats.alerts?.length || 0}</p>
+              {stats.alerts?.filter((a: any) => !a.acknowledged).length > 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  {stats.alerts.filter((a: any) => !a.acknowledged).length} unacknowledged
+                </p>
+              )}
+            </div>
           </div>
-          <div className="bg-white border rounded-lg p-4">
-            <p className="text-xs text-gray-500">Success</p>
-            <p className="text-2xl font-semibold text-emerald-600">{stats.successCount || 0}</p>
-          </div>
-          <div className="bg-white border rounded-lg p-4">
-            <p className="text-xs text-gray-500">Failures</p>
-            <p className="text-2xl font-semibold text-red-600">{stats.failureCount || 0}</p>
-          </div>
-          <div className="bg-white border rounded-lg p-4">
-            <p className="text-xs text-gray-500">Security Alerts</p>
-            <p className="text-2xl font-semibold text-amber-600">{stats.alerts?.length || 0}</p>
-          </div>
-        </div>
+
+          {showAlerts && stats.alerts && stats.alerts.length > 0 && (
+            <div className="bg-white border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Security Alerts</h3>
+                <button
+                  onClick={() => setShowAlerts(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-3">
+                {stats.alerts.map((alert: any) => (
+                  <div
+                    key={alert.id}
+                    className={`border rounded-lg p-4 ${
+                      alert.acknowledged ? 'bg-gray-50 border-gray-200' : 'bg-amber-50 border-amber-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              alert.severity === 'high'
+                                ? 'bg-red-100 text-red-700'
+                                : alert.severity === 'medium'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            {alert.severity?.toUpperCase()}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {alert.type?.replace(/_/g, ' ').toUpperCase()}
+                          </span>
+                          {alert.acknowledged && (
+                            <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-700">
+                              Acknowledged
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-700 space-y-1">
+                          {alert.details?.userId && (
+                            <p>User: {alert.details.username || alert.details.userId}</p>
+                          )}
+                          {alert.details?.ipAddress && (
+                            <p>IP Address: {alert.details.ipAddress}</p>
+                          )}
+                          {alert.details?.attempts && (
+                            <p>Failed Login Attempts: {alert.details.attempts}</p>
+                          )}
+                          {alert.details?.deletedCount && (
+                            <p>Records Deleted: {alert.details.deletedCount}</p>
+                          )}
+                          {alert.details?.events && (
+                            <p>Events in Window: {alert.details.events}</p>
+                          )}
+                          {alert.details?.module && (
+                            <p>Module: {alert.details.module}</p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-2">
+                            {new Date(alert.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        {!alert.acknowledged && (
+                          <button
+                            onClick={() => handleAcknowledgeAlert(alert.id)}
+                            className="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 rounded"
+                          >
+                            Acknowledge
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteAlert(alert.id)}
+                          className="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <div className="bg-white border rounded-lg p-4 space-y-3">
@@ -633,21 +786,20 @@ export default function ActivityLogs() {
                 <th className="px-3 py-2 text-left">Module</th>
                 <th className="px-3 py-2 text-left">Record</th>
                 <th className="px-3 py-2 text-left">Status</th>
-                <th className="px-3 py-2 text-left">IP</th>
                 <th className="px-3 py-2 text-left">Details</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td className="px-3 py-4 text-center text-gray-500" colSpan={8}>
+                  <td className="px-3 py-4 text-center text-gray-500" colSpan={7}>
                     Loading logs...
                   </td>
                 </tr>
               )}
               {!loading && logs.length === 0 && (
                 <tr>
-                  <td className="px-3 py-4 text-center text-gray-500" colSpan={8}>
+                  <td className="px-3 py-4 text-center text-gray-500" colSpan={7}>
                     No logs found for the current filters.
                   </td>
                 </tr>
@@ -678,7 +830,6 @@ export default function ActivityLogs() {
                           {log.operationStatus}
                         </span>
                       </td>
-                      <td className="px-3 py-2">{log.ipAddress || "-"}</td>
                       <td className="px-3 py-2">
                         <button
                           className="text-red-600 hover:text-red-800 text-xs font-medium"
