@@ -974,12 +974,12 @@ const handleDeleteAll = async () => {
   const filteredEmployees = employees.filter((employee) => {
     const query = searchQuery.toLowerCase();
     return (
-      employee.name.toLowerCase().includes(query) ||
-      employee.position.toLowerCase().includes(query) ||
-      employee.email.toLowerCase().includes(query) ||
-      employee.department?.name.toLowerCase().includes(query) ||
+      employee.name?.toLowerCase().includes(query) ||
+      employee.position?.toLowerCase().includes(query) ||
+      employee.email?.toLowerCase().includes(query) ||
+      employee.department?.name?.toLowerCase().includes(query) ||
       employee.department?.code?.toLowerCase().includes(query) ||
-      employee.contactNumber.includes(query)
+      employee.contactNumber?.includes(query)
     );
   });
 

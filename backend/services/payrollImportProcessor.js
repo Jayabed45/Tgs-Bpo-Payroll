@@ -1028,7 +1028,7 @@ async function processImportedPayroll(input, deps) {
 
         const baseSalary = Number.isFinite(row.baseSalary)
           ? row.baseSalary
-          : parseNumber(employee.biMonthlyRate, parseNumber(employee.salary, parseNumber(employee.basicMonthlyRate, NaN)));
+          : parseNumber(employee.salary, parseNumber(employee.basicMonthlyRate, NaN));
         if (!Number.isFinite(baseSalary) || baseSalary < 0) {
           results.failed++;
           results.errors.push(`${rowLabel}: Missing valid base salary`);
@@ -1084,7 +1084,7 @@ async function processImportedPayroll(input, deps) {
           dailyHours: row.dailyHours || {},
           workedHours: regularHours,
           totalWorkedHours: regularHours,
-          basicSalary: regularPay,
+          basicSalary: baseSalary,  // Store the employee's actual salary
           hourlyRate,
           overtimeHours,
           restDayOT: parseNumber(row.restDayOT, 0),

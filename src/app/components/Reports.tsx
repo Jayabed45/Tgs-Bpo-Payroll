@@ -652,22 +652,7 @@ export default function Reports() {
                 <option value="date_desc">↓ Newest</option>
                 <option value="date_asc">↑ Oldest</option>
               </select>
-
-              {/* Reset Button */}
-              <button
-                onClick={() => {
-                  setFilterStatus('all');
-                  setFilterEmployee('all');
-                  setPayrollDateFrom('');
-                  setPayrollDateTo('');
-                  setPayrollSortOrder('date_desc');
-                  setSearchQuery('');
-                }}
-                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors whitespace-nowrap"
-                title="Reset all filters"
-              >
-                🔄 Reset
-              </button>
+         
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -821,22 +806,6 @@ export default function Reports() {
                 <option value="generated_desc">↓ Newest</option>
                 <option value="generated_asc">↑ Oldest</option>
               </select>
-
-              {/* Reset Button */}
-              <button
-                onClick={() => {
-                  setFilterStatus('all');
-                  setFilterEmployee('all');
-                  setPayslipDateFrom('');
-                  setPayslipDateTo('');
-                  setPayslipSortOrder('generated_desc');
-                  setPayslipSearchQuery('');
-                }}
-                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors whitespace-nowrap"
-                title="Reset all filters"
-              >
-                🔄 Reset
-              </button>
             </div>
           </div>
           <div className="overflow-x-auto">
