@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { apiService } from "../services/api";
 import { calculateSSS, calculatePhilHealth, calculatePagIBIG, calculateWithholdingTax } from "../utils/philippinePayroll";
 import SkeletonPage from "./SkeletonPage";
+import ActionDropdown from "./ActionDropdown";
 
 interface Employee {
   id: string;
@@ -2880,42 +2881,42 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         </td>
                         {/* Actions */}
                         <td className="min-w-[80px] px-2 py-1.5 text-center">
-                          <button
-                            className="px-2 py-1 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded mr-1 disabled:opacity-50"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleProcessImportedPayroll(importedPayroll);
-                            }}
-                            title="Process All Payroll"
-                            disabled={processingImportedId === importedPayroll.id}
-                          >
-                            {processingImportedId === importedPayroll.id ? (
-                              <i className="bi bi-hourglass-split"></i>
-                            ) : (
-                              <i className="bi bi-play-fill"></i>
-                            )}
-                          </button>
-                          <button
-                            className="px-2 py-1 text-green-600 hover:text-green-900 hover:bg-green-50 rounded mr-1 disabled:opacity-50"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleExportImportedPayroll(importedPayroll);
-                            }}
-                            title="Export"
-                            disabled={exportLoading}
-                          >
-                            <i className="bi bi-download"></i>
-                          </button>
-                          <button
-                            className="px-2 py-1 text-red-600 hover:text-red-900 hover:bg-red-50 rounded"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleDeleteImportedPayroll(importedPayroll);
-                            }}
-                            title="Delete"
-                          >
-                            <i className="bi bi-trash"></i>
-                          </button>
+                          <ActionDropdown
+                            actions={[
+                              {
+                                label: processingImportedId === importedPayroll.id ? 'Processing...' : 'Process All',
+                                icon: processingImportedId === importedPayroll.id ? 'bi-hourglass-split' : 'bi-play-fill',
+                                onClick: (e) => {
+                                  e.stopPropagation();
+                                  handleProcessImportedPayroll(importedPayroll);
+                                },
+                                className: 'text-blue-600 hover:bg-blue-50 hover:text-blue-900',
+                                disabled: processingImportedId === importedPayroll.id,
+                                title: 'Process all payroll records from this file'
+                              },
+                              {
+                                label: 'Export',
+                                icon: 'bi-download',
+                                onClick: (e) => {
+                                  e.stopPropagation();
+                                  handleExportImportedPayroll(importedPayroll);
+                                },
+                                className: 'text-green-600 hover:bg-green-50 hover:text-green-900',
+                                disabled: exportLoading,
+                                title: 'Export this payroll file'
+                              },
+                              {
+                                label: 'Delete',
+                                icon: 'bi-trash',
+                                onClick: (e) => {
+                                  e.stopPropagation();
+                                  handleDeleteImportedPayroll(importedPayroll);
+                                },
+                                className: 'text-red-600 hover:bg-red-50 hover:text-red-900',
+                                title: 'Delete this payroll file'
+                              }
+                            ]}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -2977,35 +2978,31 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="relative group">
-                          <button
-                            className="px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <i className="bi bi-three-dots-vertical"></i>
-                          </button>
-                          <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 hidden group-hover:block z-10">
-                            <button
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 flex items-center"
-                              onClick={(e) => {
+                        <ActionDropdown
+                          actions={[
+                            {
+                              label: 'Edit',
+                              icon: 'bi-pencil',
+                              onClick: (e) => {
                                 e.stopPropagation();
                                 handleEdit(p);
                                 setShowPayrollForm(true);
-                              }}
-                            >
-                              <i className="bi bi-pencil me-2"></i>Edit
-                            </button>
-                            <button
-                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center"
-                              onClick={(e) => {
+                              },
+                              className: 'text-green-600 hover:bg-green-50 hover:text-green-900',
+                              title: 'Edit this payroll record'
+                            },
+                            {
+                              label: 'Delete',
+                              icon: 'bi-trash',
+                              onClick: (e) => {
                                 e.stopPropagation();
                                 handleDelete(p.id);
-                              }}
-                            >
-                              <i className="bi bi-trash me-2"></i>Delete
-                            </button>
-                          </div>
-                        </div>
+                              },
+                              className: 'text-red-600 hover:bg-red-50 hover:text-red-900',
+                              title: 'Delete this payroll record'
+                            }
+                          ]}
+                        />
                       </td>
                     </tr>
                   )) : (
