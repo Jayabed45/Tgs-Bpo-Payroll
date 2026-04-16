@@ -8,6 +8,9 @@ const {
   getRealtimeStats,
   buildSignedExportPayload,
   toCSV,
+  deleteLogById,
+  deleteLogsByFilter,
+  logActivity,
 } = require('../services/auditLogger');
 
 const router = express.Router();
@@ -144,6 +147,75 @@ router.get('/export', async (req, res) => {
   } catch (error) {
     console.error('Export audit logs error:', error);
     res.status(500).json({ success: false, error: 'Failed to export audit logs' });
+  }
+});
+
+router.delete('/logs', async (req, res) => {
+  try {
+    const filters = buildFilters(req.query);
+    const result = await deleteLogsByFilter(filters);
+    
+    res.json({ 
+      success: true, 
+      message: `${result.deletedCount} logs deleted successfully`,
+      deletedCount: result.deletedCount
+    });
+
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'system',
+      entity: 'audit_logs',
+      status: 'success',
+      user: req.user,
+      metadata: { 
+        isBulk: true, 
+        deletedCount: result.deletedCount,
+        filters 
+      },
+    });
+  } catch (error) {
+    console.error('Delete all audit logs error:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'system',
+      entity: 'audit_logs',
+      status: 'failure',
+      user: req.user,
+      metadata: { isBulk: true },
+      errorDetails: error.message,
+    });
+    res.status(500).json({ success: false, error: 'Failed to delete audit logs' });
+  }
+});
+
+router.delete('/logs/:id', async (req, res) => {
+  try {
+    const result = await deleteLogById(req.params.id);
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, error: 'Log not found' });
+    }
+    res.json({ success: true, message: 'Log deleted successfully' });
+
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'system',
+      entity: 'audit_logs',
+      status: 'success',
+      user: req.user,
+      recordId: req.params.id,
+    });
+  } catch (error) {
+    console.error('Delete audit log error:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'system',
+      entity: 'audit_logs',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params.id,
+      errorDetails: error.message,
+    });
+    res.status(500).json({ success: false, error: 'Failed to delete audit log' });
   }
 });
 

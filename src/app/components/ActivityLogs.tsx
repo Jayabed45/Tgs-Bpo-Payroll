@@ -7,6 +7,102 @@ const ACTION_TYPES = ["create", "read", "update", "delete", "import", "export", 
 const MODULE_TYPES = ["auth", "employees", "payroll", "payslips", "settings", "export", "system"];
 const STATUS_TYPES = ["success", "failure"];
 
+// Confirmation Modal Component
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  isDanger?: boolean;
+}
+
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmLabel = "Confirm", isDanger = false }: ConfirmModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+        <h3 className={`text-lg font-semibold ${isDanger ? 'text-red-600' : 'text-gray-900'}`}>
+          {title}
+        </h3>
+        <p className="mt-3 text-sm text-gray-600">
+          {message}
+        </p>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+            className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+              isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
+            }`}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Status Modal Component (Success/Error)
+interface StatusModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  type: 'success' | 'error';
+  title: string;
+  message: string;
+}
+
+function StatusModal({ isOpen, onClose, type, title, message }: StatusModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-[9999]">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center">
+        <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full ${
+          type === 'success' ? 'bg-green-100' : 'bg-red-100'
+        }`}>
+          {type === 'success' ? (
+            <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+        </div>
+        <h3 className={`mt-4 text-lg font-semibold ${type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+          {title}
+        </h3>
+        <p className="mt-2 text-sm text-gray-600">
+          {message}
+        </p>
+        <div className="mt-6">
+          <button
+            onClick={onClose}
+            className={`w-full px-4 py-2 text-sm font-medium text-white rounded-md ${
+              type === 'success' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+            }`}
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ActivityLogs() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,6 +128,22 @@ export default function ActivityLogs() {
     totalPages: 1,
   });
 
+  // Modal States
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    isDanger: false,
+  });
+
+  const [statusModal, setStatusModal] = useState({
+    open: false,
+    type: 'success' as 'success' | 'error',
+    title: "",
+    message: "",
+  });
+
   const queryParams = useMemo(
     () => ({
       page,
@@ -49,7 +161,12 @@ export default function ActivityLogs() {
       setLogs(response.logs || []);
       setPagination(response.pagination || pagination);
     } catch (err: any) {
-      setError(err.message || "Failed to fetch activity logs");
+      const msg = err.message || "";
+      if (msg.includes("Failed to fetch") || msg.includes("404") || msg.includes("Resource not found")) {
+        setError("Resource not found. Please check if the backend server is running.");
+      } else {
+        setError(msg || "Failed to fetch activity logs");
+      }
     } finally {
       setLoading(false);
     }
@@ -64,19 +181,24 @@ export default function ActivityLogs() {
     }
   };
 
+  const handleApplyFilters = () => {
+    setPage(1);
+    fetchLogs();
+  };
+
   useEffect(() => {
     fetchLogs();
   }, [queryParams]);
 
   useEffect(() => {
     fetchStats();
+    // Only poll stats, not full logs, to reduce noise and traffic
     const interval = setInterval(() => {
       fetchStats();
-      fetchLogs();
-    }, 15000);
+    }, 30000); // Poll every 30 seconds instead of 15
 
     return () => clearInterval(interval);
-  }, []);
+  }, []); // Only start polling on mount
 
   const handleExport = async () => {
     try {
@@ -94,6 +216,76 @@ export default function ActivityLogs() {
     } catch (err: any) {
       setError(err.message || "Failed to export logs");
     }
+  };
+
+  const handleDelete = (id: string) => {
+    setConfirmModal({
+      open: true,
+      title: "Confirm Deletion",
+      message: "Are you sure you want to delete this log entry? This action cannot be undone.",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await apiService.deleteAuditLog(id);
+          setStatusModal({
+            open: true,
+            type: 'success',
+            title: "Success",
+            message: "Log entry deleted successfully.",
+          });
+          await fetchLogs();
+          await fetchStats();
+        } catch (err: any) {
+          setStatusModal({
+            open: true,
+            type: 'error',
+            title: "Error",
+            message: err.message || "Failed to delete log entry.",
+          });
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
+  };
+
+  const handleDeleteAll = () => {
+    const activeFiltersCount = Object.values(filters).filter(v => v !== "").length;
+    const isFiltered = activeFiltersCount > 0;
+    
+    setConfirmModal({
+      open: true,
+      title: isFiltered ? "Confirm Bulk Deletion" : "Confirm Clear All",
+      message: isFiltered 
+        ? `Are you sure you want to delete ALL logs matching the current filters (${activeFiltersCount} filter(s) active)? This action cannot be undone.`
+        : "Are you sure you want to delete ALL activity logs? This action cannot be undone.",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          const response = await apiService.deleteFilteredAuditLogs(filters);
+          setStatusModal({
+            open: true,
+            type: 'success',
+            title: "Success",
+            message: `${response.deletedCount} logs deleted successfully.`,
+          });
+          setPage(1);
+          await fetchLogs();
+          await fetchStats();
+        } catch (err: any) {
+          setStatusModal({
+            open: true,
+            type: 'error',
+            title: "Error",
+            message: err.message || "Failed to delete logs.",
+          });
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
   };
 
   const renderJson = (value: any) => {
@@ -130,9 +322,7 @@ export default function ActivityLogs() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Activity Logs & Audit Trail</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Tamper-evident logs with real-time monitoring, filtering, and compliance exports.
-          </p>
+
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -150,6 +340,13 @@ export default function ActivityLogs() {
             className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
           >
             Export Logs
+          </button>
+          <button
+            onClick={handleDeleteAll}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+            title="Delete all logs matching current filters"
+          >
+            Delete All
           </button>
         </div>
       </div>
@@ -308,18 +505,49 @@ export default function ActivityLogs() {
                       </td>
                       <td className="px-3 py-2">{log.ipAddress || "-"}</td>
                       <td className="px-3 py-2">
-                        <button
-                          className="text-indigo-600 hover:text-indigo-800 text-xs"
-                          onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
-                        >
-                          {expandedLogId === log.id ? "Hide" : "View"}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
+                            onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                          >
+                            {expandedLogId === log.id ? "Hide" : "View"}
+                          </button>
+                          <button
+                            className="text-red-600 hover:text-red-800 text-xs font-medium"
+                            onClick={() => handleDelete(log.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     {expandedLogId === log.id && (
                       <tr className="bg-gray-50 border-t">
                         <td className="px-3 py-3" colSpan={8}>
-                          {(log.actionType === "update" || log.actionType === "create") && (
+                          {log.metadata?.isBulk && (
+                            <div className="mb-3">
+                              <p className="font-semibold mb-1 text-xs">Bulk Operation Summary</p>
+                              <div className="bg-indigo-50 border border-indigo-100 rounded p-2 text-xs">
+                                <p className="mb-1">
+                                  <span className="font-medium">Total Records:</span> {log.metadata.recordCount || log.metadata.insertedCount || log.metadata.deletedCount || 0}
+                                </p>
+                                {log.metadata.processedEmployees && log.metadata.processedEmployees.length > 0 && (
+                                  <div>
+                                    <p className="font-medium mb-1">Processed Records:</p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {log.metadata.processedEmployees.map((emp: string, i: number) => (
+                                        <span key={i} className="bg-white border px-1 rounded text-[10px]">{emp}</span>
+                                      ))}
+                                      {(log.metadata.recordCount || log.metadata.insertedCount || 0) > log.metadata.processedEmployees.length && (
+                                        <span className="text-gray-500 italic">...and {(log.metadata.recordCount || log.metadata.insertedCount || 0) - log.metadata.processedEmployees.length} more</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {(log.actionType === "update" || log.actionType === "create") && !log.metadata?.isBulk && (
                             <div className="mb-3">
                               <p className="font-semibold mb-1 text-xs">Change Summary</p>
                               <div className="bg-white border rounded p-2 text-xs space-y-1">
@@ -389,6 +617,23 @@ export default function ActivityLogs() {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.open}
+        onClose={() => setConfirmModal(prev => ({ ...prev, open: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDanger={confirmModal.isDanger}
+      />
+
+      <StatusModal
+        isOpen={statusModal.open}
+        onClose={() => setStatusModal(prev => ({ ...prev, open: false }))}
+        type={statusModal.type}
+        title={statusModal.title}
+        message={statusModal.message}
+      />
     </div>
   );
 }

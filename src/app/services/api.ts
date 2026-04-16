@@ -152,7 +152,7 @@
 
 // export const apiService = new ApiService();
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api"
 
 class ApiService {
   private async retryFetch(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
@@ -303,7 +303,13 @@ class ApiService {
       headers: this.getAuthHeaders(),
       body: JSON.stringify(payrollData),
     })
-    return this.handleResponse<{ success: boolean; message: string; payroll: any; calculations: any }>(response)
+    return this.handleResponse<{
+      success: boolean
+      message: string
+      payroll?: any
+      calculations?: any
+      insertedCount?: number
+    }>(response)
   }
 
   async updatePayroll(id: string, payrollData: any) {
@@ -329,6 +335,15 @@ class ApiService {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<{ success: boolean; message: string }>(response)
+  }
+
+  async deleteBulkPayrolls(ids: string[]) {
+    const response = await this.retryFetch(`${API_BASE_URL}/payroll/delete-bulk`, {
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ ids }),
+    })
+    return this.handleResponse<{ success: boolean; message: string; deletedCount: number }>(response)
   }
 
   async calculatePayroll(payrollData: any) {
@@ -766,6 +781,38 @@ class ApiService {
       logs: any[];
       pagination: { page: number; pageSize: number; total: number; totalPages: number };
     }>(response);
+  }
+
+  async deleteAuditLog(id: string) {
+    const response = await this.retryFetch(`${API_BASE_URL}/audit/logs/${id}`, {
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<{ success: boolean; message: string }>(response);
+  }
+
+  async deleteFilteredAuditLogs(params: {
+    userId?: string;
+    username?: string;
+    actionType?: string;
+    module?: string;
+    operationStatus?: string;
+    recordId?: string;
+    startDate?: string;
+    endDate?: string;
+    searchText?: string;
+  }) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        searchParams.append(key, String(value));
+      }
+    });
+    const response = await this.retryFetch(`${API_BASE_URL}/audit/logs?${searchParams.toString()}`, {
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<{ success: boolean; message: string; deletedCount: number }>(response);
   }
 
   async getAuditStats(hours = 24) {

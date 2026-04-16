@@ -984,6 +984,12 @@ router.post('/import', verifyAdminToken, async (req, res) => {
     );
 
     res.status(processing.httpStatus).json(processing.payload);
+    
+    // Extract processed employee names for the audit log preview
+    const processedEmployees = (processing.payload?.results?.processed || [])
+      .map(p => p.employeeName)
+      .filter(Boolean);
+
     logActivity(req, {
       actionType: 'import',
       module: 'payroll',
@@ -994,6 +1000,10 @@ router.post('/import', verifyAdminToken, async (req, res) => {
         cutoffStart,
         cutoffEnd,
         httpStatus: processing.httpStatus,
+        isBulk: true,
+        recordCount: processedEmployees.length,
+        processedEmployees: processedEmployees.slice(0, 50), // Limit to first 50 for metadata
+        fullEmployeeList: processedEmployees // This will be stored in encrypted diffs if sensitive
       },
       errorDetails:
         processing.httpStatus >= 200 && processing.httpStatus < 300

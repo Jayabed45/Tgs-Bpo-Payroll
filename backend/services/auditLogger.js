@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { ObjectId } = require('mongodb');
 
 const DEFAULT_TIMEZONE = process.env.AUDIT_TIMEZONE || 'Asia/Manila';
 const DEFAULT_RETENTION_YEARS = parseInt(process.env.AUDIT_RETENTION_YEARS || '7', 10);
@@ -414,10 +415,20 @@ function inferModuleFromPath(path) {
   return 'system';
 }
 
-function shouldAutoLog(path) {
+function shouldAutoLog(req) {
+  // Keep auto-logging opt-in to avoid noisy/duplicate audit entries.
+  // Primary audit events are logged explicitly in route handlers via logActivity().
+  if (process.env.AUDIT_AUTO_LOG_ENABLED !== 'true') return false;
+
+  const path = req.originalUrl || req.url || "";
   if (!path) return false;
-  if (path.includes('/api/health')) return false;
-  if (path.includes('/api/audit')) return false;
+  
+  // Always skip health checks and any audit-related requests
+  // This prevents viewing logs from creating more logs
+  if (path.includes("/api/health")) return false;
+  if (path.includes("/api/audit")) return false;
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return false;
+  
   return true;
 }
 
@@ -429,7 +440,7 @@ function auditRequestMiddleware(req, res, next) {
   const ipAddress = extractIp(req);
 
   res.on('finish', () => {
-    if (!shouldAutoLog(path)) return;
+    if (!shouldAutoLog(req)) return;
     if (res.statusCode < 200 || res.statusCode >= 600) return;
 
     const status = res.statusCode >= 200 && res.statusCode < 400 ? 'success' : 'failure';
@@ -609,7 +620,13 @@ async function getRealtimeStats(hours = 24) {
       .toArray(),
     collection.countDocuments({ createdAt: { $gte: since }, operationStatus: 'failure' }),
     collection.countDocuments({ createdAt: { $gte: since } }),
-    alertsCollection.find({ createdAt: { $gte: since } }).sort({ createdAt: -1 }).limit(20).toArray(),
+    // Fetch recent alerts AND any unacknowledged alerts for better visibility
+    alertsCollection.find({
+      $or: [
+        { createdAt: { $gte: since } },
+        { acknowledged: false }
+      ]
+    }).sort({ createdAt: -1 }).limit(50).toArray(),
   ]);
 
   return {
@@ -693,6 +710,48 @@ function buildSignedExportPayload(logs, filters, format) {
   return { payload, signature, canonical };
 }
 
+async function deleteLogById(id) {
+  try {
+    const db = getDb();
+    const collection = db.collection('activity_logs');
+    return await collection.deleteOne({ _id: new ObjectId(id) });
+  } catch (error) {
+    console.error('deleteLogById error:', error.message);
+    return { deletedCount: 0, error: 'Invalid ID format' };
+  }
+}
+
+async function deleteLogsByFilter(filters) {
+  const db = getDb();
+  const collection = db.collection('activity_logs');
+  return await collection.deleteMany(filters);
+}
+
+async function acknowledgeAlert(alertId) {
+  try {
+    const db = getDb();
+    const result = await db.collection('audit_alerts').updateOne(
+      { _id: new ObjectId(alertId) },
+      { $set: { acknowledged: true, acknowledgedAt: new Date() } }
+    );
+    return result.modifiedCount > 0;
+  } catch (error) {
+    console.error('Acknowledge alert error:', error.message);
+    return false;
+  }
+}
+
+async function deleteAlert(alertId) {
+  try {
+    const db = getDb();
+    const result = await db.collection('audit_alerts').deleteOne({ _id: new ObjectId(alertId) });
+    return result.deletedCount > 0;
+  } catch (error) {
+    console.error('Delete alert error:', error.message);
+    return false;
+  }
+}
+
 module.exports = {
   auditRequestMiddleware,
   initializeAuditInfrastructure,
@@ -704,4 +763,8 @@ module.exports = {
   buildSignedExportPayload,
   toCSV,
   signData,
+  deleteLogById,
+  deleteLogsByFilter,
+  acknowledgeAlert,
+  deleteAlert,
 };

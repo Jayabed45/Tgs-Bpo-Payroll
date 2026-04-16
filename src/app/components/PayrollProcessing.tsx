@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { apiService } from "../services/api";
@@ -78,7 +79,6 @@ interface PayrollDeleteModalProps {
 
 // Modal Components
 function PayrollSuccessModal({ isOpen, onClose, message }: PayrollSuccessModalProps) {
-  console.log(' PayrollSuccessModal render:', { isOpen, message }); // Debug log
   if (!isOpen) return null;
 
   return (
@@ -104,7 +104,6 @@ function PayrollSuccessModal({ isOpen, onClose, message }: PayrollSuccessModalPr
 }
 
 function PayrollErrorModal({ isOpen, onClose, message }: PayrollErrorModalProps) {
-  console.log('❌ PayrollErrorModal render:', { isOpen, message }); // Debug log
   if (!isOpen) return null;
 
   return (
@@ -224,8 +223,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
   });
 
   // Helper function to show modals
-  const showModalMessage = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
-    console.log('🔔 showModalMessage called:', { type, title, message }); // Debug log
+  const showModalMessage = (type: 'success' | 'error' | 'warning' | 'info', _title: string, message: string) => {
     
     if (type === 'success') {
       setSuccessModal({ open: true, message });
@@ -1255,66 +1253,62 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
     try {
       // Handle bulk payroll creation for "Select All"
       if (formData.employeeId === 'all') {
-        const createdPayrolls = [];
-        const errors = [];
+        const bulkData = [];
 
         for (const employee of employees) {
-          try {
-            // Get employee-specific data from bulk form
-            const employeeData = bulkFormData[employee.id] || {};
-            
-            // Create payroll data for each employee
-            const employeePayrollData = {
-              ...formData,
-              employeeId: employee.id,
-              employeeName: employee.name,
-              basicSalary: employee.salary,
-              workedHours: parseFloat(employeeData.workedHours || formData.workedHours) || 0,
-              overtimeHours: parseFloat(employeeData.overtimeHours || formData.overtimeHours) || 0,
-              holidayPay: parseFloat(employeeData.holidayPay || formData.holidayPay) || 0,
-              nightDifferential: parseFloat(employeeData.nightDifferential || formData.nightDifferential) || 0,
-              salaryAdjustment: parseFloat(employeeData.salaryAdjustment || formData.salaryAdjustment) || 0,
-              absences: parseFloat(employeeData.absences || formData.absences) || 0,
-              lateDeductions: parseFloat(employeeData.lateDeductions || formData.lateDeductions) || 0,
-              sssContribution: parseFloat(employeeData.sssContribution || formData.sssContribution) || 0,
-              philhealthContribution: parseFloat(employeeData.philhealthContribution || formData.philhealthContribution) || 0,
-              pagibigContribution: parseFloat(employeeData.pagibigContribution || formData.pagibigContribution) || 0,
-              withholdingTax: parseFloat(employeeData.withholdingTax || formData.withholdingTax) || 0,
-              foodAllowance: parseFloat(employeeData.foodAllowance || formData.foodAllowance) || 0,
-              transportationAllowance: parseFloat(employeeData.transportationAllowance || formData.transportationAllowance) || 0,
-              complexityAllowance: parseFloat(employeeData.complexityAllowance || formData.complexityAllowance) || 0,
-              observationalAllowance: parseFloat(employeeData.observationalAllowance || formData.observationalAllowance) || 0,
-              communicationsAllowance: parseFloat(employeeData.communicationsAllowance || formData.communicationsAllowance) || 0,
-              internetAllowance: parseFloat(employeeData.internetAllowance || formData.internetAllowance) || 0,
-              riceSubsidyAllowance: parseFloat(employeeData.riceSubsidyAllowance || formData.riceSubsidyAllowance) || 0,
-              clothingAllowance: parseFloat(employeeData.clothingAllowance || formData.clothingAllowance) || 0,
-              laundryAllowance: parseFloat(employeeData.laundryAllowance || formData.laundryAllowance) || 0,
-              allowance: parseFloat(employeeData.allowance || formData.allowance) || 0,
-              status: 'processed'
-            };
+          // Get employee-specific data from bulk form
+          const employeeData = bulkFormData[employee.id] || {};
+          
+          // Create payroll data for each employee
+          const employeePayrollData = {
+            ...formData,
+            employeeId: employee.id,
+            employeeName: employee.name,
+            basicSalary: employee.salary,
+            workedHours: parseFloat(employeeData.workedHours || formData.workedHours) || 0,
+            overtimeHours: parseFloat(employeeData.overtimeHours || formData.overtimeHours) || 0,
+            holidayPay: parseFloat(employeeData.holidayPay || formData.holidayPay) || 0,
+            nightDifferential: parseFloat(employeeData.nightDifferential || formData.nightDifferential) || 0,
+            salaryAdjustment: parseFloat(employeeData.salaryAdjustment || formData.salaryAdjustment) || 0,
+            absences: parseFloat(employeeData.absences || formData.absences) || 0,
+            lateDeductions: parseFloat(employeeData.lateDeductions || formData.lateDeductions) || 0,
+            sssContribution: parseFloat(employeeData.sssContribution || formData.sssContribution) || 0,
+            philhealthContribution: parseFloat(employeeData.philhealthContribution || formData.philhealthContribution) || 0,
+            pagibigContribution: parseFloat(employeeData.pagibigContribution || formData.pagibigContribution) || 0,
+            withholdingTax: parseFloat(employeeData.withholdingTax || formData.withholdingTax) || 0,
+            foodAllowance: parseFloat(employeeData.foodAllowance || formData.foodAllowance) || 0,
+            transportationAllowance: parseFloat(employeeData.transportationAllowance || formData.transportationAllowance) || 0,
+            complexityAllowance: parseFloat(employeeData.complexityAllowance || formData.complexityAllowance) || 0,
+            observationalAllowance: parseFloat(employeeData.observationalAllowance || formData.observationalAllowance) || 0,
+            communicationsAllowance: parseFloat(employeeData.communicationsAllowance || formData.communicationsAllowance) || 0,
+            internetAllowance: parseFloat(employeeData.internetAllowance || formData.internetAllowance) || 0,
+            riceSubsidyAllowance: parseFloat(employeeData.riceSubsidyAllowance || formData.riceSubsidyAllowance) || 0,
+            clothingAllowance: parseFloat(employeeData.clothingAllowance || formData.clothingAllowance) || 0,
+            laundryAllowance: parseFloat(employeeData.laundryAllowance || formData.laundryAllowance) || 0,
+            allowance: parseFloat(employeeData.allowance || formData.allowance) || 0,
+            status: 'processed'
+          };
 
-            // Calculate payroll for this employee
-            const response = await apiService.calculatePayroll(employeePayrollData);
-            const finalCalculations = response.calculations;
+          // Calculate payroll for this employee
+          const calcResponse = await apiService.calculatePayroll(employeePayrollData);
+          const finalCalculations = calcResponse.calculations;
 
-            // Create the payroll record
-            const result = await apiService.createPayroll({
-              ...employeePayrollData,
-              grossPay: finalCalculations.grossPay,
-              totalDeductions: finalCalculations.totalDeductions,
-              netPay: finalCalculations.netPay
-            });
-
-            createdPayrolls.push(result.payroll);
-          } catch (error: any) {
-            errors.push(`Failed to create payroll for ${employee.name}: ${error.message}`);
-          }
+          bulkData.push({
+            ...employeePayrollData,
+            grossPay: finalCalculations.grossPay,
+            totalDeductions: finalCalculations.totalDeductions,
+            netPay: finalCalculations.netPay
+          });
         }
 
-        if (createdPayrolls.length > 0) {
-          showModalMessage('success', 'Bulk Payroll Created', `Successfully created ${createdPayrolls.length} payroll records!${errors.length > 0 ? `\n\nErrors:\n${errors.join('\n')}` : ''}`);
+        if (bulkData.length > 0) {
+          const result = await apiService.createPayroll({
+            employeeId: 'all',
+            bulkData
+          });
+          showModalMessage('success', 'Bulk Payroll Created', `Successfully created ${result.insertedCount ?? 0} payroll records!`);
         } else {
-          showModalMessage('error', 'Creation Failed', 'Failed to create any payroll records. Please check the console for details.');
+          showModalMessage('error', 'Creation Failed', 'No payroll records were prepared for creation.');
         }
       } else {
         // Handle individual employee payroll
@@ -1370,16 +1364,14 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
         await apiService.createPayroll(payrollData);
         const hoursInfo = formData.workedHours ? `\n\n✅ This employee will appear in your Excel export with ${formData.workedHours} hours in the Grand Total column.` : '';
         showModalMessage('success', 'Success!', `Payroll processed successfully! Status changed to "Processed"${hoursInfo}`);
-        }
       }
-      
-      // Don't do immediate cleanup - let the modal handle it
-    } catch (error: any) {
-      showModalMessage('error', 'Processing Failed', error.message || 'Processing failed');
-    } finally {
-      setProcessing(false);
     }
-  };
+  } catch (error: any) {
+    showModalMessage('error', 'Processing Failed', error.message || 'Processing failed');
+  } finally {
+    setProcessing(false);
+  }
+};
 
   const handleEdit = (payroll: any) => {
     if (payroll.status === 'completed') {
@@ -1673,16 +1665,14 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
       } else {
         await apiService.createPayroll(payrollData);
         showModalMessage('success', 'Draft Saved', 'Payroll saved as draft successfully! Status: Pending');
-        }
       }
-      
-      // Don't do anything immediately - let the modal handle cleanup
-    } catch (error: any) {
-      showModalMessage('error', 'Operation Failed', error.message || 'Operation failed');
-    } finally {
-      setFormLoading(false);
     }
-  };
+  } catch (error: any) {
+    showModalMessage('error', 'Operation Failed', error.message || 'Operation failed');
+  } finally {
+    setFormLoading(false);
+  }
+};
 
   if (loading) {
     return <SkeletonPage />;
@@ -1960,7 +1950,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                 />
                     {!formData.basicSalary && formData.employeeId && formData.employeeId !== 'all' && (
                       <div className="mt-1 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-                        <i className="bi bi-lightbulb me-1"></i>Basic salary will be automatically filled from the selected employee's data
+                        <i className="bi bi-lightbulb me-1"></i>Basic salary will be automatically filled from the selected employee&apos;s data
                       </div>
                     )}
               </div>
@@ -1985,7 +1975,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                 />
                     {!formData.workedHours && (
                       <div className="mt-1 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
-                        💡 <strong>Tip:</strong> Enter the total hours worked for this payroll period. This will appear in the "Grand Total" column when you export to Excel.
+                        💡 <strong>Tip:</strong> Enter the total hours worked for this payroll period. This will appear in the &quot;Grand Total&quot; column when you export to Excel.
                       </div>
                     )}
               </div>
@@ -2265,8 +2255,8 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
                   <div className="text-sm text-blue-800">
                     <strong>Workflow:</strong>
                     <ul className="mt-2 space-y-1">
-                      <li>• <strong>Save as Draft:</strong> Creates payroll with "Pending" status</li>
-                      <li>• <strong>Process Payroll:</strong> Automatically calculates and creates payroll with "Processed" status</li>
+                      <li>• <strong>Save as Draft:</strong> Creates payroll with &quot;Pending&quot; status</li>
+                      <li>• <strong>Process Payroll:</strong> Automatically calculates and creates payroll with &quot;Processed&quot; status</li>
                     </ul>
                   </div>
                 </div>

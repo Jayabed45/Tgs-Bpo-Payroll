@@ -513,7 +513,6 @@ export default function Reports() {
       <div className="flex justify-between items-center">
         <div>
           <h3 className="text-lg font-medium text-gray-900">Reports & Payslips</h3>
-          <p className="text-sm text-gray-500">Generate and view payroll reports and payslips</p>
         </div>
       </div>
 

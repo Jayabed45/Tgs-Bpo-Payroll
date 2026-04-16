@@ -537,6 +537,60 @@ router.patch('/:id/process', verifyAdminToken, async (req, res) => {
   }
 });
 
+// Delete multiple payroll records
+router.delete('/delete-bulk', verifyAdminToken, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No payroll IDs provided' });
+    }
+
+    const client = await clientPromise;
+    const db = client.db();
+    const payrollCollection = db.collection('payroll');
+
+    // Get count before deletion for logging
+    const count = ids.length;
+    
+    const result = await payrollCollection.deleteMany({
+      _id: { $in: ids.map(id => new ObjectId(id)) }
+    });
+
+    res.json({
+      success: true,
+      message: `${result.deletedCount} payroll records deleted permanently`,
+      deletedCount: result.deletedCount
+    });
+
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'success',
+      user: req.user,
+      metadata: { 
+        isBulk: true, 
+        deletedCount: result.deletedCount,
+        requestedCount: count
+      },
+    });
+
+  } catch (error) {
+    console.error('Bulk delete payroll error:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'failure',
+      user: req.user,
+      metadata: { isBulk: true },
+      errorDetails: error.message,
+    });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Delete payroll record (permanent delete)
 router.delete('/:id', verifyAdminToken, async (req, res) => {
   try {
@@ -688,6 +742,142 @@ router.post('/calculate', verifyAdminToken, async (req, res) => {
 
   } catch (error) {
     console.error('Calculate payroll error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Process payroll for all employees or a single one
+router.post('/', verifyAdminToken, async (req, res) => {
+  try {
+    const payrollData = req.body;
+    const client = await clientPromise;
+    const db = client.db();
+    const payrollCollection = db.collection('payroll');
+
+    // Handle bulk creation
+    if (payrollData.employeeId === 'all' && Array.isArray(payrollData.bulkData)) {
+      const operations = payrollData.bulkData.map(data => ({
+        insertOne: {
+          document: {
+            ...data,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        }
+      }));
+
+      const result = await payrollCollection.bulkWrite(operations);
+      
+      res.status(201).json({
+        success: true,
+        message: `${result.insertedCount} payroll records created`,
+        insertedCount: result.insertedCount
+      });
+
+      // Extract employee names for audit log preview
+      const processedEmployees = payrollData.bulkData
+        .map(d => d.employeeName)
+        .filter(Boolean);
+
+      logActivity(req, {
+        actionType: 'create',
+        module: 'payroll',
+        entity: 'payroll',
+        status: 'success',
+        user: req.user,
+        metadata: { 
+          isBulk: true, 
+          insertedCount: result.insertedCount,
+          processedEmployees: processedEmployees.slice(0, 50), // For preview
+          fullEmployeeList: processedEmployees
+        },
+      });
+      return;
+    }
+
+    // Handle single creation (existing logic)
+    const newPayroll = {
+      ...payrollData,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const result = await payrollCollection.insertOne(newPayroll);
+    res.status(201).json({
+      success: true,
+      message: 'Payroll record created',
+      payroll: { ...newPayroll, id: result.insertedId }
+    });
+
+    logActivity(req, {
+      actionType: 'create',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'success',
+      user: req.user,
+      recordId: result.insertedId.toString(),
+    });
+
+  } catch (error) {
+    console.error('Create payroll error:', error);
+    logActivity(req, {
+      actionType: 'create',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+    });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update payroll record (permanent delete)
+router.put('/:id', verifyAdminToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payrollData = req.body;
+    
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid payroll ID' });
+    }
+
+    const client = await clientPromise;
+    const db = client.db();
+    const payrollCollection = db.collection('payroll');
+
+    const result = await payrollCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { ...payrollData, updatedAt: new Date() } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Payroll not found' });
+    }
+
+    res.json({ success: true, message: 'Payroll updated successfully' });
+
+    logActivity(req, {
+      actionType: 'update',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      newValues: payrollData,
+    });
+
+  } catch (error) {
+    console.error('Update payroll error:', error);
+    logActivity(req, {
+      actionType: 'update',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
