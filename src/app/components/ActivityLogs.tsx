@@ -959,7 +959,7 @@ export default function ActivityLogs() {
         </>
       )}
 
-      <div className="bg-white border rounded-lg shadow-sm p-4">
+      <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-4">
         <div className="flex items-center gap-3 flex-wrap">
           {/* Search Text */}
           <input
@@ -967,7 +967,7 @@ export default function ActivityLogs() {
             placeholder="Search..."
             value={filters.searchText}
             onChange={(e) => setFilters((prev) => ({ ...prev, searchText: e.target.value }))}
-            className="flex-1 min-w-[180px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+            className="flex-1 min-w-[180px] px-3 py-2 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
           />
 
           {/* Username */}
@@ -976,14 +976,14 @@ export default function ActivityLogs() {
             placeholder="Username"
             value={filters.username}
             onChange={(e) => setFilters((prev) => ({ ...prev, username: e.target.value }))}
-            className="flex-1 min-w-[140px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+            className="flex-1 min-w-[140px] px-3 py-2 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
           />
 
           {/* Action Type */}
           <select
             value={filters.actionType}
             onChange={(e) => setFilters((prev) => ({ ...prev, actionType: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+            className="px-3 py-2 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
           >
             <option value="">All Actions</option>
             {ACTION_TYPES.map((item) => (
@@ -997,7 +997,7 @@ export default function ActivityLogs() {
           <select
             value={filters.module}
             onChange={(e) => setFilters((prev) => ({ ...prev, module: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+            className="px-3 py-2 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
           >
             <option value="">All Modules</option>
             {MODULE_TYPES.map((item) => (
@@ -1012,7 +1012,7 @@ export default function ActivityLogs() {
             type="date"
             value={filters.startDate}
             onChange={(e) => setFilters((prev) => ({ ...prev, startDate: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+            className="px-3 py-2 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
           />
 
           {/* End Date */}
@@ -1020,14 +1020,14 @@ export default function ActivityLogs() {
             type="date"
             value={filters.endDate}
             onChange={(e) => setFilters((prev) => ({ ...prev, endDate: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+            className="px-3 py-2 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
           />
 
           {/* Status */}
           <select
             value={filters.operationStatus}
             onChange={(e) => setFilters((prev) => ({ ...prev, operationStatus: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
+            className="px-3 py-2 border border-gray-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white"
           >
             <option value="">All Status</option>
             {STATUS_TYPES.map((item) => (
@@ -1063,9 +1063,9 @@ export default function ActivityLogs() {
         </div>
       </div>
 
-      {error && <div className="bg-red-50 text-red-700 border border-red-200 rounded-md p-3 text-sm">{error}</div>}
+      {error && <div className="bg-red-50 text-red-700 border border-red-100 rounded-lg p-3 text-sm">{error}</div>}
 
-      <div className="bg-white border rounded-lg overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-100 text-gray-700">

@@ -628,13 +628,44 @@ router.get('/:id/payrolls', verifyAdminToken, async (req, res) => {
     const formattedPayrolls = payrolls.map(payroll => {
       const employee = employees.find(emp => emp._id.toString() === payroll.employeeId);
       
+      // Calculate total allowances from all allowance fields
+      const totalAllowances = (
+        (payroll.foodAllowance || 0) +
+        (payroll.transportationAllowance || 0) +
+        (payroll.complexityAllowance || 0) +
+        (payroll.observationalAllowance || 0) +
+        (payroll.communicationsAllowance || 0) +
+        (payroll.internetAllowance || 0) +
+        (payroll.riceSubsidyAllowance || 0) +
+        (payroll.clothingAllowance || 0) +
+        (payroll.laundryAllowance || 0) +
+        (payroll.allowance || 0) +
+        (payroll.nightDifferential || 0) +
+        (payroll.referralBonus || 0) +
+        (payroll.holidayPay || 0) +
+        (payroll.salaryAdjustment || 0)
+      );
+      
       return {
         id: payroll._id.toString(),
         employeeId: payroll.employeeId,
         employeeName: employee ? employee.name : 'Unknown Employee',
         period: `${payroll.cutoffStart} - ${payroll.cutoffEnd}`,
         basicSalary: payroll.basicSalary || 0,
-        allowances: (payroll.holidayPay || 0) + (payroll.nightDifferential || 0) + (payroll.salaryAdjustment || 0),
+        allowances: totalAllowances,
+        foodAllowance: payroll.foodAllowance || 0,
+        transportationAllowance: payroll.transportationAllowance || 0,
+        complexityAllowance: payroll.complexityAllowance || 0,
+        observationalAllowance: payroll.observationalAllowance || 0,
+        communicationsAllowance: payroll.communicationsAllowance || 0,
+        internetAllowance: payroll.internetAllowance || 0,
+        riceSubsidyAllowance: payroll.riceSubsidyAllowance || 0,
+        clothingAllowance: payroll.clothingAllowance || 0,
+        laundryAllowance: payroll.laundryAllowance || 0,
+        allowance: payroll.allowance || 0,
+        nightDifferential: payroll.nightDifferential || 0,
+        referralBonus: payroll.referralBonus || 0,
+        holidayPay: payroll.holidayPay || 0,
         deductions: (payroll.absences || 0) + (payroll.lateDeductions || 0) + (payroll.sssContribution || 0) + (payroll.philhealthContribution || 0) + (payroll.pagibigContribution || 0) + (payroll.withholdingTax || 0),
         netSalary: payroll.netPay || 0,
         status: payroll.status || 'pending',

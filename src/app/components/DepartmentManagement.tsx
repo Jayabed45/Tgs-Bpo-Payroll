@@ -1089,6 +1089,19 @@ interface PayrollRecord {
   period: string;
   basicSalary: number;
   allowances: number;
+  foodAllowance?: number;
+  transportationAllowance?: number;
+  complexityAllowance?: number;
+  observationalAllowance?: number;
+  communicationsAllowance?: number;
+  internetAllowance?: number;
+  riceSubsidyAllowance?: number;
+  clothingAllowance?: number;
+  laundryAllowance?: number;
+  allowance?: number;
+  nightDifferential?: number;
+  referralBonus?: number;
+  holidayPay?: number;
   deductions: number;
   netSalary: number;
   status: string;
@@ -1345,39 +1358,58 @@ export function DepartmentPreviewModal({ isOpen, onClose, department }: Departme
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {filteredPayrollRecords.map((record) => (
-                            <tr key={record.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-gray-900">{record.employeeName}</div>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">{record.period}</div>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm text-gray-900">₱{record.basicSalary.toLocaleString()}</div>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm text-green-600">+₱{record.allowances.toLocaleString()}</div>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm text-red-600">-₱{record.deductions.toLocaleString()}</div>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <div className="text-sm font-semibold text-gray-900">₱{record.netSalary.toLocaleString()}</div>
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                  record.status === 'Paid' 
-                                    ? 'bg-green-100 text-green-800' 
-                                    : record.status === 'Processing'
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {record.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                          {filteredPayrollRecords.map((record) => {
+                            // Calculate total allowances from individual allowance fields
+                            const totalAllowances = (
+                              (record.foodAllowance || 0) +
+                              (record.transportationAllowance || 0) +
+                              (record.complexityAllowance || 0) +
+                              (record.observationalAllowance || 0) +
+                              (record.communicationsAllowance || 0) +
+                              (record.internetAllowance || 0) +
+                              (record.riceSubsidyAllowance || 0) +
+                              (record.clothingAllowance || 0) +
+                              (record.laundryAllowance || 0) +
+                              (record.allowance || 0) +
+                              (record.nightDifferential || 0) +
+                              (record.referralBonus || 0) +
+                              (record.holidayPay || 0)
+                            );
+                            
+                            return (
+                              <tr key={record.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium text-gray-900">{record.employeeName}</div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-900">{record.period}</div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-gray-900">₱{record.basicSalary.toLocaleString()}</div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-green-600">+₱{totalAllowances.toLocaleString()}</div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="text-sm text-red-600">-₱{record.deductions.toLocaleString()}</div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-semibold text-gray-900">₱{record.netSalary.toLocaleString()}</div>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap">
+                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    record.status === 'Paid' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : record.status === 'Processing'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {record.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
