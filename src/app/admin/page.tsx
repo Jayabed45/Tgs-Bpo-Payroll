@@ -10,6 +10,7 @@ import DepartmentManagement from "../components/DepartmentManagement";
 import PayrollProcessing from "../components/PayrollProcessing";
 import Reports from "../components/Reports";
 import Settings from "../components/Settings";
+import ActivityLogs from "../components/ActivityLogs";
 import { apiService } from "../services/api";
 import { SettingsProvider } from "../contexts/SettingsContext";
 
@@ -411,6 +412,11 @@ export default function AdminPage() {
           {/* Settings Tab */}
           {activeTab === 'settings' && (
             <Settings />
+          )}
+
+          {/* Activity Logs Tab */}
+          {activeTab === 'audit' && (
+            <ActivityLogs />
           )}
 
           </main>

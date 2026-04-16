@@ -3,6 +3,7 @@ const { ObjectId } = require('mongodb');
 const { clientPromise } = require('../config/database');
 const XLSX = require('xlsx');
 const { processImportedPayroll } = require('../services/payrollImportProcessor');
+const { logActivity } = require('../services/auditLogger');
 
 const router = express.Router();
 
@@ -424,10 +425,27 @@ router.get('/template', verifyAdminToken, async (req, res) => {
     const filename = `Payroll-Template_${now.toISOString().split('T')[0]}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'export',
+      entity: 'template',
+      status: 'success',
+      user: req.user,
+      metadata: { fileType: 'xlsx', filename, employees: employees.length },
+    });
     res.send(buffer);
 
   } catch (error) {
     console.error('Export template error:', error);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'export',
+      entity: 'template',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -859,10 +877,33 @@ router.get('/timekeeping', verifyAdminToken, async (req, res) => {
     const filename = `Timekeeping-Data_${effectiveStartDate}_to_${effectiveEndDate}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'export',
+      entity: 'timekeeping',
+      status: 'success',
+      user: req.user,
+      metadata: {
+        fileType: 'xlsx',
+        filename,
+        cutoffStart: effectiveStartDate,
+        cutoffEnd: effectiveEndDate,
+        payrollCount: payrolls.length,
+      },
+    });
     res.send(buffer);
 
   } catch (error) {
     console.error('Export timekeeping error:', error);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'export',
+      entity: 'timekeeping',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -943,8 +984,33 @@ router.post('/import', verifyAdminToken, async (req, res) => {
     );
 
     res.status(processing.httpStatus).json(processing.payload);
+    logActivity(req, {
+      actionType: 'import',
+      module: 'payroll',
+      entity: 'timekeeping',
+      status: processing.httpStatus >= 200 && processing.httpStatus < 300 ? 'success' : 'failure',
+      user: req.user,
+      metadata: {
+        cutoffStart,
+        cutoffEnd,
+        httpStatus: processing.httpStatus,
+      },
+      errorDetails:
+        processing.httpStatus >= 200 && processing.httpStatus < 300
+          ? null
+          : processing.payload?.error || 'Import failed',
+    });
   } catch (error) {
     console.error('Import error:', error);
+    logActivity(req, {
+      actionType: 'import',
+      module: 'payroll',
+      entity: 'timekeeping',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Failed to import data: ' + error.message });
   }
 });
@@ -1026,8 +1092,31 @@ router.post('/imported-payrolls', verifyAdminToken, async (req, res) => {
         ...importedPayroll
       }
     });
+    logActivity(req, {
+      actionType: 'create',
+      module: 'payroll',
+      entity: 'importedPayroll',
+      status: 'success',
+      user: req.user,
+      recordId: result.insertedId.toString(),
+      metadata: {
+        fileName: importedPayroll.fileName,
+        employeeCount,
+        cutoffStart: effectiveCutoffStart,
+        cutoffEnd: effectiveCutoffEnd,
+      },
+    });
   } catch (error) {
     console.error('Save imported payroll error:', error);
+    logActivity(req, {
+      actionType: 'create',
+      module: 'payroll',
+      entity: 'importedPayroll',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Failed to save imported payroll: ' + error.message });
   }
 });
@@ -1136,8 +1225,26 @@ router.delete('/imported-payrolls/:id', verifyAdminToken, async (req, res) => {
     }
 
     res.json({ success: true, message: 'Imported payroll deleted successfully' });
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'payroll',
+      entity: 'importedPayroll',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+    });
   } catch (error) {
     console.error('Delete imported payroll error:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'payroll',
+      entity: 'importedPayroll',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Failed to delete imported payroll: ' + error.message });
   }
 });
@@ -1233,9 +1340,28 @@ router.get('/imported-payrolls/:id/export', verifyAdminToken, async (req, res) =
     const filename = `${importedPayroll.fileName}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'payroll',
+      entity: 'importedPayroll',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      metadata: { fileType: 'xlsx', filename },
+    });
     res.send(buffer);
   } catch (error) {
     console.error('Export imported payroll error:', error);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'payroll',
+      entity: 'importedPayroll',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Failed to export imported payroll: ' + error.message });
   }
 });

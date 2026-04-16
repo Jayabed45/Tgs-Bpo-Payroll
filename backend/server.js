@@ -23,6 +23,12 @@ const payslipRoutes = require('./routes/payslips');
 const departmentRoutes = require('./routes/departments');
 const settingsRoutes = require('./routes/settings');
 const exportRoutes = require('./routes/export');
+const auditRoutes = require('./routes/audit');
+const {
+  auditRequestMiddleware,
+  initializeAuditInfrastructure,
+  flushQueue,
+} = require('./services/auditLogger');
 
 const app = express();
 const PORT = process.env.API_PORT || process.env.PORT || 5000;
@@ -72,6 +78,7 @@ async function connectToDatabase() {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n Shutting down gracefully...');
+  await flushQueue();
   if (client) {
     await client.close();
     console.log('MongoDB connection closed');
@@ -81,6 +88,7 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
   console.log('\n Shutting down gracefully...');
+  await flushQueue();
   if (client) {
     await client.close();
     console.log('MongoDB connection closed');
@@ -154,6 +162,7 @@ app.use(cors(corsOptions));
 // Body parsing middleware - increased limit for file uploads
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(auditRequestMiddleware);
 
 // Database connection check middleware
 app.use((req, res, next) => {
@@ -175,6 +184,7 @@ app.use('/api/payslips', payslipRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/audit', auditRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -204,6 +214,7 @@ async function startServer() {
   try {
     // Connect to database first
     await connectToDatabase();
+    await initializeAuditInfrastructure();
     
     // Start the server
     app.listen(PORT, () => {

@@ -1,8 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const { verifyAdminToken } = require('./auth');
+const { logActivity } = require('../services/auditLogger');
 
 // Get system settings
-router.get('/', async (req, res) => {
+router.get('/', verifyAdminToken, async (req, res) => {
   try {
     const db = global.db;
     if (!db) {
@@ -62,7 +64,7 @@ router.get('/', async (req, res) => {
 });
 
 // Update system settings
-router.put('/', async (req, res) => {
+router.put('/', verifyAdminToken, async (req, res) => {
   try {
     const db = global.db;
     if (!db) {
@@ -73,6 +75,7 @@ router.put('/', async (req, res) => {
     }
     
     const settingsData = req.body;
+    const previousSettings = await db.collection('settings').findOne({ type: 'system' });
     
     const result = await db.collection('settings').updateOne(
       { type: 'system' },
@@ -91,8 +94,27 @@ router.put('/', async (req, res) => {
       message: 'Settings updated successfully',
       settings: settingsData
     });
+    logActivity(req, {
+      actionType: 'update',
+      module: 'settings',
+      entity: 'system',
+      status: 'success',
+      user: req.user,
+      recordId: 'system',
+      oldValues: previousSettings?.data || {},
+      newValues: settingsData,
+    });
   } catch (error) {
     console.error('Error updating settings:', error);
+    logActivity(req, {
+      actionType: 'update',
+      module: 'settings',
+      entity: 'system',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({
       success: false,
       message: 'Failed to update settings',

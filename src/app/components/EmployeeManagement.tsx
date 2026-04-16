@@ -592,31 +592,38 @@ const handleDeleteAll = async () => {
   };
 
   const handleEdit = (employee: Employee) => {
+    const asNumberString = (value: unknown, fallback = 0) => {
+      if (value === null || value === undefined || value === '') return String(fallback);
+      const parsed = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(parsed) ? String(parsed) : String(fallback);
+    };
+    const asString = (value: unknown) => (value === null || value === undefined ? '' : String(value));
+
     setEditingEmployee(employee);
     setFormData({
-      name: employee.name,
-      position: employee.position,
-      salary: employee.salary.toString(),
-      workingDays: employee.workingDays.toString(),
-      sssNumber: employee.sssNumber,
-      philhealthNumber: employee.philhealthNumber,
-      pagibigNumber: employee.pagibigNumber,
-      email: employee.email,
-      contactNumber: employee.contactNumber,
-      hireDate: employee.hireDate,
-      foodAllowance: (employee.foodAllowance || 0).toString(),
-      transportationAllowance: (employee.transportationAllowance || 0).toString(),
-      complexityAllowance: (employee.complexityAllowance || 0).toString(),
-      observationalAllowance: (employee.observationalAllowance || 0).toString(),
-      communicationsAllowance: (employee.communicationsAllowance || 0).toString(),
-      internetAllowance: (employee.internetAllowance || 0).toString(),
-      riceSubsidyAllowance: (employee.riceSubsidyAllowance || 0).toString(),
-      clothingAllowance: (employee.clothingAllowance || 0).toString(),
-      laundryAllowance: (employee.laundryAllowance || 0).toString(),
-      allowance: (employee.allowance || 0).toString(),
-      kpiOtIncentive: (employee.kpiOtIncentive || 0).toString(),
-      salaryAdjustmentDefault: (employee.salaryAdjustmentDefault || 0).toString(),
-      departmentId: employee.departmentId
+      name: asString(employee.name),
+      position: asString(employee.position),
+      salary: asNumberString(employee.salary),
+      workingDays: asNumberString(employee.workingDays),
+      sssNumber: asString(employee.sssNumber),
+      philhealthNumber: asString(employee.philhealthNumber),
+      pagibigNumber: asString(employee.pagibigNumber),
+      email: asString(employee.email),
+      contactNumber: asString(employee.contactNumber),
+      hireDate: asString(employee.hireDate),
+      foodAllowance: asNumberString(employee.foodAllowance),
+      transportationAllowance: asNumberString(employee.transportationAllowance),
+      complexityAllowance: asNumberString(employee.complexityAllowance),
+      observationalAllowance: asNumberString(employee.observationalAllowance),
+      communicationsAllowance: asNumberString(employee.communicationsAllowance),
+      internetAllowance: asNumberString(employee.internetAllowance),
+      riceSubsidyAllowance: asNumberString(employee.riceSubsidyAllowance),
+      clothingAllowance: asNumberString(employee.clothingAllowance),
+      laundryAllowance: asNumberString(employee.laundryAllowance),
+      allowance: asNumberString(employee.allowance),
+      kpiOtIncentive: asNumberString(employee.kpiOtIncentive),
+      salaryAdjustmentDefault: asNumberString(employee.salaryAdjustmentDefault),
+      departmentId: asString(employee.departmentId)
     });
     setShowAddForm(true);
   };

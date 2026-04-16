@@ -3,6 +3,7 @@ const { ObjectId } = require('mongodb');
 const { clientPromise } = require('../config/database');
 const Employee = require('../models/Employee');
 const { verifyAdminToken } = require('./auth');
+const { logActivity } = require('../services/auditLogger');
 
 const parseNumber = (value, defaultValue = 0) => {
   if (value === null || value === undefined || value === '') {
@@ -92,8 +93,29 @@ router.post('/delete-bulk', verifyAdminToken, async (req, res) => {
       message: `Successfully deleted ${employeeDeleteResult.deletedCount} employees and their associated payroll records`,
       deletedCount: employeeDeleteResult.deletedCount
     });
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'employees',
+      entity: 'employee',
+      status: 'success',
+      user: req.user,
+      metadata: {
+        deletedCount: employeeDeleteResult.deletedCount,
+        payrollDeletedCount: payrollDeleteResult.deletedCount,
+        ids,
+      },
+    });
   } catch (error) {
     console.error('Bulk delete employees error:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'employees',
+      entity: 'employee',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -136,8 +158,35 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
       success: true,
       message: 'Employee and all associated payrolls deleted permanently'
     });
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'employees',
+      entity: 'employee',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      oldValues: {
+        id,
+        name: employee.name,
+        employeeCode: employee.employeeCode || null,
+        email: employee.email || null,
+      },
+      metadata: {
+        payrollDeletedCount: payrollDeleteResult.deletedCount,
+      },
+    });
   } catch (error) {
     console.error('Delete employee error:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'employees',
+      entity: 'employee',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -346,9 +395,27 @@ router.post('/', verifyAdminToken, async (req, res) => {
       message: 'Employee created successfully',
       employee: createdEmployee
     });
+    logActivity(req, {
+      actionType: 'create',
+      module: 'employees',
+      entity: 'employee',
+      status: 'success',
+      user: req.user,
+      recordId: createdEmployee.id,
+      newValues: createdEmployee,
+    });
 
   } catch (error) {
     console.error('Create employee error:', error);
+    logActivity(req, {
+      actionType: 'create',
+      module: 'employees',
+      entity: 'employee',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -373,6 +440,32 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
+    const changedFields = {};
+    const changedFieldNames = [];
+    Object.keys(updateData || {}).forEach((key) => {
+      const oldValue = existingEmployee[key];
+      const newValue = updateData[key];
+
+      const normalize = (value) => {
+        if (value === undefined || value === null || value === '') return null;
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        const numeric = Number(value);
+        if (!Number.isNaN(numeric) && String(value).trim() !== '') return numeric;
+        return String(value).trim();
+      };
+
+      const oldNormalized = normalize(oldValue);
+      const newNormalized = normalize(newValue);
+
+      if (oldNormalized !== newNormalized) {
+        changedFieldNames.push(key);
+        changedFields[key] = {
+          oldValue: oldValue ?? null,
+          newValue: newValue ?? null,
+        };
+      }
+    });
+
     // Update employee
     const result = await employeesCollection.updateOne(
       { _id: new ObjectId(id) },
@@ -392,9 +485,38 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
       success: true,
       message: 'Employee updated successfully'
     });
+    logActivity(req, {
+      actionType: 'update',
+      module: 'employees',
+      entity: 'employee',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      oldValues: Object.fromEntries(
+        Object.entries(changedFields).map(([field, values]) => [field, values.oldValue])
+      ),
+      newValues: Object.fromEntries(
+        Object.entries(changedFields).map(([field, values]) => [field, values.newValue])
+      ),
+      metadata: {
+        changedFields: changedFieldNames,
+        changedFieldCount: changedFieldNames.length,
+        fieldDiff: changedFields,
+      },
+    });
 
   } catch (error) {
     console.error('Update employee error:', error);
+    logActivity(req, {
+      actionType: 'update',
+      module: 'employees',
+      entity: 'employee',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -581,9 +703,31 @@ router.post('/bulk-import', verifyAdminToken, async (req, res) => {
       errors: errors,
       totalProcessed: employees.length
     });
+    logActivity(req, {
+      actionType: 'import',
+      module: 'employees',
+      entity: 'employee',
+      status: errors.length > 0 ? 'failure' : 'success',
+      user: req.user,
+      metadata: {
+        totalProcessed: employees.length,
+        importedCount,
+        errorCount: errors.length,
+      },
+      errorDetails: errors.length > 0 ? `Import completed with ${errors.length} row errors` : null,
+    });
 
   } catch (error) {
     console.error('Bulk import error:', error);
+    logActivity(req, {
+      actionType: 'import',
+      module: 'employees',
+      entity: 'employee',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

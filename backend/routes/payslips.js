@@ -5,6 +5,7 @@ const { clientPromise } = require('../config/database');
 const { verifyAdminToken } = require('./auth');
 const PDFDocument = require('pdfkit');
 const Payroll = require('../models/Payroll');
+const { logActivity } = require('../services/auditLogger');
 
 const parseNumber = (value, defaultValue = 0) => {
   if (value === null || value === undefined || value === '') return defaultValue;
@@ -137,8 +138,28 @@ router.post('/generate', async (req, res) => {
       payslip: createdPayslip,
       message: 'Payslip generated successfully'
     });
+    logActivity(req, {
+      actionType: 'generate',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'success',
+      user: req.user,
+      recordId: result.insertedId.toString(),
+      newValues: createdPayslip,
+      metadata: { payrollId },
+    });
   } catch (error) {
     console.error('Error generating payslip:', error);
+    logActivity(req, {
+      actionType: 'generate',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'failure',
+      user: req.user,
+      recordId: req.body?.payrollId || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to generate payslip'
@@ -213,6 +234,15 @@ router.get('/:id/download', async (req, res) => {
     const filename = `payslip-${payslip.employeeName.replace(/\s+/g, '-')}-${new Date().getTime()}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      metadata: { fileType: 'pdf', filename },
+    });
     
     // Pipe PDF to response
     doc.pipe(res);
@@ -224,6 +254,16 @@ router.get('/:id/download', async (req, res) => {
     doc.end();
   } catch (error) {
     console.error('Error downloading payslip:', error);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to download payslip'
@@ -554,6 +594,7 @@ router.delete('/:id', async (req, res) => {
     const client = await clientPromise;
     const db = client.db();
     const payslipsCollection = db.collection('payslips');
+    const existingPayslip = await payslipsCollection.findOne({ _id: new ObjectId(id) });
     
     const result = await payslipsCollection.deleteOne({ _id: new ObjectId(id) });
     
@@ -568,8 +609,27 @@ router.delete('/:id', async (req, res) => {
       success: true,
       message: 'Payslip deleted successfully'
     });
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      oldValues: existingPayslip,
+    });
   } catch (error) {
     console.error('Error deleting payslip:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({
       success: false,
       error: 'Failed to delete payslip'

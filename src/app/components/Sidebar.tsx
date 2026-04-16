@@ -105,6 +105,20 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout, user }: Sid
             </svg>
             Settings
           </button>
+
+          <button
+            onClick={() => setActiveTab('audit')}
+            className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md mb-1 ${
+              activeTab === 'audit'
+                ? 'bg-indigo-100 text-indigo-700'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <svg className="mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5-1a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Activity Logs
+          </button>
         </div>
       </nav>
 

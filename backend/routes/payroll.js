@@ -2,6 +2,7 @@ const express = require('express');
 const { ObjectId } = require('mongodb');
 const { clientPromise } = require('../config/database');
 const Payroll = require('../models/Payroll');
+const { logActivity } = require('../services/auditLogger');
 
 const router = express.Router();
 
@@ -346,9 +347,27 @@ router.post('/', verifyAdminToken, async (req, res) => {
       payroll: createdPayroll,
       calculations
     });
+    logActivity(req, {
+      actionType: 'create',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'success',
+      user: req.user,
+      recordId: createdPayroll.id,
+      newValues: createdPayroll,
+    });
 
   } catch (error) {
     console.error('Create payroll error:', error);
+    logActivity(req, {
+      actionType: 'create',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -427,9 +446,36 @@ router.put('/:id', verifyAdminToken, async (req, res) => {
       message: 'Payroll updated successfully',
       calculations
     });
+    logActivity(req, {
+      actionType: 'update',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      oldValues: {
+        id,
+        status: existingPayroll.status,
+        netPay: existingPayroll.netPay,
+      },
+      newValues: {
+        ...updateData,
+        netPay: calculations.netPay,
+      },
+    });
 
   } catch (error) {
     console.error('Update payroll error:', error);
+    logActivity(req, {
+      actionType: 'update',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -465,9 +511,28 @@ router.patch('/:id/process', verifyAdminToken, async (req, res) => {
       success: true,
       message: 'Payroll processed successfully'
     });
+    logActivity(req, {
+      actionType: 'generate',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      newValues: { status: 'processed' },
+    });
 
   } catch (error) {
     console.error('Process payroll error:', error);
+    logActivity(req, {
+      actionType: 'generate',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -502,9 +567,28 @@ router.delete('/:id', verifyAdminToken, async (req, res) => {
       success: true,
       message: 'Payroll deleted permanently'
     });
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'success',
+      user: req.user,
+      recordId: id,
+      oldValues: existingPayroll,
+    });
 
   } catch (error) {
     console.error('Delete payroll error:', error);
+    logActivity(req, {
+      actionType: 'delete',
+      module: 'payroll',
+      entity: 'payroll',
+      status: 'failure',
+      user: req.user,
+      recordId: req.params?.id || null,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

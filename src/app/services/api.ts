@@ -737,6 +737,77 @@ class ApiService {
     
     return response.blob();
   }
+
+  // Audit API calls
+  async getAuditLogs(params: {
+    page?: number;
+    pageSize?: number;
+    userId?: string;
+    username?: string;
+    actionType?: string;
+    module?: string;
+    operationStatus?: string;
+    recordId?: string;
+    startDate?: string;
+    endDate?: string;
+    searchText?: string;
+  }) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        searchParams.append(key, String(value));
+      }
+    });
+    const response = await this.retryFetch(`${API_BASE_URL}/audit/logs?${searchParams.toString()}`, {
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<{
+      success: boolean;
+      logs: any[];
+      pagination: { page: number; pageSize: number; total: number; totalPages: number };
+    }>(response);
+  }
+
+  async getAuditStats(hours = 24) {
+    const response = await this.retryFetch(`${API_BASE_URL}/audit/stats?hours=${hours}`, {
+      headers: this.getAuthHeaders(),
+    });
+    return this.handleResponse<{ success: boolean; stats: any }>(response);
+  }
+
+  async exportAuditLogs(params: {
+    format: "json" | "csv" | "xlsx" | "pdf";
+    userId?: string;
+    username?: string;
+    actionType?: string;
+    module?: string;
+    operationStatus?: string;
+    recordId?: string;
+    startDate?: string;
+    endDate?: string;
+    searchText?: string;
+    maxRows?: number;
+  }): Promise<Blob> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") || sessionStorage.getItem("token") : null;
+    const searchParams = new URLSearchParams();
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        searchParams.append(key, String(value));
+      }
+    });
+
+    const response = await fetch(`${API_BASE_URL}/audit/export?${searchParams.toString()}`, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+    return response.blob();
+  }
 }
 
 export const apiService = new ApiService()

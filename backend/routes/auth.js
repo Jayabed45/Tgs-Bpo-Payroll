@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const rateLimit = require('express-rate-limit');
 const { clientPromise } = require('../config/database');
+const { logActivity } = require('../services/auditLogger');
 
 const router = express.Router();
 
@@ -30,6 +31,14 @@ router.post('/login', authLimiter, async (req, res) => {
 
     // Validate input
     if (!email || !password) {
+      logActivity(req, {
+        actionType: 'login',
+        module: 'auth',
+        entity: 'user',
+        status: 'failure',
+        errorDetails: 'Email and password are required',
+        metadata: { email: email || null },
+      });
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
@@ -42,6 +51,14 @@ router.post('/login', authLimiter, async (req, res) => {
     const user = await usersCollection.findOne({ email });
 
     if (!user) {
+      logActivity(req, {
+        actionType: 'login',
+        module: 'auth',
+        entity: 'user',
+        status: 'failure',
+        username: email,
+        errorDetails: 'Invalid credentials',
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -49,6 +66,15 @@ router.post('/login', authLimiter, async (req, res) => {
     const isValidPassword = await bcrypt.compare(password, user.password);
 
     if (!isValidPassword) {
+      logActivity(req, {
+        actionType: 'login',
+        module: 'auth',
+        entity: 'user',
+        status: 'failure',
+        userId: user._id?.toString?.(),
+        username: user.email,
+        errorDetails: 'Invalid credentials',
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -64,6 +90,23 @@ router.post('/login', authLimiter, async (req, res) => {
     );
 
     // Return success response
+    logActivity(req, {
+      actionType: 'login',
+      module: 'auth',
+      entity: 'user',
+      status: 'success',
+      user: {
+        userId: user._id?.toString?.(),
+        email: user.email,
+        role: user.role,
+        name: user.name,
+      },
+      recordId: user._id?.toString?.(),
+      metadata: {
+        email: user.email,
+      },
+    });
+
     res.json({
       success: true,
       token,
@@ -77,6 +120,15 @@ router.post('/login', authLimiter, async (req, res) => {
 
   } catch (error) {
     console.error('Login error:', error);
+    logActivity(req, {
+      actionType: 'login',
+      module: 'auth',
+      entity: 'user',
+      status: 'failure',
+      errorDetails: error.message,
+      errorStack: error.stack,
+      metadata: { email: req.body?.email || null },
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -137,6 +189,21 @@ router.post('/create-admin', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    logActivity(req, {
+      actionType: 'create',
+      module: 'auth',
+      entity: 'user',
+      status: 'success',
+      recordId: result.insertedId.toString(),
+      username: adminUser.email,
+      newValues: {
+        email: adminUser.email,
+        name: adminUser.name,
+        role: adminUser.role,
+      },
+      metadata: { operation: 'create-admin' },
+    });
+
     // Return success response
     res.status(201).json({
       success: true,
@@ -152,6 +219,15 @@ router.post('/create-admin', async (req, res) => {
 
   } catch (error) {
     console.error('Admin creation error:', error);
+    logActivity(req, {
+      actionType: 'create',
+      module: 'auth',
+      entity: 'user',
+      status: 'failure',
+      errorDetails: error.message,
+      errorStack: error.stack,
+      metadata: { operation: 'create-admin' },
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -318,6 +394,27 @@ router.put('/update-profile', verifyAdminToken, async (req, res) => {
       );
     }
 
+    logActivity(req, {
+      actionType: 'update',
+      module: 'settings',
+      entity: 'profile',
+      status: 'success',
+      recordId: user._id.toString(),
+      user: req.user,
+      oldValues: {
+        email: user.email,
+        name: user.name,
+      },
+      newValues: {
+        email: updatedUser.email,
+        name: updatedUser.name,
+      },
+      metadata: {
+        passwordChanged: Boolean(updateData.password),
+        emailChanged: Boolean(updateData.email),
+      },
+    });
+
     res.json({
       success: true,
       message: 'Profile updated successfully',
@@ -331,6 +428,15 @@ router.put('/update-profile', verifyAdminToken, async (req, res) => {
 
   } catch (error) {
     console.error('Error updating profile:', error);
+    logActivity(req, {
+      actionType: 'update',
+      module: 'settings',
+      entity: 'profile',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+    });
     res.status(500).json({
       success: false,
       message: 'Failed to update profile',
