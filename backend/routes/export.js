@@ -1008,7 +1008,7 @@ router.post('/import', verifyAdminToken, async (req, res) => {
       return res.status(400).json({ error: 'Cutoff dates are required' });
     }
 
-    // Create the imported payroll record
+    // Create the imported payroll record with 'processing' status initially
     const importedPayroll = {
       fileName: fileName || `Payroll_${effectiveCutoffStart}_to_${effectiveCutoffEnd}`,
       cutoffStart: effectiveCutoffStart,
@@ -1016,7 +1016,7 @@ router.post('/import', verifyAdminToken, async (req, res) => {
       sheets,
       sheetNames,
       employeeCount,
-      status: 'imported',
+      status: 'processing',
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -1024,38 +1024,70 @@ router.post('/import', verifyAdminToken, async (req, res) => {
     const importResult = await importedPayrollsCollection.insertOne(importedPayroll);
     const importedPayrollFileId = importResult.insertedId.toString();
 
-    // Return success without processing - user must click "Process All" button
-    res.status(201).json({
-      success: true,
-      message: `File "${importedPayroll.fileName}" saved successfully with ${employeeCount} employees. Click "Process All" to process the payroll.`,
-      importedPayroll: {
-        id: importedPayrollFileId,
-        ...importedPayroll
+    // Now process the payroll with the file ID
+    const processing = await processImportedPayroll(
+      {
+        fileData,
+        cutoffStart: effectiveCutoffStart,
+        cutoffEnd: effectiveCutoffEnd,
+        initiatedBy: req.user?.id || req.user?._id || req.user?.username || 'admin',
+        importedPayrollFileId: importedPayrollFileId,
+      },
+      {
+        db,
+        logger: console,
+        calculateSSSContribution,
+        calculatePhilHealthContribution,
+        calculatePagibigContribution,
       }
-    });
+    );
+
+    // Update the imported payroll status based on processing result
+    const finalStatus = (processing.httpStatus >= 200 && processing.httpStatus < 300) ? 'processed' : 'failed';
+    await importedPayrollsCollection.updateOne(
+      { _id: importResult.insertedId },
+      { 
+        $set: { 
+          status: finalStatus,
+          updatedAt: new Date()
+        } 
+      }
+    );
+
+    res.status(processing.httpStatus).json(processing.payload);
     
+    // Extract processed employee names for the audit log preview
+    const processedEmployees = (processing.payload?.results?.processed || [])
+      .map(p => p.employeeName)
+      .filter(Boolean);
+
     logActivity(req, {
       actionType: 'import',
       module: 'payroll',
-      entity: 'importedPayroll',
-      status: 'success',
+      entity: 'timekeeping',
+      status: processing.httpStatus >= 200 && processing.httpStatus < 300 ? 'success' : 'failure',
       user: req.user,
       metadata: {
         cutoffStart: effectiveCutoffStart,
         cutoffEnd: effectiveCutoffEnd,
         importedPayrollFileId: importedPayrollFileId,
-        fileName: importedPayroll.fileName,
-        employeeCount: employeeCount,
-        httpStatus: 201
+        httpStatus: processing.httpStatus,
+        isBulk: true,
+        recordCount: processedEmployees.length,
+        processedEmployees: processedEmployees.slice(0, 50), // Limit to first 50 for metadata
+        fullEmployeeList: processedEmployees // This will be stored in encrypted diffs if sensitive
       },
-      errorDetails: null,
+      errorDetails:
+        processing.httpStatus >= 200 && processing.httpStatus < 300
+          ? null
+          : processing.payload?.error || 'Import failed',
     });
   } catch (error) {
     console.error('Import error:', error);
     logActivity(req, {
       actionType: 'import',
       module: 'payroll',
-      entity: 'importedPayroll',
+      entity: 'timekeeping',
       status: 'failure',
       user: req.user,
       errorDetails: error.message,

@@ -601,12 +601,6 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
   // Process all employees from a saved imported payroll file in one click.
   const handleProcessImportedPayroll = async (importedPayroll: any) => {
-    // Check if already processed
-    if (importedPayroll.status === 'processed' || importedPayroll.status === 'completed') {
-      showModalMessage('warning', 'Already Processed', `This file has already been processed. Processing it again will create duplicate payroll records.\n\nFile Status: ${importedPayroll.status}`);
-      return;
-    }
-
     setProcessingImportedId(importedPayroll.id);
     try {
       const response = await apiService.getImportedPayroll(importedPayroll.id);
@@ -679,7 +673,7 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           if (response.success && response.data) {
             const { cutoffStart, cutoffEnd } = inferCutoffFromPreview(response.data);
 
-            // Save file WITHOUT processing (user must click "Process All" button)
+            // Process file into payroll records (backend now handles saving the imported file too)
             const importResponse = await apiService.importTimekeeping(
               base64,
               cutoffStart,
@@ -687,12 +681,17 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
             );
 
             if (importResponse.success) {
+              const created = importResponse?.results?.created || 0;
+              const updated = importResponse?.results?.updated || 0;
               showModalMessage(
                 'success',
-                'File Saved Successfully',
-                `File "${file.name}" has been saved for cutoff ${cutoffStart} to ${cutoffEnd}.\n\nClick the "Process All" button to process the payroll records.`
+                'Import Successful',
+                `File "${file.name}" imported for cutoff ${cutoffStart} to ${cutoffEnd}. Payroll processed: ${created} created, ${updated} updated.`
               );
-              fetchData(); // Refresh the payroll list
+              // Refresh the payroll list after a short delay to ensure backend has updated
+              setTimeout(() => {
+                fetchData();
+              }, 500);
               setMainViewTab('payroll'); // Switch to payroll tab to see the imported file
             }
           }
