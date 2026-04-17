@@ -715,7 +715,7 @@ function validateInputRow(row) {
 }
 
 async function processImportedPayroll(input, deps) {
-  const { fileData, cutoffStart, cutoffEnd, initiatedBy } = input || {};
+  const { fileData, cutoffStart, cutoffEnd, initiatedBy, importedPayrollFileId } = input || {};
   const { db, logger = console, calculateSSSContribution, calculatePhilHealthContribution, calculatePagibigContribution } = deps || {};
 
   if (!db) {
@@ -1134,12 +1134,14 @@ async function processImportedPayroll(input, deps) {
           grossPay: calculations.grossPay,
           totalDeductions: calculations.totalDeductions,
           netPay: calculations.netPay,
+          importedPayrollFileId: importedPayrollFileId,
         };
 
         const existingPayroll = await payrollCollection.findOne({
           employeeId: payload.employeeId,
           cutoffStart: effectiveCutoffStart,
           cutoffEnd: effectiveCutoffEnd,
+          importedPayrollFileId: importedPayrollFileId,
         });
 
         if (existingPayroll) {

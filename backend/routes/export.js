@@ -959,7 +959,7 @@ router.post('/import-preview', verifyAdminToken, async (req, res) => {
 // Import timekeeping data and create/update payroll records
 router.post('/import', verifyAdminToken, async (req, res) => {
   try {
-    const { fileData, cutoffStart, cutoffEnd } = req.body;
+    const { fileData, cutoffStart, cutoffEnd, fileName } = req.body;
 
     if (!fileData) {
       return res.status(400).json({ error: 'No file data provided' });
@@ -967,55 +967,95 @@ router.post('/import', verifyAdminToken, async (req, res) => {
 
     const client = await clientPromise;
     const db = client.db();
-    const processing = await processImportedPayroll(
-      {
-        fileData,
-        cutoffStart,
-        cutoffEnd,
-        initiatedBy: req.user?.id || req.user?._id || req.user?.username || 'admin',
-      },
-      {
-        db,
-        logger: console,
-        calculateSSSContribution,
-        calculatePhilHealthContribution,
-        calculatePagibigContribution,
+    const importedPayrollsCollection = db.collection('importedPayrolls');
+
+    // First, save the imported payroll file
+    const buffer = Buffer.from(fileData, 'base64');
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+
+    // Parse all sheets
+    const sheets = {};
+    const sheetNames = workbook.SheetNames;
+    let employeeCount = 0;
+
+    sheetNames.forEach(sheetName => {
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      
+      const headers = jsonData[0] || [];
+      const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== ''));
+      
+      sheets[sheetName] = {
+        headers,
+        rows,
+        rowCount: rows.length
+      };
+      
+      // Count employees from Total Hours - Summary sheet
+      if (sheetName === 'Total Hours - Summary') {
+        employeeCount = rows.filter(row => row[1] && row[1] !== 'Grand Total').length;
       }
-    );
+    });
 
-    res.status(processing.httpStatus).json(processing.payload);
+    // Infer cutoff from the Summary sheet when available
+    const summaryHeaders = sheets['Total Hours - Summary']?.headers || [];
+    const fallbackYear = cutoffStart ? parseInt(String(cutoffStart).split('-')[0], 10) : undefined;
+    const inferredCutoff = inferCutoffFromSummaryHeaders(summaryHeaders, fallbackYear);
+    const effectiveCutoffStart = inferredCutoff.cutoffStart || cutoffStart;
+    const effectiveCutoffEnd = inferredCutoff.cutoffEnd || cutoffEnd;
+
+    if (!effectiveCutoffStart || !effectiveCutoffEnd) {
+      return res.status(400).json({ error: 'Cutoff dates are required' });
+    }
+
+    // Create the imported payroll record
+    const importedPayroll = {
+      fileName: fileName || `Payroll_${effectiveCutoffStart}_to_${effectiveCutoffEnd}`,
+      cutoffStart: effectiveCutoffStart,
+      cutoffEnd: effectiveCutoffEnd,
+      sheets,
+      sheetNames,
+      employeeCount,
+      status: 'imported',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const importResult = await importedPayrollsCollection.insertOne(importedPayroll);
+    const importedPayrollFileId = importResult.insertedId.toString();
+
+    // Return success without processing - user must click "Process All" button
+    res.status(201).json({
+      success: true,
+      message: `File "${importedPayroll.fileName}" saved successfully with ${employeeCount} employees. Click "Process All" to process the payroll.`,
+      importedPayroll: {
+        id: importedPayrollFileId,
+        ...importedPayroll
+      }
+    });
     
-    // Extract processed employee names for the audit log preview
-    const processedEmployees = (processing.payload?.results?.processed || [])
-      .map(p => p.employeeName)
-      .filter(Boolean);
-
     logActivity(req, {
       actionType: 'import',
       module: 'payroll',
-      entity: 'timekeeping',
-      status: processing.httpStatus >= 200 && processing.httpStatus < 300 ? 'success' : 'failure',
+      entity: 'importedPayroll',
+      status: 'success',
       user: req.user,
       metadata: {
-        cutoffStart,
-        cutoffEnd,
-        httpStatus: processing.httpStatus,
-        isBulk: true,
-        recordCount: processedEmployees.length,
-        processedEmployees: processedEmployees.slice(0, 50), // Limit to first 50 for metadata
-        fullEmployeeList: processedEmployees // This will be stored in encrypted diffs if sensitive
+        cutoffStart: effectiveCutoffStart,
+        cutoffEnd: effectiveCutoffEnd,
+        importedPayrollFileId: importedPayrollFileId,
+        fileName: importedPayroll.fileName,
+        employeeCount: employeeCount,
+        httpStatus: 201
       },
-      errorDetails:
-        processing.httpStatus >= 200 && processing.httpStatus < 300
-          ? null
-          : processing.payload?.error || 'Import failed',
+      errorDetails: null,
     });
   } catch (error) {
     console.error('Import error:', error);
     logActivity(req, {
       actionType: 'import',
       module: 'payroll',
-      entity: 'timekeeping',
+      entity: 'importedPayroll',
       status: 'failure',
       user: req.user,
       errorDetails: error.message,

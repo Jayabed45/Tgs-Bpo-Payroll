@@ -9,6 +9,7 @@ class Payroll {
     this.departmentId = data.departmentId; // ObjectId reference to Department
     this.cutoffStart = data.cutoffStart;
     this.cutoffEnd = data.cutoffEnd;
+    this.importedPayrollFileId = data.importedPayrollFileId; // Reference to imported payroll file
     
     // Daily hours worked (object with date keys)
     this.dailyHours = data.dailyHours || {}; // { "2025-10-16": 8, "2025-10-17": 7.5, ... }

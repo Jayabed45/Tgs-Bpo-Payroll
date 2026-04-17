@@ -49,6 +49,138 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Download all payslips as a single PDF - MUST come before /:id route
+router.get('/download-all', async (req, res) => {
+  try {
+    const { ids } = req.query;
+    const client = await clientPromise;
+    const db = client.db();
+    const payslipsCollection = db.collection('payslips');
+    const payrollCollection = db.collection('payroll');
+    const employeesCollection = db.collection('employees');
+    const settingsDoc = await db.collection('settings').findOne({ type: 'system' });
+    const defaultAllowances = (settingsDoc && settingsDoc.data && settingsDoc.data.defaultAllowances) ? settingsDoc.data.defaultAllowances : {};
+    
+    // Parse IDs from query string
+    let payslipIds = [];
+    if (ids && typeof ids === 'string') {
+      payslipIds = ids.split(',').filter(id => ObjectId.isValid(id.trim()));
+    }
+    
+    if (payslipIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid payslip IDs provided'
+      });
+    }
+    
+    // Fetch all payslips
+    const payslips = await payslipsCollection.find({
+      _id: { $in: payslipIds.map(id => new ObjectId(id)) }
+    }).toArray();
+    
+    if (payslips.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No payslips found'
+      });
+    }
+    
+    // Generate combined PDF
+    const doc = new PDFDocument({ margin: 50 });
+    
+    // Set response headers for PDF download
+    const filename = `payslips-combined-${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Pipe PDF to response
+    doc.pipe(res);
+    
+    // Generate PDF for each payslip
+    for (let i = 0; i < payslips.length; i++) {
+      const payslip = payslips[i];
+      
+      try {
+        // Get the associated payroll data
+        const payroll = await payrollCollection.findOne({ _id: new ObjectId(payslip.payrollId) });
+        
+        if (!payroll) {
+          console.warn(`Payroll not found for payslip ${payslip._id}`);
+          continue;
+        }
+
+        let employee = null;
+        if (payroll.employeeId && ObjectId.isValid(payroll.employeeId)) {
+          employee = await employeesCollection.findOne({ _id: new ObjectId(payroll.employeeId) });
+        }
+
+        const resolvedAllowances = {
+          complexityAllowance: resolveAllowance(payroll.complexityAllowance, employee?.complexityAllowance, defaultAllowances.complexityAllowance),
+          observationalAllowance: resolveAllowance(payroll.observationalAllowance, employee?.observationalAllowance, defaultAllowances.observationalAllowance),
+          foodAllowance: resolveAllowance(payroll.foodAllowance, employee?.foodAllowance, defaultAllowances.foodAllowance),
+          transportationAllowance: resolveAllowance(payroll.transportationAllowance, employee?.transportationAllowance, defaultAllowances.transportationAllowance),
+          communicationsAllowance: resolveAllowance(payroll.communicationsAllowance, employee?.communicationsAllowance, defaultAllowances.communicationsAllowance),
+          internetAllowance: resolveAllowance(payroll.internetAllowance, employee?.internetAllowance, defaultAllowances.internetAllowance),
+          riceSubsidyAllowance: resolveAllowance(payroll.riceSubsidyAllowance, employee?.riceSubsidyAllowance, defaultAllowances.riceSubsidyAllowance),
+          clothingAllowance: resolveAllowance(payroll.clothingAllowance, employee?.clothingAllowance, defaultAllowances.clothingAllowance),
+          laundryAllowance: resolveAllowance(payroll.laundryAllowance, employee?.laundryAllowance, defaultAllowances.laundryAllowance),
+        };
+
+        const effectivePayroll = {
+          ...payroll,
+          ...resolvedAllowances,
+          employeeName: payroll.employeeName || employee?.name || payroll.employeeId,
+        };
+
+        const calculations = new Payroll(effectivePayroll).calculateAll();
+        effectivePayroll.grossPay = calculations.grossPay;
+        effectivePayroll.totalDeductions = calculations.totalDeductions;
+        effectivePayroll.netPay = calculations.netPay;
+        
+        // Generate PDF content for this payslip
+        generatePayslipPDF(doc, effectivePayroll, payslip);
+        
+        // Add page break between payslips (except after the last one)
+        if (i < payslips.length - 1) {
+          doc.addPage();
+        }
+      } catch (error) {
+        console.error(`Error processing payslip ${payslip._id}:`, error);
+      }
+    }
+    
+    // Finalize PDF
+    doc.end();
+    
+    logActivity(req, {
+      actionType: 'export',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'success',
+      user: req.user,
+      metadata: { fileType: 'pdf', filename, payslipCount: payslips.length },
+    });
+    
+  } catch (error) {
+    console.error('Error downloading all payslips:', error);
+    logActivity(req, {
+      actionType: 'export',
+      module: 'payslips',
+      entity: 'payslip',
+      status: 'failure',
+      user: req.user,
+      errorDetails: error.message,
+      errorStack: error.stack,
+      metadata: { isBulkDownload: true },
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to download payslips'
+    });
+  }
+});
+
 // Get a specific payslip
 router.get('/:id', async (req, res) => {
   try {

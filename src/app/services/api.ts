@@ -497,6 +497,33 @@ class ApiService {
     return this.handleResponse<{ success: boolean; message: string }>(response);
   }
 
+  async downloadAllPayslips(payslipIds?: string[]) {
+    const token = (typeof window !== 'undefined' ? (localStorage.getItem('token') || sessionStorage.getItem('token')) : null);
+    const url = payslipIds && payslipIds.length > 0 
+      ? `${API_BASE_URL}/payslips/download-all?ids=${payslipIds.join(',')}`
+      : `${API_BASE_URL}/payslips/download-all`;
+    
+    const response = await fetch(url, {
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+    
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        // If response is not JSON, use status text
+        errorMessage = response.statusText || errorMessage;
+      }
+      throw new Error(errorMessage);
+    }
+    
+    return response.blob();
+  }
+
   // Department API calls
   async getDepartments() {
     const response = await this.retryFetch(`${API_BASE_URL}/departments`, {

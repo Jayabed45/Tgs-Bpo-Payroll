@@ -601,6 +601,12 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
 
   // Process all employees from a saved imported payroll file in one click.
   const handleProcessImportedPayroll = async (importedPayroll: any) => {
+    // Check if already processed
+    if (importedPayroll.status === 'processed' || importedPayroll.status === 'completed') {
+      showModalMessage('warning', 'Already Processed', `This file has already been processed. Processing it again will create duplicate payroll records.\n\nFile Status: ${importedPayroll.status}`);
+      return;
+    }
+
     setProcessingImportedId(importedPayroll.id);
     try {
       const response = await apiService.getImportedPayroll(importedPayroll.id);
@@ -673,28 +679,18 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
           if (response.success && response.data) {
             const { cutoffStart, cutoffEnd } = inferCutoffFromPreview(response.data);
 
-            // Save imported workbook copy
-            const saveResponse = await apiService.saveImportedPayroll(
-              base64,
-              cutoffStart,
-              cutoffEnd,
-              file.name.replace(/\\.xlsx?$/i, '')
-            );
-
-            // Process file into payroll records
+            // Save file WITHOUT processing (user must click "Process All" button)
             const importResponse = await apiService.importTimekeeping(
               base64,
               cutoffStart,
               cutoffEnd
             );
 
-            if (saveResponse.success) {
-              const created = importResponse?.results?.created || 0;
-              const updated = importResponse?.results?.updated || 0;
+            if (importResponse.success) {
               showModalMessage(
                 'success',
-                'Import Successful',
-                `File "${file.name}" imported for cutoff ${cutoffStart} to ${cutoffEnd}. Payroll processed: ${created} created, ${updated} updated.`
+                'File Saved Successfully',
+                `File "${file.name}" has been saved for cutoff ${cutoffStart} to ${cutoffEnd}.\n\nClick the "Process All" button to process the payroll records.`
               );
               fetchData(); // Refresh the payroll list
               setMainViewTab('payroll'); // Switch to payroll tab to see the imported file
@@ -3322,54 +3318,95 @@ export default function PayrollProcessing({ onPayrollStatusChange, onPayrollChan
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {payrolls.length > 0 ? payrolls.map((p, index) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.employeeName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(p.cutoffStart).toLocaleDateString()} to {new Date(p.cutoffEnd).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    ₱{formatCurrency(p.netPay)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      p.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                      p.status === 'processed' ? 'bg-blue-100 text-blue-800' : 
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="relative group">
-                      <button className="px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
-                        <i className="bi bi-three-dots-vertical"></i>
-                      </button>
-                      <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 hidden group-hover:block z-10">
-                        <button
-                          onClick={() => handlePreviewPayroll(p)}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center"
-                        >
-                          <i className="bi bi-eye me-2"></i>Preview
-                        </button>
-                        <button
-                          onClick={() => handleEdit(p)}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 flex items-center"
-                        >
-                          <i className="bi bi-pencil me-2"></i>Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p.id)}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center"
-                        >
-                          <i className="bi bi-trash me-2"></i>Delete
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )) : (
+              {payrolls.length > 0 ? (() => {
+                // Group payrolls by importedPayrollFileId
+                const groupedPayrolls: Record<string, any[]> = {};
+                payrolls.forEach(p => {
+                  const fileId = p.importedPayrollFileId || 'ungrouped';
+                  if (!groupedPayrolls[fileId]) {
+                    groupedPayrolls[fileId] = [];
+                  }
+                  groupedPayrolls[fileId].push(p);
+                });
+
+                // Get the imported file names for display
+                const fileNames: Record<string, string> = {};
+                importedPayrolls.forEach(f => {
+                  fileNames[f.id] = f.fileName;
+                });
+
+                let rowIndex = 0;
+                return Object.entries(groupedPayrolls).map(([fileId, filePayrolls]) => (
+                  <React.Fragment key={fileId}>
+                    {/* File separator row */}
+                    {fileId !== 'ungrouped' && (
+                      <tr className="bg-indigo-50 hover:bg-indigo-100">
+                        <td colSpan={6} className="px-6 py-3">
+                          <div className="flex items-center space-x-3">
+                            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span className="font-semibold text-indigo-900">{fileNames[fileId] || 'Imported File'}</span>
+                            <span className="text-sm text-indigo-700">({filePayrolls.length} records)</span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {/* Payroll records for this file */}
+                    {filePayrolls.map((p) => {
+                      rowIndex++;
+                      return (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{rowIndex}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{p.employeeName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {new Date(p.cutoffStart).toLocaleDateString()} to {new Date(p.cutoffEnd).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+                            ₱{formatCurrency(p.netPay)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              p.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                              p.status === 'processed' ? 'bg-blue-100 text-blue-800' : 
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="relative group">
+                              <button className="px-2 py-1 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded">
+                                <i className="bi bi-three-dots-vertical"></i>
+                              </button>
+                              <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 hidden group-hover:block z-10">
+                                <button
+                                  onClick={() => handlePreviewPayroll(p)}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center"
+                                >
+                                  <i className="bi bi-eye me-2"></i>Preview
+                                </button>
+                                <button
+                                  onClick={() => handleEdit(p)}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 flex items-center"
+                                >
+                                  <i className="bi bi-pencil me-2"></i>Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(p.id)}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 flex items-center"
+                                >
+                                  <i className="bi bi-trash me-2"></i>Delete
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                ));
+              })() : (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
                     No individual payroll records found. Create a new payroll to get started.

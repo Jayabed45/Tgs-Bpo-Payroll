@@ -117,6 +117,18 @@ async function createAllIndexes() {
       { name: 'idx_payroll_dept_cutoff_status' }
     );
     
+    // Imported payroll file tracking
+    await payrollCollection.createIndex(
+      { importedPayrollFileId: 1 }, 
+      { name: 'idx_payroll_imported_file' }
+    );
+    
+    // Unique constraint: employee + cutoff + imported file (prevents duplicates within same import)
+    await payrollCollection.createIndex(
+      { employeeId: 1, cutoffStart: 1, cutoffEnd: 1, importedPayrollFileId: 1 }, 
+      { unique: true, name: 'idx_payroll_employee_cutoff_file_unique' }
+    );
+    
     console.log('Payroll indexes created');
     
     // Payslips Collection Indexes (if exists)

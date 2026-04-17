@@ -155,6 +155,7 @@ export default function Reports() {
   const [generatingAll, setGeneratingAll] = useState(false);
   const [deletingAllPayrolls, setDeletingAllPayrolls] = useState(false);
   const [deletingAllPayslips, setDeletingAllPayslips] = useState(false);
+  const [downloadingAllPayslips, setDownloadingAllPayslips] = useState(false);
   const [deletingPayrollId, setDeletingPayrollId] = useState<string | null>(null);
   const [deletingPayslipId, setDeletingPayslipId] = useState<string | null>(null);
   const [selectedPayroll, setSelectedPayroll] = useState<Payroll | null>(null);
@@ -451,6 +452,41 @@ export default function Reports() {
     setDeletingAllPayslips(false);
   };
 
+  const downloadAllPayslips = async () => {
+    if (filteredPayslips.length === 0) {
+      setWarningModal({ open: true, message: 'No payslips to download.' });
+      return;
+    }
+
+    setDownloadingAllPayslips(true);
+    try {
+      const payslipIds = filteredPayslips.map(p => p._id || p.id || '').filter(id => id);
+      
+      if (payslipIds.length === 0) {
+        throw new Error('No valid payslips to download');
+      }
+
+      const blob = await apiService.downloadAllPayslips(payslipIds);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Payslips_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setSuccessModal({ open: true, message: `Successfully downloaded ${filteredPayslips.length} payslip(s) as PDF.` });
+    } catch (error: any) {
+      console.error('Error downloading payslips:', error);
+      setErrorModal({ open: true, message: error.message || 'Failed to download payslips.' });
+    } finally {
+      setDownloadingAllPayslips(false);
+    }
+  };
+
   const toSafeTimestamp = (value: string | undefined) => {
     if (!value) return 0;
     const parsed = new Date(value).getTime();
@@ -725,13 +761,22 @@ export default function Reports() {
                 <h4 className="text-lg font-medium text-gray-900">Generated Payslips</h4>
                 <p className="text-sm text-gray-500">View and download generated payslips</p>
               </div>
-              <button
-                onClick={deleteAllFilteredPayslips}
-                disabled={deletingAllPayslips || filteredPayslips.length === 0}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-              >
-                {deletingAllPayslips ? 'Deleting...' : 'Delete All'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={downloadAllPayslips}
+                  disabled={downloadingAllPayslips || filteredPayslips.length === 0}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  {downloadingAllPayslips ? 'Downloading...' : 'Download All PDF'}
+                </button>
+                <button
+                  onClick={deleteAllFilteredPayslips}
+                  disabled={deletingAllPayslips || filteredPayslips.length === 0}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  {deletingAllPayslips ? 'Deleting...' : 'Delete All'}
+                </button>
+              </div>
             </div>
             
             {/* Combined Filters Row */}
